@@ -14,6 +14,7 @@ import { PayoutsModule } from '@modules/payouts/payouts.module';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/roles.guard';
 import { DentistAccessGuard } from '@common/guards/dentist-access.guard';
+import { StorageModule } from '@common/storage/storage.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { DentistAccessGuard } from '@common/guards/dentist-access.guard';
       }),
     }),
     DatabaseModule,
+    StorageModule,
     HealthModule,
     IdentityModule,
     CareModule,

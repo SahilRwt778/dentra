@@ -1,7 +1,7 @@
 {
   "name": "dentra-api",
   "version": "0.1.0",
-  "description": "Dentra backend \u2014 serves Patient Mobile, Dentist Mobile, Dentist Web and Admin Web from one contract (see openapi.yaml).",
+  "description": "Dentra backend — serves Patient Mobile, Dentist Mobile, Dentist Web and Admin Web from one contract (see openapi.yaml).",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -50,17 +50,18 @@
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/swagger": "^7.4.0",
     "@nestjs/terminus": "^10.2.3",
+    "@supabase/supabase-js": "^2.118.0",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "firebase-admin": "^13.10.0",
     "fontkit": "^2.0.4",
+    "livekit-server-sdk": "^2.19.2",
     "pdfkit": "^0.20.2",
     "pg": "^8.12.0",
     "razorpay": "^2.9.8",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "livekit-server-sdk": "^2.19.2"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.11",

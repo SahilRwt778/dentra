@@ -49,10 +49,10 @@ describe('Self-serve dentist application and authorization (e2e)', () => {
     return { token: verified.body.accessToken as string, mobile };
   }
 
-  async function upload(token: string, dentistId: string, type: string) {
+  function upload(token: string, dentistId: string, type: string) {
     return request(app.getHttpServer()).post(`/dentists/applications/${dentistId}/documents`)
       .set('Authorization', `Bearer ${token}`).field('docType', type)
-      .attach('file', Buffer.from(`synthetic ${type}`), `${type}.pdf`);
+      .attach('file', Buffer.from(`%PDF-1.4\nSynthetic ${type}\n%%EOF`), `${type}.pdf`);
   }
 
   async function blockedFromCare(token: string) {
@@ -140,5 +140,24 @@ describe('Self-serve dentist application and authorization (e2e)', () => {
     await request(app.getHttpServer()).post('/dentists/applications/me/submit').set(auth).expect(409);
     await request(app.getHttpServer()).post('/dentists/applications').set(auth).send(details).expect(409);
     await request(app.getHttpServer()).get(`/dentists/${created.body.id}`).expect(404);
+  });
+
+  it('serves byte-validated private documents only to the owning dentist and reviewing admin', async () => {
+    const owner = await newApplicant(), other = await newApplicant();
+    const auth = { Authorization: `Bearer ${owner.token}` };
+    const created = await request(app.getHttpServer()).post('/dentists/applications').set(auth).send(details).expect(201);
+    const id = created.body.id;
+    await request(app.getHttpServer()).post(`/dentists/applications/${id}/documents`).set(auth)
+      .field('docType', 'degree').attach('file', Buffer.from('<html>not a PDF</html>'), 'degree.pdf').expect(400);
+    const first = await upload(owner.token, id, 'degree').expect(201);
+    const url = first.body.fileUrl;
+    await request(app.getHttpServer()).get(url).expect(401);
+    await request(app.getHttpServer()).get(url).set('Authorization', `Bearer ${other.token}`).expect(403);
+    await request(app.getHttpServer()).get(url).set(auth).expect('Content-Type', /application\/pdf/)
+      .expect('Cache-Control', 'private, no-store').expect('X-Content-Type-Options', 'nosniff').expect(200);
+    await request(app.getHttpServer()).get(url).set('Authorization', `Bearer ${adminToken}`).expect(200);
+    const replacement = await upload(owner.token, id, 'degree').expect(201);
+    expect(replacement.body.id).toBe(first.body.id);
+    await request(app.getHttpServer()).get(url).set(auth).expect(200);
   });
 });

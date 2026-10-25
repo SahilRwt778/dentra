@@ -1,5 +1,3 @@
-import { createReadStream } from 'fs';
-import { extname } from 'path';
 import {
   BadRequestException,
   Body,
@@ -22,17 +20,13 @@ import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { Roles } from '@common/decorators/roles.decorator';
 import { AllowUnverifiedDentist } from '@common/decorators/allow-unverified-dentist.decorator';
-import { CurrentUser, type AuthenticatedUser } from '@common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '@common/decorators/current-user.decorator';
 import { DentistsService } from './dentists.service';
 import { DentistApplicationDto } from './dto/dentist-application.dto';
 import { KYC_DOC_TYPES, type KycDocType } from './dto/kyc-doc-type';
-
-const MIME_BY_EXT: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-};
 
 /** Maps to the Dentist Onboarding tag in ../../../openapi.yaml. */
 @ApiTags('Dentist Onboarding')
@@ -43,13 +37,19 @@ export class ApplicationsController {
 
   @Roles('dentist')
   @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: DentistApplicationDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DentistApplicationDto
+  ) {
     return this.dentists.createApplication(user.userId, dto);
   }
 
   @Roles('dentist')
   @Patch('me')
-  update(@CurrentUser() user: AuthenticatedUser, @Body() dto: DentistApplicationDto) {
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DentistApplicationDto
+  ) {
     return this.dentists.updateApplication(user.userId, dto);
   }
 
@@ -62,22 +62,28 @@ export class ApplicationsController {
 
   @Roles('dentist')
   @Post(':dentistId/documents')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } })
+  )
   uploadDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('dentistId') dentistId: string,
     @Body('docType') docType: string,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: Express.Multer.File
   ) {
     // The path carries dentistId for REST consistency with the rest of
     // the API, but self-serve upload only ever targets your own
     // application — enforced here, not left to the client to get right.
     if (dentistId !== user.userId) {
-      throw new ForbiddenException("Can't upload documents for another dentist's application.");
+      throw new ForbiddenException(
+        "Can't upload documents for another dentist's application."
+      );
     }
     if (!file) throw new BadRequestException('file is required.');
     if (!KYC_DOC_TYPES.includes(docType as KycDocType)) {
-      throw new BadRequestException(`docType must be one of: ${KYC_DOC_TYPES.join(', ')}`);
+      throw new BadRequestException(
+        `docType must be one of: ${KYC_DOC_TYPES.join(', ')}`
+      );
     }
     return this.dentists.uploadDocument(dentistId, docType as KycDocType, file);
   }
@@ -88,7 +94,7 @@ export class ApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('dentistId') dentistId: string,
     @Param('documentId') documentId: string,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: Response
   ): Promise<StreamableFile> {
     // KYC documents (a government ID, a selfie) — never a static,
     // guessable-URL asset. The owning dentist or an admin reviewing the
@@ -100,9 +106,13 @@ export class ApplicationsController {
     if (!file) throw new NotFoundException('No such document.');
 
     res.set({
-      'Content-Type': MIME_BY_EXT[extname(file.filename).toLowerCase()] ?? 'application/octet-stream',
+      'Content-Type': file.mimeType,
+      'Content-Length': String(file.bytes.length),
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "sandbox; default-src 'none'",
       'Content-Disposition': `inline; filename="${file.filename}"`,
     });
-    return new StreamableFile(createReadStream(file.path));
+    return new StreamableFile(file.bytes);
   }
 }

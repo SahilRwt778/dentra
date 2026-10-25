@@ -220,7 +220,7 @@ describe('Admin: dentist review, audit log, privacy requests (e2e)', () => {
         .post(`/dentists/applications/${dentistId}/documents`)
         .set('Authorization', `Bearer ${dentistToken}`)
         .field('docType', docType)
-        .attach('file', Buffer.from(`${docType}-bytes`), `${docType}.txt`)
+        .attach('file', Buffer.from(`%PDF-1.4\nSynthetic ${docType}\n%%EOF`), `${docType}.pdf`)
         .expect(201);
     }
 

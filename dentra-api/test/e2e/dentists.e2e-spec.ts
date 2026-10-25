@@ -307,7 +307,7 @@ describe('Dentists (e2e)', () => {
     expect(remaining.body).toHaveLength(0);
   });
 
-  it('uploads a KYC document, re-upload overwrites it, and a dentist cannot upload to another one\'s application', async () => {
+  it('uploads and replaces a KYC document, and a dentist cannot upload to another one\'s application', async () => {
     const token = await verifiedDentistToken(freshMobile());
     const created = await request(app.getHttpServer())
       .post('/dentists/applications')
@@ -328,35 +328,34 @@ describe('Dentists (e2e)', () => {
       .post(`/dentists/applications/${dentistId}/documents`)
       .set('Authorization', `Bearer ${token}`)
       .field('docType', 'degree')
-      .attach('file', Buffer.from('fake degree certificate bytes'), 'degree.pdf')
+      .attach('file', Buffer.from('%PDF-1.4\nSynthetic degree certificate\n%%EOF'), 'degree.pdf')
       .expect(201);
     expect(uploaded.body.docType).toBe('degree');
     expect(uploaded.body.fileUrl).toBeTruthy();
     expect(uploaded.body.verifiedAt).toBeNull();
 
-    // Re-upload the same docType overwrites the same canonical path
-    // rather than accumulating versions — same row (unique (dentist_id,
-    // doc_type) constraint on dentist_documents), same fileUrl, but the
-    // file on disk now holds the new bytes.
+    // Re-upload keeps the document row and authenticated URL stable,
+    // while the storage adapter replaces the underlying private object.
+    const corrected = '%PDF-1.4\nSynthetic corrected degree certificate\n%%EOF';
     const reuploaded = await request(app.getHttpServer())
       .post(`/dentists/applications/${dentistId}/documents`)
       .set('Authorization', `Bearer ${token}`)
       .field('docType', 'degree')
-      .attach('file', Buffer.from('a corrected degree certificate'), 'degree-v2.pdf')
+      .attach('file', Buffer.from(corrected), 'degree-v2.pdf')
       .expect(201);
     expect(reuploaded.body.id).toBe(uploaded.body.id);
     expect(reuploaded.body.fileUrl).toBe(uploaded.body.fileUrl);
 
     // fileUrl is the authenticated download route, not a disk path or a
     // static asset URL — fetching it is how we confirm the re-upload
-    // actually overwrote the stored bytes, not just the DB row.
+    // actually replaced the stored bytes, not just the DB row.
     const downloaded = await request(app.getHttpServer())
       .get(reuploaded.body.fileUrl)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     // Binary content type (application/pdf) — superagent buffers it into
     // .body as a raw Buffer rather than parsing it as .text.
-    expect(Buffer.from(downloaded.body).toString()).toBe('a corrected degree certificate');
+    expect(Buffer.from(downloaded.body).toString()).toBe(corrected);
     expect(downloaded.headers['content-type']).toBe('application/pdf');
 
     const otherDentistToken = await verifiedDentistToken(freshMobile());

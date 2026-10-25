@@ -1,3 +1,4 @@
+import { DentistDocumentsStorage } from './dentists/documents.storage';
 import { Module } from '@nestjs/common';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
@@ -27,7 +28,7 @@ import { NotificationsModule } from '@modules/notifications/notifications.module
 @Module({
   imports: [NotificationsModule],
   controllers: [AuthController, PatientsController, AvailabilityController, DentistsController, ApplicationsController],
-  providers: [AuthService, OtpService, UsersService, TokensService, PatientsService, DentistsService, AvailabilityService],
+  providers: [DentistDocumentsStorage, AuthService, OtpService, UsersService, TokensService, PatientsService, DentistsService, AvailabilityService],
   exports: [UsersService, DentistsService, OtpService, AvailabilityService],
 })
 export class IdentityModule {}

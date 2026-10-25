@@ -22,6 +22,8 @@ async function main() {
     databaseUrl.searchParams.set('options', `-c search_path=${schema},public`);
     const isolated = new Pool({ connectionString: databaseUrl.toString() });
     try {
+      const selected = await isolated.query('select current_schema() as name');
+      if (selected.rows[0].name !== schema) throw new Error('The database pooler did not select the disposable test schema. No test data was applied.');
       await isolated.query(readFileSync(path.join(__dirname, '../schema.sql'), 'utf8'));
     } finally {
       await isolated.end();
@@ -44,6 +46,10 @@ async function main() {
           DATABASE_URL: databaseUrl.toString(),
           NODE_ENV: 'test',
           PATIENT_FILES_DIRECTORY: filesDirectory,
+          DENTIST_FILES_DIRECTORY: path.join(filesDirectory, 'dentists'),
+          STORAGE_PROVIDER: 'local',
+          SUPABASE_SECRET_KEY: '',
+          SUPABASE_SERVICE_ROLE_KEY: '',
           PUSH_ENABLED: 'false',
           VIDEO_ENABLED: 'false',
           LIVEKIT_URL: 'wss://synthetic.livekit.test',

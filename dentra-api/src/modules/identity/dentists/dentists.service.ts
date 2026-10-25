@@ -2,6 +2,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -17,7 +18,7 @@ import { UsersService } from '../users/users.service';
 import type { DentistApplicationDto } from './dto/dentist-application.dto';
 import type { DentistSelfUpdateDto } from './dto/dentist-self-update.dto';
 import type { ClinicInputDto } from './dto/clinic-input.dto';
-import { storeDocument, resolveDocumentPath } from './documents.storage';
+import { DentistDocumentsStorage } from './documents.storage';
 import type { KycDocType } from './dto/kyc-doc-type';
 import { REQUIRED_KYC_DOC_TYPES } from './dto/kyc-doc-type';
 import { NotificationsService } from '@modules/notifications/notifications.service';
@@ -36,11 +37,13 @@ export interface ClinicResponse {
 
 @Injectable()
 export class DentistsService {
+  private readonly logger = new Logger(DentistsService.name);
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly users: UsersService,
     private readonly notifications: NotificationsService,
     private readonly availability: AvailabilityService,
+    private readonly documents: DentistDocumentsStorage,
   ) {}
 
   // ---------- public, patient-facing ----------
@@ -233,49 +236,56 @@ export class DentistsService {
 
   async uploadDocument(dentistId: string, docType: KycDocType, file: { buffer: Buffer; originalname: string }) {
     const client = await this.pool.connect();
+    let stored: string | undefined;
+    let committing = false;
     try {
       await client.query('BEGIN');
       const { rows: dentists } = await client.query('select status, submitted_by from dentists where user_id = $1 for update', [dentistId]);
       const dentist = dentists[0];
       if (!dentist) throw new NotFoundException('No application on file.');
-      if (dentist.status !== 'draft' && !(dentist.status === 'pending_review' && dentist.submitted_by === 'admin')) {
+      if (dentist.status !== 'draft' && !(dentist.status === 'pending_review' && dentist.submitted_by === 'admin'))
         throw new ConflictException('Documents cannot be changed after your application has been submitted.');
-      }
-      const fileUrl = await storeDocument(dentistId, docType, file);
+      const { rows: previous } = await client.query(
+        'select file_url from dentist_documents where dentist_id=$1 and doc_type=$2', [dentistId, docType]
+      );
+      stored = await this.documents.save(dentistId, docType, file.buffer);
       const { rows } = await client.query(
         `insert into dentist_documents (dentist_id, doc_type, file_url)
          values ($1, $2, $3)
          on conflict (dentist_id, doc_type)
          do update set file_url = excluded.file_url, uploaded_at = now(), verified_by = null, verified_at = null
          returning id, doc_type, file_url, uploaded_at, verified_at`,
-        [dentistId, docType, fileUrl],
+        [dentistId, docType, stored]
       );
+      committing = true;
       await client.query('COMMIT');
+      if (previous[0]?.file_url && previous[0].file_url !== stored)
+        await this.removeUnusedDocument(dentistId, previous[0].file_url);
       const r = rows[0];
       return {
-        id: r.id,
-        docType: r.doc_type,
-        fileUrl: this.downloadUrlFor(dentistId, r.id),
-        uploadedAt: r.uploaded_at,
-        verifiedAt: r.verified_at,
+        id: r.id, docType: r.doc_type, fileUrl: this.downloadUrlFor(dentistId, r.id),
+        uploadedAt: r.uploaded_at, verifiedAt: r.verified_at,
       };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      // A lost COMMIT response is ambiguous: keep the new object rather than deleting a possibly saved document.
+      if (stored && !committing) await this.removeUnusedDocument(dentistId, stored);
+      throw error;
+    } finally { client.release(); }
   }
 
-  /** Resolves a document to a readable disk path + its original filename, or null if it doesn't belong to this dentist. */
-  async getDocumentFile(dentistId: string, documentId: string): Promise<{ path: string; filename: string } | null> {
+  private async removeUnusedDocument(dentistId: string, reference: string) {
+    try { await this.documents.remove(dentistId, reference); }
+    catch { this.logger.warn('An unused dentist document could not be removed.'); }
+  }
+
+  async getDocumentFile(dentistId: string, documentId: string) {
     const { rows } = await this.pool.query(
       'select file_url from dentist_documents where id = $1 and dentist_id = $2',
-      [documentId, dentistId],
+      [documentId, dentistId]
     );
-    const fileUrl = rows[0]?.file_url;
-    if (!fileUrl) return null;
-    return { path: resolveDocumentPath(fileUrl), filename: fileUrl.split('/').pop()! };
+    if (!rows[0]?.file_url) return null;
+    return this.documents.read(dentistId, rows[0].file_url);
   }
 
   // ---------- self-service ----------

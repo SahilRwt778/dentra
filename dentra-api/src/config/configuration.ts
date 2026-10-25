@@ -9,6 +9,13 @@ export interface AppConfig {
   port: number;
   databaseUrl: string;
   patientFilesDirectory: string;
+  dentistFilesDirectory: string;
+  storage: {
+    provider: 'local' | 'supabase';
+    url: string;
+    secretKey: string;
+    bucket: string;
+  };
   corsOrigins: string[];
   jwt: {
     accessSecret: string;
@@ -44,6 +51,9 @@ export default (): AppConfig => ({
   databaseUrl: required('DATABASE_URL'),
   patientFilesDirectory:
     process.env.PATIENT_FILES_DIRECTORY ?? `${process.cwd()}/uploads/patients`,
+  dentistFilesDirectory:
+    process.env.DENTIST_FILES_DIRECTORY ?? `${process.cwd()}/uploads/dentists`,
+  storage: storageConfiguration(),
   // Every browser client (dentra-web-admin today, dentra-web-dentist
   // later) is a separate origin from this API — without this, the
   // browser blocks every request before it even reaches a route, no
@@ -98,4 +108,36 @@ function required(key: string): string {
     throw new Error(`Missing required env var: ${key} (see .env.example)`);
   }
   return value;
+}
+
+function storageConfiguration(): AppConfig['storage'] {
+  const provider = process.env.STORAGE_PROVIDER ?? 'local';
+  if (provider !== 'local' && provider !== 'supabase')
+    throw new Error('STORAGE_PROVIDER must be local or supabase.');
+  const url = process.env.SUPABASE_URL ?? '';
+  const secretKey =
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    '';
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'dentra-private';
+  if (provider === 'supabase') {
+    if (!url || !secretKey)
+      throw new Error(
+        'Supabase storage requires SUPABASE_URL and SUPABASE_SECRET_KEY.'
+      );
+    const endpoint = new URL(url);
+    if (
+      endpoint.protocol !== 'https:' ||
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.search ||
+      endpoint.hash
+    )
+      throw new Error('SUPABASE_URL must be the HTTPS project URL.');
+    if (secretKey.startsWith('sb_publishable_'))
+      throw new Error(
+        'SUPABASE_SECRET_KEY must be a server secret key, not a publishable key.'
+      );
+  }
+  return { provider, url, secretKey, bucket };
 }
