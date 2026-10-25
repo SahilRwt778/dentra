@@ -1,0 +1,48 @@
+# First deployment: API only. Deploy the web portals afterwards with render.web.yaml.
+services:
+  - type: web
+    name: dentra-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: dentra-api
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.2
+      - key: NODE_ENV
+        value: production
+      - key: STORAGE_PROVIDER
+        value: supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: dentra-private
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: OTP_HASH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+      - key: CORS_ORIGINS
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      # Enable after adding the corresponding Cloud credentials in Render.
+      - key: VIDEO_ENABLED
+        value: "false"
+      - key: PUSH_ENABLED
+        value: "false"
