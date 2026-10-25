@@ -1,0 +1,47 @@
+# Dependencies and generated output
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
+**/Pods/
+**/DerivedData/
+**/.gradle/
+**/.kotlin/
+**/.cxx/
+**/vendor/bundle/
+/tmp/
+/output/
+*.tsbuildinfo
+*.jsbundle
+*.log
+.DS_Store
+
+# Local settings, credentials and private patient files
+**/.env
+**/.env.*
+!**/.env.example
+**/.secrets/
+**/.aws/
+**/uploads/
+**/google-services.json
+**/GoogleService-Info.plist
+**/.xcode.env.local
+**/local.properties
+*.pem
+*.p8
+*.p12
+*.mobileprovision
+*.jks
+*.keystore
+!**/debug.keystore
+
+# IDE and machine-specific state
+**/xcuserdata/
+*.xcuserstate
+.idea/
+.vscode/
+.codex/
+.metro-health-check*
+*.ipa
+*.apk
+*.aab

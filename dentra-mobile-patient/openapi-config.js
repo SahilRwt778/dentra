@@ -1,0 +1,42 @@
+/** @type {import('@rtk-query/codegen-openapi').ConfigFile} */
+const config = {
+  schemaFile: '../dentra-api/openapi.yaml',
+  apiFile: './src/api/base-api.ts',
+  apiImport: 'baseApi',
+  outputFile: './src/api/generated/patient-api.ts',
+  exportName: 'dentraApi',
+  hooks: { queries: true, lazyQueries: true, mutations: true },
+  tag: true,
+  // Generate the patient app's contract; feature modules expose the app-facing hooks.
+  filterEndpoints: [
+    'postAuthOtpRequest',
+    'postAuthOtpVerify',
+    'postPatientsRegister',
+    'getPatientsMe',
+    'patchPatientsMe',
+    'getPatientsMeChart',
+    'postPatientsMeFiles',
+    'getPatientsMeFiles',
+    'deletePatientsMeFilesByFileId',
+    'getAppointmentsByAppointmentIdAttachments',
+    'getDentists',
+    'getDentistsByDentistId',
+    'getDentistsByDentistIdSlots',
+    'getAppointments',
+    'postAppointments',
+    'getAppointmentsByAppointmentId',
+    'postAppointmentsByAppointmentIdCancel',
+    'postAppointmentsByAppointmentIdReschedule',
+    'getAppointmentsByAppointmentIdConsultation',
+    'getAppointmentsByAppointmentIdPrescriptionPdf',
+    'getAppointmentsByAppointmentIdVisitSummaryPdf',
+    'getAppointmentsByAppointmentIdVideo',
+    'postAppointmentsByAppointmentIdVideoToken',
+    'getNotifications',
+    'patchNotificationsByNotificationIdRead',
+    'postNotificationsReadAll',
+    'postPrivacyRequests',
+  ],
+};
+
+module.exports = config;

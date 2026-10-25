@@ -1,0 +1,18 @@
+{
+  "name": "@dentra/video",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
+  "peerDependencies": {
+    "@dentra/call-core": "*",
+    "@livekit/react-native": "^3.1.0",
+    "@livekit/react-native-webrtc": "^150.1.0",
+    "livekit-client": "^2.23.0",
+    "react": "*",
+    "react-native": "*",
+    "react-native-safe-area-context": "*",
+    "react-native-image-picker": "*",
+    "@react-native-documents/picker": "*"
+  }
+}

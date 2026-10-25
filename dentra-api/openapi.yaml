@@ -1,0 +1,3353 @@
+openapi: 3.1.0
+info:
+  title: Dentra API
+  version: "0.1.0"
+  description: >
+    Backend for all four Dentra clients (Patient Mobile, Dentist Mobile,
+    Dentist Web, Admin Web). One contract, enforced server-side — a role
+    check or a slot check failing only in a client's UI is a bug, not a
+    feature. Phase 1 scope: auth, onboarding (both paths), booking with
+    race-safe slot locking, consultation + prescription, cancellation,
+    reschedule, admin review, privacy requests, audit log.
+servers:
+  - url: https://api.dentra.in/v1
+    description: Production
+  - url: https://api.staging.dentra.in/v1
+    description: Staging
+
+tags:
+  - name: Auth
+  - name: Patients
+  - name: Patient Files
+  - name: Dentists
+  - name: Dentist Onboarding
+  - name: Admin
+  - name: Appointments
+  - name: Consultations
+  - name: Payments
+  - name: Privacy
+  - name: Notifications
+
+security:
+  - bearerAuth: []
+
+paths:
+  /video/webhook:
+    post:
+      tags: [Appointments]
+      summary: Receive LiveKit events authenticated by their signed Authorization header and raw-body checksum
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/webhook+json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "204": { description: Verified event accepted }
+        "401": { description: Missing or invalid LiveKit signature }
+  /appointments/{appointmentId}/prescription/pdf:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    get:
+      tags: [Consultations]
+      summary: Download the assigned participant's signed prescription PDF
+      description: Active patient owner after visit completion, or active verified treating dentist after signing. Uses a saved document snapshot. No unsigned prescription export. Historical records are captured on their first export.
+      responses:
+        "200":
+          description: Private PDF download, never publicly cached
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404": { description: Appointment unavailable or belongs to another user }
+        "409": { description: Prescription unsigned, empty, cancelled, or visit not yet completed for the patient }
+        "422": { description: Record contains unsupported characters or is too long for one PDF }
+  /appointments/{appointmentId}/visit-summary/pdf:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    get:
+      tags: [Consultations]
+      summary: Download a completed visit summary PDF
+      description: Active patient owner or active verified treating dentist only. Includes saved clinical notes, diagnosis, treatment, plan, follow-up and the signed prescription when present. Snapshot captured atomically with completion; historical records are captured on first export.
+      responses:
+        "200":
+          description: Private PDF download, never publicly cached
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404": { description: Appointment unavailable or belongs to another user }
+        "409": { description: Visit is not completed }
+        "422": { description: Record contains unsupported characters or is too long for one PDF }
+  /patients/me/files:
+    post:
+      tags: [Patient Files]
+      summary: Upload a private photo or PDF for a future booking (patient only)
+      description: Maximum 10 MiB. JPEG, PNG or PDF verified from content. An uploadKey makes retries idempotent. Unattached uploads expire after 24 hours. At most 20 unused uploads per patient.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [uploadKey, file]
+              properties:
+                uploadKey: { type: string, format: uuid }
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Private upload, including an idempotent retry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PatientFile" }
+        "400": { description: Invalid file or upload key }
+        "409": { description: Expired upload key, content mismatch or unused-upload quota reached }
+        "413": { description: File exceeds 10 MiB }
+    get:
+      tags: [Patient Files]
+      summary: List the patient's own files, including unused uploads
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - in: query
+          name: appointmentId
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Newest first, 20 per page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PatientFilePage" }
+  /patients/me/files/{fileId}:
+    delete:
+      tags: [Patient Files]
+      summary: Remove an unused upload (patient only)
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Removed; content is inaccessible immediately }
+        "404": { description: Not owned by the caller }
+        "409": { description: File is already part of a booking's records }
+  /appointments/{appointmentId}/attachments:
+    get:
+      tags: [Patient Files]
+      summary: List files for the assigned patient or treating dentist
+      parameters:
+        - in: path
+          name: appointmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Appointment attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PatientFile" }
+        "404": { description: Appointment does not belong to the caller }
+  /patient-files/{fileId}/content:
+    get:
+      tags: [Patient Files]
+      summary: Download private content with bearer authentication
+      description: The active patient owner can read their own file; only the assigned verified dentist can read a file bound to an appointment. Admins cannot read patient attachments. No public URLs are issued. Content is served as an attachment with private, no-store caching.
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Original bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "404": { description: File unavailable or caller has no access }
+  /appointments/{appointmentId}/video:
+    get:
+      tags: [Consultations]
+      summary: Check the assigned participant's video joining window and current room
+      parameters:
+        - in: path
+          name: appointmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Appointment-scoped video availability; never includes a call token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoStatus" }
+        "404": { description: Appointment does not belong to the caller }
+
+  /appointments/{appointmentId}/video/token:
+    post:
+      tags: [Consultations]
+      summary: Issue LiveKit connection credentials for the assigned patient or dentist
+      description: Requires a live login session, active verified treating dentist, paid video appointment, and joining window from ten minutes before until two hours after its scheduled start. Room names and participant identities are generated by the server. Credentials are revoked on role replacement or meeting cleanup; they are not short-lived JWTs.
+      parameters:
+        - in: path
+          name: appointmentId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [platform]
+              properties:
+                platform: { type: string, enum: [android, ios, web] }
+      responses:
+        "200":
+          description: No-store appointment room credentials; keep only in memory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoSession" }
+        "404": { description: Appointment does not belong to the caller }
+        "409": { description: Call is not currently joinable }
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Read the authenticated patient, dentist or admin notification inbox
+      description: Returns newest first, 20 per page with private no-store caching. Patients receive booking, cancellation, reschedule, one-hour reminder and visit-summary events; dentists receive appointment bookings and withdrawal status updates; admins receive dentist onboarding and withdrawal requests. unreadCount includes older pages. Notifications are saved atomically with the event; retries do not duplicate them.
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string, format: uuid }
+          description: nextCursor from the preceding page; must belong to the authenticated user.
+      responses:
+        "200":
+          description: Personal notification inbox
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor, unreadCount]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Notification" } }
+                  nextCursor: { type: string, format: uuid, nullable: true }
+                  unreadCount: { type: integer, minimum: 0 }
+        "403": { description: Patient, admin or approved dentist access required }
+        "404": { description: Cursor does not identify one of this user's notifications }
+
+  /notifications/{notificationId}:
+    get:
+      tags: [Notifications]
+      summary: Resolve a push notification using the current recipient's account
+      parameters:
+        - in: path
+          name: notificationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Owned notification, including its destination appointment, withdrawal or application
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Notification" }
+        "404": { description: Notification is not owned by the authenticated recipient }
+
+  /notifications/push-device:
+    get:
+      tags: [Notifications]
+      summary: Check whether phone notification delivery is available
+      responses:
+        "200":
+          description: Availability for the current app environment
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available]
+                properties:
+                  available: { type: boolean }
+    put:
+      tags: [Notifications]
+      summary: Register the current patient login session's phone for FCM
+      description: The installation and session IDs come from signed access-token claims. Token changes or account changes invalidate old queued deliveries. Requires a live refresh session and completed patient registration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, platform]
+              properties:
+                token: { type: string, minLength: 32, maxLength: 4096 }
+                platform: { type: string, enum: [android, ios] }
+      responses:
+        "200":
+          description: Registered device; FCM token is never returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, platform, enabled, lastSeenAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  platform: { type: string, enum: [android, ios] }
+                  enabled: { type: boolean }
+                  lastSeenAt: { type: string, format: date-time }
+        "403": { description: Patient access required }
+        "409": { description: Sign in again; the login session is missing or no longer active }
+    delete:
+      tags: [Notifications]
+      summary: Disable push for the current patient session's phone
+      responses:
+        "204": { description: Registration disabled; repeats are safe }
+        "403": { description: Patient access required }
+
+  /notifications/{notificationId}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark one of the authenticated user’s notifications read
+      parameters:
+        - in: path
+          name: notificationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Read state saved; repeat calls preserve the original readAt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Notification" }
+        "404": { description: No notification owned by this user }
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Mark the displayed notification snapshot and older notifications read
+      description: An event arriving after the specified notification remains unread.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [through]
+              properties:
+                through: { type: string, format: uuid, description: ID of the newest displayed notification }
+      responses:
+        "200":
+          description: Read state saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [markedRead]
+                properties:
+                  markedRead: { type: integer, minimum: 0 }
+        "404": { description: Snapshot notification is not owned by this user }
+
+  /auth/otp/request:
+    post:
+      tags: [Auth]
+      summary: Send an OTP to a mobile number (patient or dentist login/signup)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobile, purpose]
+              properties:
+                mobile:
+                  type: string
+                  pattern: '^\+[1-9][0-9]{7,14}$'
+                  example: "+919820010482"
+                purpose:
+                  type: string
+                  enum: [patient, dentist]
+                  description: Which app is requesting the code; resolves to the matching role's account lookup.
+      responses:
+        "200":
+          description: Code sent. isNewAccount is true whenever no profile exists yet for this role — a brand-new patient AND a brand-new dentist applicant both verify first, then complete their profile (POST /patients/register or POST /dentists/applications) with the token this flow ends in.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  otpId: { type: string, format: uuid }
+                  expiresInSeconds: { type: integer, example: 300 }
+                  resendAfterSeconds: { type: integer, example: 30 }
+                  isNewAccount: { type: boolean, description: "True if no profile (Patient or Dentist application) exists yet for this number under the requested role." }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429":
+          description: Rate limited — too many requests for this number
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auth/otp/verify:
+    post:
+      tags: [Auth]
+      summary: Verify an OTP and issue tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otpId, code, deviceId]
+              properties:
+                otpId: { type: string, format: uuid }
+                code: { type: string, pattern: '^[0-9]{4}$', minLength: 4, maxLength: 4, description: "The generated 4-digit OTP, including any leading zeros. No bypass codes are accepted." }
+                deviceId: { type: string, description: Stable per app install; used to scope the refresh token. }
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401":
+          description: Wrong code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "410":
+          description: Code expired — request a new one
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "423":
+          description: Locked after 5 failed attempts — retry after 15 minutes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auth/admin/login:
+    post:
+      tags: [Auth]
+      summary: Admin email + password login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+                deviceId: { type: string, minLength: 1, maxLength: 200, description: "Stable browser identifier for an independent refresh-token session. Older clients use the legacy admin-web slot." }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "401":
+          description: Wrong email or password
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for a new access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200":
+          description: Rotated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "401":
+          description: Refresh token invalid, expired, or revoked (e.g. device was logged out remotely from Admin Web)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auth/logout:
+    post:
+      security: []
+      tags: [Auth]
+      description: The opaque refresh token authorizes revocation of its own session family. This also disables associated push registrations, including after access-token expiry.
+      summary: Revoke the refresh token's login session and its phone notification binding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "204": { description: Logged out }
+
+  /patients/register:
+    post:
+      tags: [Patients]
+      summary: Complete registration after a new-signup OTP verify
+      description: Called once, right after /auth/otp/verify returned isNewAccount=true. Guardian fields are required by the server, not just the client, when dateOfBirth implies under 18.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatientRegistration" }
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Patient" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: This account already has a patient profile — register runs once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Minor without complete, consented guardian details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /patients/me:
+    get:
+      tags: [Patients]
+      summary: My profile
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Patient" }
+        "404":
+          description: OTP verified but POST /patients/register hasn't run yet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      tags: [Patients]
+      summary: Update my profile or medical history
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatientUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Patient" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404":
+          description: OTP verified but POST /patients/register hasn't run yet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /patients/me/chart:
+    get:
+      tags: [Patients]
+      summary: My current dental chart (latest status per tooth, computed server-side from the append-only history)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ChartEntry" }
+
+  /dentists:
+    get:
+      tags: [Dentists]
+      summary: Search verified dentists (patient-facing)
+      parameters:
+        - name: specialization
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          description: Filter to dentists offering this visit type
+          schema: { type: string, enum: [video, clinic] }
+        - name: q
+          in: query
+          description: Free-text match against name, specialization, clinic names, languages
+          schema: { type: string }
+        - { $ref: "#/components/parameters/PageParam" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/DentistPublic" }
+                  nextPage: { type: integer, nullable: true }
+
+  /dentists/{dentistId}:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    get:
+      tags: [Dentists]
+      summary: Dentist profile, with all clinic locations and fees (patient-facing)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DentistPublic" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /dentists/{dentistId}/slots:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    get:
+      tags: [Dentists]
+      summary: Open slots for a date
+      description: >
+        For type=clinic, clinicId is required once the dentist has more
+        than one location — slots are computed from that clinic's hours.
+        For type=video, clinicId is ignored; slots come from the
+        dentist's own video hours. Already-booked times are excluded
+        regardless of clinic, because a dentist can only be in one place
+        at a time.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: type
+          in: query
+          required: true
+          schema: { type: string, enum: [video, clinic] }
+        - name: clinicId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date: { type: string, format: date }
+                  slots:
+                    type: array
+                    items: { type: string, example: "14:30" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /dentists/applications:
+    post:
+      tags: [Dentist Onboarding]
+      summary: Create a self-serve dentist application draft
+      description: Requires a dentist-role token from POST /auth/otp/verify. Saves details as draft; upload KYC documents, then POST /dentists/applications/me/submit to send the request to admin review. Only verified dentists can access clinical APIs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DentistApplication" }
+      responses:
+        "201":
+          description: Draft saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: This account already has a dentist application or profile — it runs once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dentists/applications/me:
+    patch:
+      tags: [Dentist Onboarding]
+      summary: Update your self-serve draft before submission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DentistApplication" }
+      responses:
+        "200":
+          description: Draft updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Application is already submitted or was created by admin
+
+  /dentists/applications/me/submit:
+    post:
+      tags: [Dentist Onboarding]
+      summary: Send your completed application to admin review
+      description: Requires degree, council registration, government ID and selfie uploads. Transitions draft to pending_review. Repeating a pending submission is safe. Approval or rejection is admin-only.
+      responses:
+        "200":
+          description: Sent to admin; wait for approval before accessing the clinic portal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Application cannot be submitted in its current state
+        "422":
+          description: Required KYC documents are missing
+
+  /dentists/applications/{dentistId}/documents:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    post:
+      tags: [Dentist Onboarding]
+      summary: Upload one KYC document for an application
+      description: Upload to your draft before submission. Admin-created pending applications also accept uploads. Maximum file size is 10 MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [docType, file]
+              properties:
+                docType: { $ref: "#/components/schemas/KycDocType" }
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DentistDocument" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /dentists/applications/{dentistId}/documents/{documentId}:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+      - name: documentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Dentist Onboarding]
+      summary: Download one KYC document's bytes
+      description: >
+        The owning dentist or an admin reviewing the application — never
+        served as a static, guessable-URL asset, since these are a
+        government ID and a selfie.
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/me:
+    get:
+      tags: [Admin]
+      summary: Read the signed-in admin's profile
+      responses:
+        '200':
+          description: Own profile, including the actual login email; never includes credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProfile' }
+        '403': { description: Active admin account required }
+    patch:
+      tags: [Admin]
+      summary: Update the signed-in admin's profile
+      description: Changes persist in the database and audit log atomically. Supply the last-read version to prevent lost updates. Changing the login email requires the current password. The same account ID and password remain in use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminProfileUpdate' }
+      responses:
+        '200':
+          description: Saved profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProfile' }
+        '400': { description: Invalid values or missing current password for an email change }
+        '403': { description: Active admin account required or current password incorrect }
+        '409': { description: Stale version or email/mobile number already in use }
+
+  /admin/settings:
+    get:
+      tags: [Admin]
+      summary: Read shared platform settings
+      responses:
+        '200':
+          description: Saved platform details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlatformSettings' }
+        '403': { description: Active admin account required }
+    patch:
+      tags: [Admin]
+      summary: Update platform settings
+      description: Admin-only, persisted and audited atomically. Supply the last-read version to prevent another admin's changes from being overwritten.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlatformSettingsUpdate' }
+      responses:
+        '200':
+          description: Saved platform details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlatformSettings' }
+        '400': { description: Invalid platform settings }
+        '403': { description: Active admin account required }
+        '409': { description: Settings changed since the form was opened }
+
+  /admin/payments:
+    get:
+      tags: [Admin]
+      summary: Recorded payments with filtered totals and current gateway configuration
+      description: Admin-only, read-only transaction reporting. Totals cover every matching transaction, not just the current page. Date filters use the transaction creation date in India Standard Time. Gateway metadata reports server configuration, not a live provider connectivity check; credentials are never returned.
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/PaymentStatus" }
+        - name: method
+          in: query
+          schema: { $ref: "#/components/schemas/PaymentMethod" }
+        - name: q
+          in: query
+          description: Search patient or dentist names, transaction or appointment IDs, and gateway references.
+          schema: { type: string, maxLength: 100 }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+      responses:
+        "200":
+          description: Newest transactions first, 20 per page, with totals from the same database snapshot
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPayments" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/payments/{transactionId}/refund/retry:
+    post:
+      tags: [Admin]
+      summary: Recheck or retry a failed refund request
+      description: Admin-only, audited recovery. Reuses the original saved request UUID and amount. If the gateway already assigned a refund ID, only its status is fetched; no new refund is created. An already pending request is a no-op.
+      parameters:
+        - in: path
+          name: transactionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Saved refund request queued for background processing
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queued]
+                properties:
+                  queued: { type: boolean }
+        '403': { description: Admin role required }
+        '404': { description: Transaction not found }
+        '409': { description: No unresolved refund request }
+
+  /dentists/me/wallet:
+    get:
+      tags: [Wallet]
+      operationId: getDentistWallet
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DentistWallet' }
+  /dentists/me/withdrawals:
+    get:
+      tags: [Wallet]
+      operationId: listDentistWithdrawals
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100000, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/WithdrawalStatus' } }
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalPage' }
+    post:
+      tags: [Wallet]
+      operationId: requestDentistWithdrawal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequestWithdrawal' }
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalDetail' }
+  /dentists/me/withdrawals/{withdrawalId}:
+    get:
+      tags: [Wallet]
+      operationId: getDentistWithdrawal
+      parameters:
+        - { in: path, name: withdrawalId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalDetail' }
+  /admin/wallet-settings:
+    get:
+      tags: [Wallet]
+      operationId: getWalletSettings
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WalletSettings' }
+    patch:
+      tags: [Wallet]
+      operationId: updateWalletSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WalletSettingsUpdate' }
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WalletSettings' }
+  /admin/withdrawals:
+    get:
+      tags: [Wallet]
+      operationId: listAdminWithdrawals
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100000, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/WithdrawalStatus' } }
+        - { in: query, name: q, schema: { type: string, maxLength: 100 } }
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalPage' }
+  /admin/withdrawals/{withdrawalId}:
+    get:
+      tags: [Wallet]
+      operationId: getAdminWithdrawal
+      parameters:
+        - { in: path, name: withdrawalId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalDetail' }
+  /admin/withdrawals/{withdrawalId}/actions:
+    post:
+      tags: [Wallet]
+      operationId: changeWithdrawal
+      parameters:
+        - { in: path, name: withdrawalId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WithdrawalAction' }
+      responses:
+        '200':
+          description: Private wallet data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalDetail' }
+
+  /admin/payout-batches/dentists:
+    get:
+      tags: [Payout Batches]
+      operationId: listPayoutDentists
+      summary: Dentists with eligible unreserved online collections
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100000, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { in: query, name: q, schema: { type: string, maxLength: 100 } }
+      responses:
+        '200':
+          description: Private payout ledger data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutDentists' }
+  /admin/payout-batches/eligible:
+    get:
+      tags: [Payout Batches]
+      operationId: listEligiblePayouts
+      summary: Completed paid online collections available for a new batch
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100000, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { in: query, name: dentistId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Private payout ledger data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EligiblePayouts' }
+  /admin/payout-batches:
+    get:
+      tags: [Payout Batches]
+      operationId: listAdminPayoutBatches
+      summary: List manual payout batches
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100000, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/PayoutBatchStatus' } }
+        - { in: query, name: dentistId, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Private payout ledger data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchPage' }
+    post:
+      tags: [Payout Batches]
+      operationId: createPayoutBatch
+      summary: Reserve selected collections with an explicit fee and approved account snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePayoutBatch' }
+      responses:
+        '200':
+          description: Created batch or identical request replay; no bank transfer is initiated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchDetail' }
+  /admin/payout-batches/{batchId}:
+    get:
+      tags: [Payout Batches]
+      operationId: getAdminPayoutBatch
+      summary: Read payout details including the saved transfer account
+      parameters:
+        - { in: path, name: batchId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Private payout ledger data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchDetail' }
+  /admin/payout-batches/{batchId}/actions:
+    post:
+      tags: [Payout Batches]
+      operationId: changePayoutBatch
+      summary: Record manual processing, transfer completion, confirmed failure or cancellation
+      parameters:
+        - { in: path, name: batchId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePayoutBatch' }
+      responses:
+        '200':
+          description: Updated batch or identical request replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchDetail' }
+  /dentists/me/payout-batches:
+    get:
+      tags: [Payout Batches]
+      operationId: listDentistPayoutBatches
+      summary: Read only the signed-in verified dentist payout history
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100000, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/PayoutBatchStatus' } }
+      responses:
+        '200':
+          description: Private payout ledger data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchPage' }
+  /dentists/me/payout-batches/{batchId}:
+    get:
+      tags: [Payout Batches]
+      operationId: getDentistPayoutBatch
+      summary: Read own payout details; full bank account is omitted
+      parameters:
+        - { in: path, name: batchId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Private payout ledger data; Cache-Control no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutBatchDetail' }
+
+  /dentists/me/payout-details:
+    get:
+      operationId: getDentistPayoutDetails
+      tags: [Dentist Payouts]
+      summary: Approved payout account and the dentist's latest change request
+      responses:
+        '200':
+          description: Private payout details for the signed-in verified dentist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutProfile' }
+        '403': { description: Verified dentist required }
+
+  /dentists/me/payout-requests:
+    post:
+      operationId: submitDentistPayoutRequest
+      tags: [Dentist Payouts, Dentists]
+      summary: Submit bank and tax details for admin approval
+      description: Only one pending request is allowed. Approved details remain unchanged until approval. Supply the latest request ID as previousRequestId when resubmitting after a decision. Account confirmation is validated and never stored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PayoutSubmission' }
+      responses:
+        '201':
+          description: Request waiting for admin review
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutRequest' }
+        '400': { description: Invalid details or mismatched account confirmation }
+        '403': { description: Verified dentist required }
+        '409': { description: A pending request exists or the submitted previous request ID is stale }
+
+  /admin/dentists/{dentistId}/payout-details:
+    get:
+      operationId: getAdminDentistPayoutDetails
+      tags: [Admin Payouts]
+      summary: Review a dentist's approved account and latest proposed change
+      parameters:
+        - name: dentistId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Private dentist payout details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutProfile' }
+        '403': { description: Admin role required }
+        '404': { description: Dentist not found }
+
+  /admin/payout-requests:
+    get:
+      operationId: listAdminPayoutRequests
+      tags: [Admin Payouts]
+      summary: Payout review queue and past decisions
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+        - { $ref: '#/components/parameters/PageParam' }
+      responses:
+        '200':
+          description: Twenty requests per page, without bank or tax identifiers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextPage]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, dentistId, dentistName, mobile, status, submittedAt, reviewedAt]
+                      properties:
+                        id: { type: string, format: uuid }
+                        dentistId: { type: string, format: uuid }
+                        dentistName: { type: string }
+                        mobile: { type: string }
+                        status: { $ref: '#/components/schemas/PayoutRequestStatus' }
+                        submittedAt: { type: string, format: date-time }
+                        reviewedAt: { type: string, format: date-time, nullable: true }
+                  nextPage: { type: integer, nullable: true }
+        '403': { description: Admin role required }
+
+  /admin/payout-requests/{requestId}/approve:
+    post:
+      operationId: approveAdminPayoutRequest
+      tags: [Admin Payouts, Admin]
+      summary: Approve this exact pending proposal and atomically replace the active account
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Approved request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutRequest' }
+        '403': { description: Admin role required }
+        '404': { description: Request not found }
+        '409': { description: Already reviewed or dentist is no longer verified }
+
+  /admin/payout-requests/{requestId}/reject:
+    post:
+      operationId: rejectAdminPayoutRequest
+      tags: [Admin Payouts, Admin]
+      summary: Reject a pending proposal without changing the active account
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+      responses:
+        '200':
+          description: Rejected request with reason visible to the dentist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutRequest' }
+        '400': { description: Rejection reason required }
+        '403': { description: Admin role required }
+        '404': { description: Request not found }
+        '409': { description: Already reviewed }
+
+  /admin/appointments:
+    get:
+      tags: [Admin]
+      summary: Platform-wide appointments, across every dentist and clinic
+      description: Admin-only visibility across the platform. Filters and pagination apply on the server. Today, upcoming and past use calendar dates in Asia/Kolkata; past excludes today. Date-range bounds are inclusive. Summary totals cover every matching appointment, independently of the current page.
+      parameters:
+        - name: filter
+          in: query
+          schema: { type: string, enum: [all, today, upcoming, past] }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/AppointmentStatus" }
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/AppointmentType" }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAppointmentPage"
+        "400": { description: Invalid filters, date range, page or limit }
+        "403": { description: Admin role required }
+
+  /admin/dentists:
+    get:
+      tags: [Admin]
+      summary: List dentists for the review queue and roster
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/DentistStatus" }
+        - { $ref: "#/components/parameters/PageParam" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Dentist" }
+                  nextPage: { type: integer, nullable: true }
+    post:
+      tags: [Admin]
+      summary: Admin-created dentist (creates the record and queues an invite)
+      description: >
+        Without overrideVerify, lands as pending_review and the dentist
+        finishes their own credentials, documents and payout details via
+        the invite link. With overrideVerify=true, overrideReason is
+        required and the dentist is marked verified immediately —
+        written to the audit log, not silently accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminCreateDentist" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "422":
+          description: overrideVerify=true without overrideReason
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/dentists/{dentistId}:
+    get:
+      tags: [Admin]
+      summary: Get a dentist application or profile for admin review
+      parameters:
+        - in: path
+          name: dentistId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Dentist details and documents, including the current review status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+        "404": { description: No such dentist }
+
+  /admin/dentists/{dentistId}/approve:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    post:
+      tags: [Admin]
+      summary: Approve a pending application
+      description: Refused (422) if required documents are missing, unless force=true — which is itself logged as an override, same as the create-time one.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Verified — now visible to patients
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+        "422":
+          description: Required documents missing and force was not set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /admin/dentists/{dentistId}/reject:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    post:
+      tags: [Admin]
+      summary: Reject a pending application, with a reason sent to the dentist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+
+  /admin/dentists/{dentistId}/disable:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    post:
+      tags: [Admin]
+      summary: Disable a verified dentist (hides from patient search; existing bookings stay)
+      responses:
+        "200":
+          description: Disabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+
+  /admin/dentists/{dentistId}/enable:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    post:
+      tags: [Admin]
+      summary: Re-enable a disabled dentist
+      responses:
+        "200":
+          description: Enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+
+  /admin/dentists/{dentistId}/reconsider:
+    parameters:
+      - { $ref: "#/components/parameters/DentistIdParam" }
+    post:
+      tags: [Admin]
+      summary: Move a rejected application back to the review queue
+      description: For after the dentist resubmits following a rejection. Increments resubmissionCount. Only valid from rejected.
+      responses:
+        "200":
+          description: Back in pending_review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+
+  /admin/audit-log:
+    get:
+      tags: [Admin]
+      summary: Audit trail of approvals, rejections, overrides and account changes
+      parameters:
+        - name: entityType
+          in: query
+          schema: { type: string, enum: [dentist, patient, appointment] }
+        - name: entityId
+          in: query
+          schema: { type: string, format: uuid }
+        - { $ref: "#/components/parameters/PageParam" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditLogEntry" }
+                  nextPage: { type: integer, nullable: true }
+
+  /dentists/me:
+    get:
+      tags: [Dentists]
+      summary: My own dentist profile
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+    patch:
+      tags: [Dentists]
+      summary: Update my profile, fees, or video hours
+      description: Payout details (bank/PAN/GSTIN) and KYC documents are not editable here — changing them requires re-verification and goes through a separate, admin-visible flow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DentistSelfUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dentist" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "422":
+          description: Video hours leave zero slots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dentists/me/time-off:
+    get:
+      tags: [Dentists]
+      summary: Upcoming time off across all clinics and video
+      responses:
+        "200":
+          description: Upcoming and current periods, ordered by date
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/TimeOff" } }
+    post:
+      tags: [Dentists]
+      summary: Block a period after checking existing appointments
+      description: Verified dentists only. The API rechecks for appointments atomically with booking and rescheduling. Existing appointments must be moved or cancelled first. Times repeat on each date in the inclusive range, in IST.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/TimeOffInput"
+                - type: object
+                  required: [requestId]
+                  properties:
+                    requestId: { type: string, format: uuid, description: Reuse on retries to avoid duplicate periods. }
+      responses:
+        "201":
+          description: Saved, or the original result on retry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeOff" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: Appointments must be moved or cancelled first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dentists/me/time-off/preview:
+    post:
+      tags: [Dentists]
+      summary: Preview appointments affected by proposed time off
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TimeOffInput" }
+      responses:
+        "200":
+          description: Total count and the first 20 affected active appointments owned by this dentist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeOffPreview" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /dentists/me/time-off/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Dentists]
+      summary: Remove my time off and reopen unbooked slots
+      responses:
+        "204": { description: Removed }
+        "404": { description: Period unavailable or already removed }
+
+  /dentists/me/clinics:
+    get:
+      tags: [Dentists]
+      summary: My clinic locations
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Clinic" }
+    post:
+      tags: [Dentists]
+      summary: Add a clinic location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicInput" }
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Clinic" }
+        "422":
+          description: Hours leave zero slots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dentists/me/clinics/{clinicId}:
+    parameters:
+      - name: clinicId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Dentists]
+      summary: Edit a clinic location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Clinic" }
+        "422":
+          description: Hours leave zero slots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Dentists]
+      summary: Remove a clinic location
+      description: Refused if this is the dentist's only clinic and they don't offer video — every dentist needs at least one way to be booked.
+      responses:
+        "204": { description: Removed }
+        "409":
+          description: This is the only location and video isn't offered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Location has future bookings — move or cancel them first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dentists/me/payments:
+    get:
+      tags: [Appointments]
+      summary: My appointment payments, filtered totals and paginated history
+      description: Verified dentists only. Always scoped to the signed-in dentist. Totals reflect matching transaction states, not net earnings or bank payouts. Dates filter booking transaction creation time in IST; clinic collection times are shown separately. Pending online includes failed checkout attempts still awaiting payment.
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/PaymentStatus" }
+        - name: source
+          in: query
+          schema: { type: string, enum: [online, clinic] }
+        - name: q
+          in: query
+          description: Literal patient name, transaction, appointment, receipt or gateway reference search.
+          schema: { type: string, maxLength: 100 }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Own payment history and totals for all matching pages
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DentistPayments" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /dentists/me/payments/{transactionId}:
+    parameters:
+      - name: transactionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Appointments]
+      summary: My payment or receipt details
+      responses:
+        "200":
+          description: Payment owned by the signed-in verified dentist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DentistPayment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /dentists/me/patients:
+    get:
+      tags: [Dentists]
+      summary: Everyone who has ever booked with the calling dentist
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DentistPatientSummary" }
+
+  /dentists/me/patients/{patientId}:
+    parameters:
+      - name: patientId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Dentists]
+      summary: One patient's record, scoped to dentists who have actually treated them
+      description: 404s for any patient the calling dentist has no appointment with — existence isn't revealed either way, same as a mismatched appointment owner.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DentistPatientRecord" }
+        "400": { description: Invalid patient ID }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /appointments:
+    get:
+      tags: [Appointments]
+      summary: My appointments (patient sees their own; dentist sees their own queue)
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/AppointmentStatus" }
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+        - { $ref: "#/components/parameters/PageParam" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Appointment" }
+                  nextPage: { type: integer, nullable: true }
+    post:
+      tags: [Appointments, Patient Files]
+      summary: Book an appointment
+      description: >
+        Patient-only. The server opens a transaction, takes a row lock on
+        (dentistId, date, time), re-checks availability inside the lock,
+        authorizes payment, then commits — the appointments table's
+        partial unique index refuses a double-booking even if that
+        transaction logic has a bug. idempotencyKey must be unique per
+        booking attempt so a retried request after a timeout can't create
+        two appointments.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookAppointment" }
+      responses:
+        "201":
+          description: Booked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: That slot was taken by another booking between page load and confirm
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "402":
+          description: Payment authorization failed — the slot is released, nothing is booked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{appointmentId}:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    get:
+      tags: [Appointments]
+      summary: Appointment detail
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /appointments/{appointmentId}/cancel:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Appointments]
+      summary: Cancel (patient or dentist)
+      description: Cancellation immediately releases the slot and durably queues a full refund for captured online payments. Payment stays refund_pending until the gateway confirms processing. Failed submissions are retried with the same gateway idempotency key. Late captures on cancelled appointments are refunded without reopening the booking.
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "409":
+          description: Already completed or cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{appointmentId}/clinic-payment:
+    parameters:
+      - name: appointmentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Appointments]
+      summary: Record a full consultation fee received at the clinic
+      description: Only the verified treating dentist may collect a non-cancelled pay-at-clinic booking, including a completed visit. This records money already received directly by cash, UPI, or card; it never charges a gateway. The amount must match the booked fee. Reuse the same requestId and details for retries. Only one receipt per payment is allowed. Clinic-collected payments remain paid if the appointment is cancelled; refunds are arranged directly with the clinic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CollectClinicPayment" }
+      responses:
+        "200":
+          description: Updated appointment, or original receipt on an identical retry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Amount or state changed, already paid, cancelled, online payment, or reused request ID
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{appointmentId}/reschedule:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Appointments]
+      summary: Move a booked appointment to a new date/time at the same clinic
+      description: Only valid while status=booked. The clinic (or video) doesn't change here — moving location is a cancel + new booking. Re-checks the new slot the same way booking does.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, time]
+              properties:
+                date: { type: string, format: date }
+                time: { type: string, example: "15:30" }
+                expectedDate: { type: string, format: date, description: "Optional current date; send together with expectedTime to reject changes made on another device. An identical target is a safe retry." }
+                expectedTime: { type: string, example: "10:30" }
+      responses:
+        "200":
+          description: Rescheduled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "409":
+          description: Not in booked status, or the new slot was just taken
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{appointmentId}/check-in:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Appointments]
+      summary: Dentist marks an in-clinic patient as arrived (booked → waiting)
+      description: Available only on the appointment date. The visit must still be booked and in-clinic.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "409": { description: "Appointment is not booked, is not in-clinic, or is scheduled for a different date." }
+
+  /appointments/{appointmentId}/start:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Appointments]
+      summary: Dentist starts the consultation (booked/waiting → in_consult)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "409":
+          description: Appointment date is in the future
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{appointmentId}/consultation:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    get:
+      tags: [Consultations]
+      summary: Read the dentist's draft or the patient's completed visit record
+      description: Patients can read their own record only after completion. The treating dentist can read their draft.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consultation" }
+    put:
+      tags: [Consultations]
+      summary: Save the in-progress draft (autosave as the dentist types)
+      description: Allowed only while status=in_consult. Omit prescriptionItems when saving notes after signing; signed medicine lists cannot be replaced. Completed and cancelled consultations are read-only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConsultationDraft" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consultation" }
+
+  /appointments/{appointmentId}/consultation/complete:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Consultations, Appointments, Dentists, Patients]
+      summary: Complete the consultation (in_consult → completed)
+      description: Refused if diagnosis is blank, or if prescription items exist with no valid signature attached.
+      responses:
+        "200":
+          description: Completed — visit summary, prescription and chart available in patient records
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "422":
+          description: Missing diagnosis, or unsigned prescription items
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /appointments/{appointmentId}/prescription/otp:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Consultations]
+      summary: Request a four-digit prescription signing code
+      description: Dentist-only. Binds a single-use, five-minute OTP to the treating dentist, appointment and current saved medicine list. Delivery currently uses the development SMS stub, as login does. Codes cannot be used to log in.
+      responses:
+        "200":
+          description: Challenge created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [otpId, expiresInSeconds, resendAfterSeconds]
+                properties:
+                  otpId: { type: string, format: uuid }
+                  expiresInSeconds: { type: integer }
+                  resendAfterSeconds: { type: integer }
+        "409": { description: Appointment is not in consultation, or no unsigned medicine list exists }
+        "429": { description: Request cooldown or hourly limit reached }
+
+  /appointments/{appointmentId}/prescription/sign:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Consultations]
+      summary: Sign the draft prescription
+      description: Verifies the generated four-digit signing OTP and signs the exact saved medicine list atomically. Login OTPs, other dentists' challenges, challenges for a different appointment or changed medicine list, and reused codes are rejected. No fixed confirmation code is accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otpId, confirmationCode]
+              properties:
+                otpId: { type: string, format: uuid }
+                confirmationCode: { type: string, pattern: '^[0-9]{4}$', minLength: 4, maxLength: 4 }
+                allergyOverrideAck:
+                  type: boolean
+                  default: false
+                  description: Required true if any item conflicts with the patient's recorded allergies.
+      responses:
+        "200":
+          description: Signed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consultation" }
+        "422":
+          description: Invalid or mismatched signing code, or allergy conflict without allergyOverrideAck
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409": { description: Appointment is not in consultation or prescription is already signed }
+        "410": { description: Signing code has expired }
+        "423": { description: Signing code locked after five incorrect attempts }
+
+  /payments/webhook:
+    post:
+      tags: [Payments]
+      summary: Razorpay webhook (payment.captured, payment.failed, refund.created, refund.processed, refund.failed)
+      security: []
+      description: Verified by the X-Razorpay-Signature header against the raw request body, not by a bearer token. Drives transaction.status and the transaction's gateway_payment_ref.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Razorpay's standard webhook envelope: event, payload.payment.entity."
+      responses:
+        "200": { description: Acknowledged }
+        "400": { description: Bad signature or malformed payload }
+
+  /privacy-requests:
+    get:
+      tags: [Privacy]
+      summary: List privacy requests (admin)
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/PrivacyRequestStatus" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PrivacyRequest" }
+    post:
+      tags: [Privacy]
+      summary: File a data export or account-deletion request (patient)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { $ref: "#/components/schemas/PrivacyRequestType" }
+      responses:
+        "201":
+          description: Filed, with an SLA due date set from the statutory response window
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivacyRequest" }
+
+  /privacy-requests/{requestId}/resolve:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Privacy]
+      summary: Resolve a request (admin) — triggers the export job or the anonymization job
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivacyRequest" }
+
+  /appointments/{appointmentId}/video/chat:
+    parameters:
+      - { in: path, name: appointmentId, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Video Chat]
+      summary: Read private patient/dentist consultation messages
+      parameters:
+        - { in: query, name: after, schema: { type: string, pattern: '^\d{1,19}$' } }
+        - { in: query, name: before, schema: { type: string, pattern: '^\d{1,19}$' } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Messages in ascending sequence order; newest page by default, content: { application/json: { schema: { $ref: '#/components/schemas/VideoChatPage' } } } }
+    post:
+      tags: [Video Chat]
+      summary: Send text and/or one private JPEG/PNG/PDF attachment during an eligible joined video call
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [requestId]
+              properties:
+                requestId: { type: string, format: uuid, description: Reuse for an identical retry }
+                text: { type: string, maxLength: 4000 }
+                file: { type: string, format: binary, description: JPEG/PNG/PDF up to 10 MB }
+      responses:
+        '201': { description: Sent or identical previously sent message, content: { application/json: { schema: { $ref: '#/components/schemas/VideoChatMessage' } } } }
+  /appointments/{appointmentId}/video/chat/{messageId}/content:
+    get:
+      tags: [Video Chat]
+      summary: Download an attachment as a participant in its appointment
+      parameters:
+        - { in: path, name: appointmentId, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: messageId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Private binary attachment, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived access token (~15 min). Claims include sub (userId), role, and scopes; the API re-checks role on every write — a client-side role switch is never trusted.
+
+  parameters:
+    DentistIdParam:
+      name: dentistId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AppointmentIdParam:
+      name: appointmentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+
+  responses:
+    BadRequest:
+      description: Malformed or missing required fields
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: No such resource
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Authenticated, but not allowed to do this (e.g. a dentist token calling an admin-only endpoint)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    VideoChatAttachment:
+      type: object
+      required: [id, name, mimeType, sizeBytes]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        mimeType: { type: string, enum: [image/jpeg, image/png, application/pdf] }
+        sizeBytes: { type: integer }
+    VideoChatMessage:
+      type: object
+      required: [id, sequence, requestId, text, senderRole, own, createdAt, attachment]
+      properties:
+        id: { type: string, format: uuid }
+        sequence: { type: string }
+        requestId: { type: string, format: uuid }
+        text: { type: string }
+        senderRole: { type: string, enum: [patient, dentist] }
+        own: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        attachment: { allOf: [{ $ref: '#/components/schemas/VideoChatAttachment' }], nullable: true }
+    VideoChatPage:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/VideoChatMessage' } }
+        hasMore: { type: boolean }
+    VideoStatus:
+      type: object
+      required: [available, canJoin, reason, opensAt, closesAt, serverNow, roomName]
+      properties:
+        available: { type: boolean }
+        canJoin: { type: boolean }
+        reason: { type: string, enum: [ready, unavailable, not_video, closed, too_early, payment_required, dentist_unavailable, session_ended] }
+        opensAt: { type: string, format: date-time }
+        closesAt: { type: string, format: date-time }
+        serverNow: { type: string, format: date-time }
+        roomName: { type: string, nullable: true }
+    VideoSession:
+      type: object
+      required: [provider, serverUrl, token, identity, roomName, role, closesAt, issuedAt]
+      properties:
+        provider: { type: string, enum: [livekit] }
+        serverUrl: { type: string }
+        token: { type: string }
+        identity: { type: string }
+        roomName: { type: string }
+        role: { type: string, enum: [patient, dentist] }
+        closesAt: { type: string, format: date-time }
+        issuedAt: { type: string, format: date-time }
+    Notification:
+      oneOf:
+        - { $ref: "#/components/schemas/WalletWithdrawalNotification" }
+        - { $ref: "#/components/schemas/WithdrawalNotification" }
+        - { $ref: "#/components/schemas/BookingNotification" }
+        - { $ref: "#/components/schemas/DentistOnboardingNotification" }
+        - { $ref: "#/components/schemas/PatientAppointmentNotification" }
+      discriminator:
+        propertyName: type
+        mapping:
+          appointment_booked: "#/components/schemas/BookingNotification"
+          dentist_onboarding_submitted: "#/components/schemas/DentistOnboardingNotification"
+          wallet_withdrawal_requested: "#/components/schemas/WithdrawalNotification"
+          wallet_withdrawal_updated: "#/components/schemas/WalletWithdrawalNotification"
+          booking_confirmed: "#/components/schemas/PatientAppointmentNotification"
+          appointment_cancelled: "#/components/schemas/PatientAppointmentNotification"
+          appointment_rescheduled: "#/components/schemas/PatientAppointmentNotification"
+          appointment_reminder: "#/components/schemas/PatientAppointmentNotification"
+          visit_summary_ready: "#/components/schemas/PatientAppointmentNotification"
+
+    PatientAppointmentNotification:
+      type: object
+      required: [id, type, appointmentId, dentistName, date, time, appointmentType, paymentRequired, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [booking_confirmed, appointment_cancelled, appointment_rescheduled, appointment_reminder, visit_summary_ready] }
+        appointmentId: { type: string, format: uuid }
+        dentistName: { type: string }
+        date: { type: string, format: date }
+        time: { type: string, pattern: '^\d{2}:\d{2}$' }
+        appointmentType: { type: string, enum: [clinic, video] }
+        paymentRequired: { type: boolean, description: Booking reserves the slot but an online payment still needs completion }
+        previousDate: { type: string, format: date, nullable: true }
+        previousTime: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    DentistOnboardingNotification:
+      type: object
+      required: [id, type, dentistId, dentistName, qualification, specialization, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [dentist_onboarding_submitted] }
+        dentistId: { type: string, format: uuid }
+        dentistName: { type: string }
+        qualification: { type: string }
+        specialization: { type: string }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    BookingNotification:
+      type: object
+      required: [id, type, appointmentId, patientName, date, time, appointmentType, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [appointment_booked] }
+        appointmentId: { type: string, format: uuid }
+        patientName: { type: string }
+        date: { type: string, format: date }
+        time: { type: string, pattern: '^\d{2}:\d{2}$' }
+        appointmentType: { type: string, enum: [clinic, video] }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    Error:
+      type: object
+      properties:
+        code: { type: string, example: "SLOT_TAKEN" }
+        message: { type: string, example: "That time is no longer available. Pick another time." }
+
+    AuthTokens:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresInSeconds: { type: integer, example: 900 }
+        isNewAccount: { type: boolean, description: "Patients only — true if registration is still needed before the token can be used for anything but POST /patients/register." }
+
+    DentistStatus:
+      type: string
+      enum: [draft, pending_review, verified, rejected, disabled]
+
+    AppointmentStatus:
+      type: string
+      enum: [booked, waiting, in_consult, completed, cancelled]
+
+    AppointmentType:
+      type: string
+      enum: [video, clinic]
+
+    KycDocType:
+      type: string
+      enum: [degree, council, id_proof, clinic_proof, insurance, selfie]
+
+    PrivacyRequestType:
+      type: string
+      enum: [export, erase]
+
+    PrivacyRequestStatus:
+      type: string
+      enum: [open, resolved]
+
+    ToothStatus:
+      type: string
+      enum: [healthy, caries, filled, crown, rct, missing, extract]
+
+    Patient:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+        mobile: { type: string }
+        dateOfBirth: { type: string, format: date }
+        gender: { type: string }
+        email: { type: string, format: email }
+        city: { type: string }
+        preferredLanguage: { type: string }
+        allergies: { type: string }
+        conditions: { type: string }
+        medications: { type: string }
+        emergencyContact: { type: string }
+        guardian:
+          type: object
+          nullable: true
+          properties:
+            name: { type: string }
+            relationship: { type: string }
+            mobile: { type: string }
+            consentAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    PatientRegistration:
+      type: object
+      required: [fullName, dateOfBirth, termsConsent, telemedicineConsent]
+      properties:
+        fullName: { type: string }
+        dateOfBirth: { type: string, format: date }
+        gender: { type: string }
+        email: { type: string, format: email }
+        city: { type: string }
+        preferredLanguage: { type: string, default: English }
+        termsConsent: { type: boolean }
+        telemedicineConsent: { type: boolean }
+        guardianName: { type: string }
+        guardianRelationship: { type: string }
+        guardianMobile: { type: string }
+        guardianConsent: { type: boolean }
+
+    PatientUpdate:
+      type: object
+      properties:
+        fullName: { type: string }
+        email: { type: string, format: email }
+        city: { type: string }
+        preferredLanguage: { type: string }
+        allergies: { type: string }
+        conditions: { type: string }
+        medications: { type: string }
+        emergencyContact: { type: string }
+
+    ChartEntry:
+      type: object
+      properties:
+        toothNumber: { type: string, example: "36" }
+        status: { $ref: "#/components/schemas/ToothStatus" }
+        recordedByDentistId: { type: string, format: uuid, nullable: true }
+        recordedAt: { type: string, format: date-time }
+
+    DentistPatientSummary:
+      description: One row of a dentist's own patient roster — GET /dentists/me/patients.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+        age: { type: integer, nullable: true }
+        gender: { type: string, nullable: true }
+        mobile: { type: string }
+        lastVisitDate: { type: string, format: date, nullable: true, description: "Null until a completed visit with this dentist exists." }
+        visitCount: { type: integer, description: "Completed visits with this dentist only." }
+        hasAllergies: { type: boolean, description: "Allergy information is on file. Read the patient record for the recorded details." }
+
+    DentistPatientRecord:
+      description: One patient's full record as a treating dentist sees it — GET /dentists/me/patients/{patientId}.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+        mobile: { type: string }
+        dateOfBirth: { type: string, format: date }
+        age: { type: integer, nullable: true }
+        gender: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        preferredLanguage: { type: string }
+        allergies: { type: string, nullable: true }
+        hasAllergies: { type: boolean }
+        conditions: { type: string, nullable: true }
+        medications: { type: string, nullable: true }
+        emergencyContact: { type: string, nullable: true }
+        guardian:
+          type: object
+          nullable: true
+          properties:
+            name: { type: string }
+            relationship: { type: string }
+            mobile: { type: string }
+        chart:
+          type: array
+          items: { $ref: "#/components/schemas/ChartEntry" }
+        appointments:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              date: { type: string, format: date }
+              time: { type: string, example: "10:30" }
+              type: { type: string, enum: [video, clinic] }
+              clinicName: { type: string, nullable: true }
+              concern: { type: string }
+              diagnosis: { type: string, nullable: true }
+              status: { $ref: "#/components/schemas/AppointmentStatus" }
+
+    WorkingDays:
+      type: array
+      description: Weekdays 0=Sunday through 6=Saturday. Empty closes all days. Omitted updates preserve saved days; new profiles and clinics default to every day. Existing appointments remain unchanged.
+      maxItems: 7
+      uniqueItems: true
+      items: { type: integer, minimum: 0, maximum: 6 }
+
+    TimeOffInput:
+      type: object
+      required: [startDate, endDate, allDay]
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date, description: Inclusive, at most 365 days after startDate. }
+        allDay: { type: boolean }
+        fromTime: { type: string, description: "HH:MM, required when allDay is false." }
+        toTime: { type: string, description: "HH:MM, required when allDay is false; after fromTime." }
+        reason: { type: string, maxLength: 200, description: Private to the dentist. }
+
+    TimeOff:
+      type: object
+      required: [id, startDate, endDate, allDay, fromTime, toTime, reason]
+      properties:
+        id: { type: string, format: uuid }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        allDay: { type: boolean }
+        fromTime: { type: string, nullable: true }
+        toTime: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+
+    TimeOffPreview:
+      type: object
+      required: [total, appointments]
+      properties:
+        total: { type: integer }
+        appointments:
+          type: array
+          items:
+            type: object
+            required: [id, patientName, date, time, type]
+            properties:
+              id: { type: string, format: uuid }
+              patientName: { type: string }
+              date: { type: string, format: date }
+              time: { type: string }
+              type: { type: string, enum: [clinic, video] }
+              clinicName: { type: string, nullable: true }
+
+    Clinic:
+      type: object
+      properties:
+        workingDays: { $ref: "#/components/schemas/WorkingDays" }
+        id: { type: string, format: uuid }
+        name: { type: string, example: "Smile Axis Dental, Lajpat Nagar" }
+        addressLine: { type: string }
+        pincode: { type: string }
+        phone: { type: string }
+        hoursFrom: { type: string, example: "10:00" }
+        hoursTo: { type: string, example: "18:30" }
+
+    ClinicInput:
+      type: object
+      required: [name, hoursFrom, hoursTo]
+      properties:
+        workingDays: { $ref: "#/components/schemas/WorkingDays" }
+        name: { type: string }
+        addressLine: { type: string }
+        pincode: { type: string }
+        phone: { type: string }
+        hoursFrom: { type: string }
+        hoursTo: { type: string }
+
+    DentistDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        docType: { $ref: "#/components/schemas/KycDocType" }
+        fileUrl: { type: string }
+        uploadedAt: { type: string, format: date-time }
+        verifiedAt: { type: string, format: date-time, nullable: true }
+
+    DentistPublic:
+      description: What a patient sees — no payout details, no raw KYC files.
+      type: object
+      properties:
+        videoWorkingDays: { $ref: "#/components/schemas/WorkingDays" }
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+        qualification: { type: string }
+        specialization: { type: string }
+        yearsExperience: { type: integer }
+        languages: { type: array, items: { type: string } }
+        offersVideo: { type: boolean }
+        feeVideoPaise: { type: integer }
+        feeClinicPaise: { type: integer }
+        videoHoursFrom: { type: string, nullable: true }
+        videoHoursTo: { type: string, nullable: true }
+        clinics:
+          type: array
+          items: { $ref: "#/components/schemas/Clinic" }
+        councilRegNo: { type: string }
+
+    Dentist:
+      description: Full record — the dentist's own view and the admin view. Includes what DentistPublic has, plus onboarding and payout state.
+      allOf:
+        - $ref: "#/components/schemas/DentistPublic"
+        - type: object
+          properties:
+            mobile: { type: string }
+            email: { type: string, format: email }
+            status: { $ref: "#/components/schemas/DentistStatus" }
+            submittedBy: { type: string, enum: [self, admin] }
+            submittedAt: { type: string, format: date-time }
+            reviewedBy: { type: string, nullable: true }
+            reviewedAt: { type: string, format: date-time, nullable: true }
+            rejectionReason: { type: string, nullable: true }
+            resubmissionCount: { type: integer }
+            councilRegValidTill: { type: string, format: date, nullable: true }
+            pan: { type: string, nullable: true }
+            bankAccountHolder: { type: string, nullable: true }
+            bankAccountNo: { type: string, nullable: true }
+            bankIfsc: { type: string, nullable: true }
+            gstin: { type: string, nullable: true }
+            documents:
+              type: array
+              items: { $ref: "#/components/schemas/DentistDocument" }
+
+    PayoutDetails:
+      type: object
+      required: [bankAccountHolder, bankAccountNo, bankIfsc, pan, gstin]
+      properties:
+        bankAccountHolder: { type: string, nullable: true }
+        bankAccountNo: { type: string, nullable: true }
+        bankIfsc: { type: string, nullable: true }
+        pan: { type: string, nullable: true }
+        gstin: { type: string, nullable: true }
+
+    PayoutRequestStatus:
+      type: string
+      enum: [pending, approved, rejected]
+
+    PayoutRequest:
+      allOf:
+        - { $ref: '#/components/schemas/PayoutDetails' }
+        - type: object
+          required: [id, dentistId, status, submittedAt, reviewedAt, rejectionReason]
+          properties:
+            id: { type: string, format: uuid }
+            dentistId: { type: string, format: uuid }
+            status: { $ref: '#/components/schemas/PayoutRequestStatus' }
+            submittedAt: { type: string, format: date-time }
+            reviewedAt: { type: string, format: date-time, nullable: true }
+            rejectionReason: { type: string, nullable: true }
+
+    PayoutProfile:
+      type: object
+      required: [approved, request]
+      properties:
+        approved:
+          allOf:
+            - { $ref: '#/components/schemas/PayoutDetails' }
+          nullable: true
+        request:
+          allOf:
+            - { $ref: '#/components/schemas/PayoutRequest' }
+          nullable: true
+
+    PayoutSubmission:
+      type: object
+      required: [bankAccountHolder, bankAccountNo, confirmAccountNo, bankIfsc, pan]
+      properties:
+        bankAccountHolder: { type: string, minLength: 2, maxLength: 120 }
+        bankAccountNo: { type: string, pattern: '^\d{6,20}$' }
+        confirmAccountNo: { type: string, pattern: '^\d{6,20}$' }
+        bankIfsc: { type: string, pattern: '^[A-Z]{4}0[A-Z0-9]{6}$' }
+        pan: { type: string, pattern: '^[A-Z]{5}[0-9]{4}[A-Z]$' }
+        gstin: { type: string, nullable: true }
+        previousRequestId: { type: string, format: uuid, nullable: true }
+
+    DentistApplication:
+      description: Self-serve application details saved by an OTP-verified dentist. mobile is the verified number. Both consents must be true. Saving details does not send the request to admin until the submit endpoint succeeds.
+      type: object
+      required: [fullName, qualification, specialization, councilRegNo, primaryClinicName, termsConsent, telemedicineConsent]
+      properties:
+        fullName: { type: string }
+        email: { type: string, format: email }
+        qualification: { type: string }
+        specialization: { type: string }
+        councilRegNo: { type: string }
+        yearsExperience: { type: integer, default: 0 }
+        languages: { type: array, items: { type: string } }
+        primaryClinicName: { type: string, description: "A second location can be added later from Settings, once verified." }
+        offersVideo: { type: boolean, default: false }
+        feeVideoPaise: { type: integer }
+        feeClinicPaise: { type: integer }
+        termsConsent: { type: boolean }
+        telemedicineConsent: { type: boolean }
+
+    AdminCreateDentist:
+      type: object
+      required: [fullName, mobile, primaryClinicName]
+      properties:
+        fullName: { type: string }
+        mobile: { type: string }
+        email: { type: string, format: email }
+        qualification: { type: string }
+        specialization: { type: string }
+        councilRegNo: { type: string }
+        primaryClinicName: { type: string }
+        offersVideo: { type: boolean, default: false }
+        feeVideoPaise: { type: integer }
+        feeClinicPaise: { type: integer }
+        overrideVerify:
+          type: boolean
+          default: false
+          description: Mark verified immediately on the strength of documents checked outside the app.
+        overrideReason:
+          type: string
+          description: Required when overrideVerify is true; written to the audit log.
+
+    DentistSelfUpdate:
+      type: object
+      properties:
+        videoWorkingDays: { $ref: "#/components/schemas/WorkingDays" }
+        qualification: { type: string }
+        councilRegNo: { type: string }
+        specialization: { type: string, description: "Settable here so an admin-created dentist (created without it) can fill it in before their application is reviewed." }
+        languages: { type: array, items: { type: string } }
+        email: { type: string, format: email }
+        mobile: { type: string }
+        offersVideo: { type: boolean, description: "Turning this on requires videoHoursFrom/videoHoursTo in the same request if neither is set yet." }
+        feeVideoPaise: { type: integer }
+        feeClinicPaise: { type: integer }
+        videoHoursFrom: { type: string }
+        videoHoursTo: { type: string }
+
+    PatientFile:
+      type: object
+      required: [id, appointmentId, name, mimeType, sizeBytes, createdAt, expiresAt, dentistName, appointmentDate]
+      properties:
+        id: { type: string, format: uuid }
+        appointmentId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        mimeType: { type: string, enum: [image/jpeg, image/png, application/pdf] }
+        sizeBytes: { type: integer }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        dentistName: { type: string, nullable: true }
+        appointmentDate: { type: string, format: date, nullable: true }
+    PatientFilePage:
+      type: object
+      required: [items, nextPage]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/PatientFile" } }
+        nextPage: { type: integer, nullable: true }
+
+    BookAppointment:
+      type: object
+      required: [dentistId, type, date, time, concern, paymentMethod, idempotencyKey]
+      properties:
+        dentistId: { type: string, format: uuid }
+        clinicId:
+          type: string
+          format: uuid
+          description: Required when type=clinic and the dentist has more than one location; otherwise defaulted to the dentist's only clinic server-side.
+        type: { $ref: "#/components/schemas/AppointmentType" }
+        date: { type: string, format: date }
+        time: { type: string, example: "14:30" }
+        concern: { type: string }
+        concerns: { type: array, items: { type: string } }
+        symptomArea: { type: string }
+        symptomSince: { type: string }
+        painScore: { type: integer, minimum: 0, maximum: 10 }
+        swelling: { type: boolean, default: false }
+        note: { type: string }
+        photoUrls: { type: array, items: { type: string } }
+        attachmentIds: { type: array, maxItems: 8, uniqueItems: true, items: { type: string, format: uuid }, description: IDs of the patient's unexpired uploads to bind atomically to this booking. }
+        paymentMethod: { type: string, enum: [upi, card, netbanking, pay_at_clinic] }
+        idempotencyKey: { type: string, description: One per booking attempt, generated client-side. }
+
+    Appointment:
+      description: The other party's name (and, for the dentist's view, the patient's age/gender) is always safe to include — the caller is always either the patient or the dentist on the row.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        patientId: { type: string, format: uuid }
+        patientName: { type: string }
+        patientAge: { type: integer, nullable: true }
+        patientGender: { type: string, nullable: true }
+        dentistId: { type: string, format: uuid }
+        dentistName: { type: string }
+        clinicId: { type: string, format: uuid, nullable: true }
+        clinicName: { type: string, nullable: true }
+        type: { $ref: "#/components/schemas/AppointmentType" }
+        date: { type: string, format: date }
+        time: { type: string }
+        status: { $ref: "#/components/schemas/AppointmentStatus" }
+        concern: { type: string }
+        concerns: { type: array, items: { type: string } }
+        symptomArea: { type: string }
+        symptomSince: { type: string }
+        painScore: { type: integer, nullable: true }
+        swelling: { type: boolean }
+        note: { type: string }
+        photoUrls: { type: array, items: { type: string } }
+        payment:
+          type: object
+          properties:
+            collection: { $ref: "#/components/schemas/ClinicPaymentReceipt" }
+            method: { type: string }
+            amountPaise: { type: integer }
+            status: { type: string, enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed] }
+            expiresAt: { type: string, format: date-time, nullable: true, description: "New online bookings hold the slot for 15 minutes. Legacy and pay-at-clinic bookings have no checkout deadline." }
+            gatewayOrderId: { type: string, nullable: true, description: "Razorpay order id. Null for pay_at_clinic bookings, which never create a gateway order." }
+            gatewayKeyId: { type: string, nullable: true, description: "Public Razorpay checkout key id. Never the API signing secret." }
+        bookedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        rescheduledAt: { type: string, format: date-time, nullable: true }
+
+    ClinicCollectionMethod:
+      type: string
+      enum: [cash, upi, card]
+
+    CollectClinicPayment:
+      type: object
+      required: [requestId, amountPaise, method]
+      properties:
+        requestId: { type: string, format: uuid, description: Reuse for identical retries. }
+        amountPaise: { type: integer, minimum: 0, maximum: 2147483647, description: Must equal the full booked consultation fee. }
+        method: { $ref: "#/components/schemas/ClinicCollectionMethod" }
+
+    ClinicPaymentReceipt:
+      type: object
+      nullable: true
+      required: [id, amountPaise, method, collectedAt]
+      properties:
+        id: { type: string, format: uuid }
+        amountPaise: { type: integer }
+        method: { $ref: "#/components/schemas/ClinicCollectionMethod" }
+        collectedAt: { type: string, format: date-time, description: Server-recorded receipt time. }
+
+    PaymentStatus:
+      type: string
+      enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed]
+
+    PaymentMethod:
+      type: string
+      enum: [upi, card, netbanking, pay_at_clinic]
+
+    WalletSettings:
+      type: object
+      required: [feeBps, minimumWithdrawalPaise, version]
+      properties:
+        feeBps: { type: integer, nullable: true }
+        minimumWithdrawalPaise: { type: integer, nullable: true }
+        version: { type: integer }
+        unpricedBookings: { type: integer }
+        pricedBookings: { type: integer }
+    WalletSettingsUpdate:
+      type: object
+      required: [feeBps, minimumWithdrawalPaise, version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        feeBps: { type: integer, minimum: 0, maximum: 9999 }
+        minimumWithdrawalPaise: { type: integer, minimum: 1, maximum: 2147483647 }
+        applyToUnpriced: { type: boolean, default: false }
+    WalletBalance:
+      type: object
+      required: [availablePaise, shortfallPaise, reservedPaise, withdrawnPaise, pendingPaise, eligibleGrossPaise, eligibleFeePaise, unpricedGrossPaise, unpricedCount]
+      properties:
+        availablePaise: { type: integer }
+        shortfallPaise: { type: integer }
+        reservedPaise: { type: integer }
+        withdrawnPaise: { type: integer }
+        pendingPaise: { type: integer }
+        eligibleGrossPaise: { type: integer }
+        eligibleFeePaise: { type: integer }
+        unpricedGrossPaise: { type: integer }
+        unpricedCount: { type: integer }
+    DentistWallet:
+      allOf:
+        - { $ref: '#/components/schemas/WalletBalance' }
+        - { $ref: '#/components/schemas/WalletSettings' }
+        - type: object
+          required: [configured, account]
+          properties:
+            configured: { type: boolean }
+            account:
+              type: object
+              nullable: true
+              required: [approvalId, last4, ifsc]
+              properties:
+                approvalId: { type: string, format: uuid }
+                last4: { type: string }
+                ifsc: { type: string }
+    WithdrawalStatus:
+      type: string
+      enum: [requested, approved, processing, paid, rejected, failed, cancelled]
+    Withdrawal:
+      type: object
+      required: [id, dentistId, dentistName, amountPaise, minimumPaise, status, version, accountLast4, bankIfsc, bankReference, paidOn, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        dentistId: { type: string, format: uuid }
+        dentistName: { type: string }
+        amountPaise: { type: integer }
+        minimumPaise: { type: integer }
+        status: { $ref: '#/components/schemas/WithdrawalStatus' }
+        version: { type: integer }
+        accountLast4: { type: string }
+        bankIfsc: { type: string }
+        bankReference: { type: string, nullable: true }
+        paidOn: { type: string, format: date, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WithdrawalDetail:
+      allOf:
+        - { $ref: '#/components/schemas/Withdrawal' }
+        - type: object
+          required: [wallet, accountChanged, account, approvalId, events]
+          properties:
+            wallet: { $ref: '#/components/schemas/WalletBalance' }
+            accountChanged: { type: boolean }
+            approvalId: { type: string, format: uuid }
+            account:
+              type: object
+              nullable: true
+              required: [holder, accountNo, ifsc]
+              properties:
+                holder: { type: string }
+                accountNo: { type: string }
+                ifsc: { type: string }
+            events:
+              type: array
+              items:
+                type: object
+                required: [id, status, note, createdAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { $ref: '#/components/schemas/WithdrawalStatus' }
+                  note: { type: string, nullable: true }
+                  createdAt: { type: string, format: date-time }
+    WithdrawalPage:
+      type: object
+      required: [items, total, nextPage]
+      properties:
+        total: { type: integer }
+        nextPage: { type: integer, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/Withdrawal' } }
+    RequestWithdrawal:
+      type: object
+      required: [requestId, accountApprovalId, amountPaise]
+      properties:
+        requestId: { type: string, format: uuid }
+        accountApprovalId: { type: string, format: uuid }
+        amountPaise: { type: integer, minimum: 1, maximum: 2147483647 }
+    WithdrawalAction:
+      type: object
+      required: [requestId, version, action]
+      properties:
+        requestId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        action: { type: string, enum: [approved, rejected, processing, paid, failed, cancelled] }
+        note: { type: string, maxLength: 300 }
+        reference: { type: string, minLength: 3, maxLength: 100 }
+        paidOn: { type: string, format: date }
+        acknowledgeChanges: { type: boolean }
+    WalletWithdrawalNotification:
+      type: object
+      required: [id, type, withdrawalId, amountPaise, status, reason, readAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [wallet_withdrawal_updated] }
+        withdrawalId: { type: string, format: uuid }
+        amountPaise: { type: integer, minimum: 1 }
+        status: { type: string, enum: [approved, rejected, processing, paid, failed, cancelled] }
+        reason: { type: string, nullable: true, maxLength: 300 }
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    WithdrawalNotification:
+      type: object
+      required: [id, type, withdrawalId, dentistId, dentistName, amountPaise, readAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [wallet_withdrawal_requested] }
+        withdrawalId: { type: string, format: uuid }
+        dentistId: { type: string, format: uuid }
+        dentistName: { type: string }
+        amountPaise: { type: integer }
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    PayoutBatchStatus:
+      type: string
+      enum: [pending, processing, paid, failed, cancelled]
+    PayoutBatch:
+      type: object
+      required: [id, dentistId, dentistName, status, version, feeBps, grossPaise, feePaise, netPaise, accountLast4, bankIfsc, createdAt, updatedAt, bankReference, paidOn, needsAttention]
+      properties:
+        id: { type: string, format: uuid }
+        dentistId: { type: string, format: uuid }
+        dentistName: { type: string }
+        status: { $ref: '#/components/schemas/PayoutBatchStatus' }
+        version: { type: integer }
+        feeBps: { type: integer }
+        grossPaise: { type: integer }
+        feePaise: { type: integer }
+        netPaise: { type: integer }
+        accountLast4: { type: string }
+        bankIfsc: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        bankReference: { type: string, nullable: true }
+        paidOn: { type: string, format: date, nullable: true }
+        needsAttention: { type: boolean }
+    PayoutBatchDetail:
+      allOf:
+        - { $ref: '#/components/schemas/PayoutBatch' }
+        - type: object
+          required: [items, events, account]
+          properties:
+            account:
+              type: object
+              nullable: true
+              required: [holder, accountNo, ifsc]
+              properties:
+                holder: { type: string }
+                accountNo: { type: string }
+                ifsc: { type: string }
+            items:
+              type: array
+              items:
+                type: object
+                required: [transactionId, appointmentId, patientName, amountPaise, feePaise, paymentStatus, appointmentStatus, released]
+                properties:
+                  transactionId: { type: string, format: uuid }
+                  appointmentId: { type: string, format: uuid }
+                  patientName: { type: string }
+                  amountPaise: { type: integer }
+                  feePaise: { type: integer }
+                  paymentStatus: { type: string }
+                  appointmentStatus: { type: string }
+                  released: { type: boolean }
+            events:
+              type: array
+              items:
+                type: object
+                required: [id, status, note, createdAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { $ref: '#/components/schemas/PayoutBatchStatus' }
+                  note: { type: string, nullable: true }
+                  createdAt: { type: string, format: date-time }
+    PayoutBatchPage:
+      type: object
+      required: [items, total, reservedPaise, paidPaise, nextPage]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/PayoutBatch' } }
+        total: { type: integer }
+        reservedPaise: { type: integer }
+        paidPaise: { type: integer }
+        nextPage: { type: integer, nullable: true }
+    PayoutDentists:
+      type: object
+      required: [items, nextPage]
+      properties:
+        nextPage: { type: integer, nullable: true }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, name, eligibleCount, grossPaise]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              eligibleCount: { type: integer }
+              grossPaise: { type: integer }
+    EligiblePayouts:
+      type: object
+      required: [items, total, grossPaise, account, nextPage]
+      properties:
+        total: { type: integer }
+        grossPaise: { type: integer }
+        nextPage: { type: integer, nullable: true }
+        account:
+          type: object
+          nullable: true
+          required: [approvalId, last4, ifsc]
+          properties:
+            approvalId: { type: string, format: uuid }
+            last4: { type: string }
+            ifsc: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, appointmentId, appointmentDate, appointmentTime, patientName, amountPaise]
+            properties:
+              id: { type: string, format: uuid }
+              appointmentId: { type: string, format: uuid }
+              appointmentDate: { type: string, format: date }
+              appointmentTime: { type: string }
+              patientName: { type: string }
+              amountPaise: { type: integer }
+    CreatePayoutBatch:
+      type: object
+      required: [requestId, dentistId, accountApprovalId, transactionIds, feeBps]
+      properties:
+        requestId: { type: string, format: uuid }
+        dentistId: { type: string, format: uuid }
+        accountApprovalId: { type: string, format: uuid }
+        transactionIds: { type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: { type: string, format: uuid } }
+        feeBps: { type: integer, minimum: 0, maximum: 10000, description: 'Explicit percentage in basis points: 1250 means 12.50 percent. Each item rounds half-up to paise.' }
+    ChangePayoutBatch:
+      type: object
+      required: [requestId, version, action]
+      properties:
+        requestId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        action: { type: string, enum: [processing, paid, failed, cancelled] }
+        reference: { type: string, minLength: 3, maxLength: 100 }
+        paidOn: { type: string, format: date }
+        note: { type: string, maxLength: 300 }
+        acknowledgeChanges: { type: boolean }
+
+    DentistPayment:
+      type: object
+      required: [id, appointmentId, patientName, appointmentDate, appointmentTime, appointmentType, appointmentStatus, clinicName, amountPaise, source, method, status, collection, gatewayOrderId, gatewayPaymentId, gatewayRefundId, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        appointmentId: { type: string, format: uuid }
+        patientName: { type: string }
+        appointmentDate: { type: string, format: date }
+        appointmentTime: { type: string }
+        appointmentType: { $ref: "#/components/schemas/AppointmentType" }
+        appointmentStatus: { $ref: "#/components/schemas/AppointmentStatus" }
+        clinicName: { type: string, nullable: true }
+        amountPaise: { type: integer }
+        source: { type: string, enum: [online, clinic] }
+        method: { $ref: "#/components/schemas/PaymentMethod" }
+        status: { $ref: "#/components/schemas/PaymentStatus" }
+        collection: { $ref: "#/components/schemas/ClinicPaymentReceipt" }
+        gatewayOrderId: { type: string, nullable: true }
+        gatewayPaymentId: { type: string, nullable: true }
+        gatewayRefundId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    DentistPaymentSummary:
+      type: object
+      required: [totalTransactions, onlinePaidAmountPaise, clinicCollectedAmountPaise, dueAtClinicAmountPaise, pendingOnlineAmountPaise, refundPendingAmountPaise, refundFailedAmountPaise, refundedAmountPaise]
+      properties:
+        totalTransactions: { type: integer }
+        onlinePaidAmountPaise: { type: integer }
+        clinicCollectedAmountPaise: { type: integer }
+        dueAtClinicAmountPaise: { type: integer }
+        pendingOnlineAmountPaise: { type: integer }
+        refundPendingAmountPaise: { type: integer }
+        refundFailedAmountPaise: { type: integer }
+        refundedAmountPaise: { type: integer }
+
+    DentistPayments:
+      type: object
+      required: [summary, items, page, limit, nextPage]
+      properties:
+        summary: { $ref: "#/components/schemas/DentistPaymentSummary" }
+        items: { type: array, items: { $ref: "#/components/schemas/DentistPayment" } }
+        page: { type: integer }
+        limit: { type: integer }
+        nextPage: { type: integer, nullable: true }
+
+    AdminPayment:
+      type: object
+      required: [id, appointmentId, patientName, dentistName, appointmentDate, appointmentTime, amountPaise, method, status, gatewayOrderId, gatewayPaymentId, gatewayRefundId, createdAt, updatedAt]
+      properties:
+        collection: { $ref: "#/components/schemas/ClinicPaymentReceipt" }
+        id: { type: string, format: uuid }
+        appointmentId: { type: string, format: uuid }
+        patientName: { type: string }
+        dentistName: { type: string }
+        appointmentDate: { type: string, format: date }
+        appointmentTime: { type: string }
+        amountPaise: { type: integer }
+        method: { $ref: "#/components/schemas/PaymentMethod" }
+        status: { $ref: "#/components/schemas/PaymentStatus" }
+        gatewayOrderId: { type: string, nullable: true }
+        gatewayPaymentId: { type: string, nullable: true }
+        gatewayRefundId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminPayments:
+      type: object
+      required: [gateway, summary, items, page, pageSize, nextPage]
+      properties:
+        gateway:
+          type: object
+          required: [provider, mode, checkoutConfigured, webhookConfigured]
+          properties:
+            provider: { type: string, enum: [razorpay] }
+            mode: { type: string, enum: [test, live, unconfigured] }
+            checkoutConfigured: { type: boolean }
+            webhookConfigured: { type: boolean }
+        summary:
+          type: object
+          required: [totalTransactions, paidAmountPaise, refundedAmountPaise, refundPendingAmountPaise, refundFailedAmountPaise, pendingAmountPaise, dueAtClinicAmountPaise]
+          properties:
+            totalTransactions: { type: integer }
+            paidAmountPaise: { type: integer }
+            refundedAmountPaise: { type: integer }
+            refundPendingAmountPaise: { type: integer }
+            refundFailedAmountPaise: { type: integer }
+            pendingAmountPaise: { type: integer }
+            dueAtClinicAmountPaise: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminPayment" }
+        page: { type: integer }
+        pageSize: { type: integer }
+        nextPage: { type: integer, nullable: true }
+
+    AdminAppointmentPage:
+      type: object
+      required: [items, total, page, limit, nextPage, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminAppointment" }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+        nextPage: { type: integer, nullable: true }
+        summary:
+          type: object
+          required: [notCancelled, completed, cancelled, paidAmountPaise]
+          properties:
+            notCancelled: { type: integer }
+            completed: { type: integer }
+            cancelled: { type: integer }
+            paidAmountPaise: { type: integer }
+
+    AdminAppointment:
+      description: The admin-wide appointment view — patient and dentist names joined in, since there's no "my own" party to omit the way there is for a patient's or dentist's own appointment list.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        patientName: { type: string }
+        dentistName: { type: string }
+        type: { $ref: "#/components/schemas/AppointmentType" }
+        date: { type: string, format: date }
+        time: { type: string }
+        concern: { type: string }
+        status: { $ref: "#/components/schemas/AppointmentStatus" }
+        payment:
+          type: object
+          nullable: true
+          properties:
+            collection: { $ref: "#/components/schemas/ClinicPaymentReceipt" }
+            method: { type: string }
+            amountPaise: { type: integer }
+            status: { type: string, enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed] }
+
+    PrescriptionItemInput:
+      type: object
+      required: [medicineName, dose, frequency, duration]
+      properties:
+        medicineName: { type: string }
+        strength: { type: string }
+        dose: { type: string }
+        frequency: { type: string }
+        duration: { type: string }
+        instructions: { type: string }
+
+    TreatmentPlanItem:
+      type: object
+      required: [procedure, teeth]
+      properties:
+        procedure: { type: string, minLength: 1, maxLength: 200 }
+        teeth:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: { type: string, pattern: '^[1-4][1-8]$' }
+        estimatedCostPaise: { type: integer, minimum: 0, maximum: 1000000000, nullable: true }
+
+    ConsultationDraft:
+      type: object
+      properties:
+        chiefComplaint: { type: string }
+        findings: { type: string }
+        diagnosis: { type: string }
+        treatmentDone: { type: string }
+        plan: { type: string }
+        planItems:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/TreatmentPlanItem" }
+        followUpDate: { type: string, format: date, nullable: true, description: 'Calendar date (YYYY-MM-DD). Omit to preserve the saved date; send null to clear it.' }
+        chart:
+          type: array
+          items:
+            type: object
+            properties:
+              toothNumber: { type: string }
+              status: { $ref: "#/components/schemas/ToothStatus" }
+        prescriptionItems:
+          type: array
+          items: { $ref: "#/components/schemas/PrescriptionItemInput" }
+
+    Consultation:
+      type: object
+      properties:
+        appointmentId: { type: string, format: uuid }
+        chiefComplaint: { type: string }
+        findings: { type: string }
+        diagnosis: { type: string }
+        treatmentDone: { type: string }
+        plan: { type: string }
+        planItems:
+          type: array
+          items: { $ref: "#/components/schemas/TreatmentPlanItem" }
+        followUpDate: { type: string, format: date, nullable: true }
+        isEdited: { type: boolean }
+        editedAt: { type: string, format: date-time, nullable: true }
+        prescription:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            signedByDentistId: { type: string, format: uuid, nullable: true }
+            signedAt: { type: string, format: date-time, nullable: true }
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/PrescriptionItemInput" }
+
+    PrivacyRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        patientId: { type: string, format: uuid }
+        patientName: { type: string }
+        type: { $ref: "#/components/schemas/PrivacyRequestType" }
+        status: { $ref: "#/components/schemas/PrivacyRequestStatus" }
+        slaDueAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    AdminProfile:
+      type: object
+      required: [id, name, email, phone, version, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string, nullable: true }
+        version: { type: integer, minimum: 0 }
+        updatedAt: { type: string, format: date-time }
+
+    AdminProfileUpdate:
+      type: object
+      required: [version]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 0 }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: string, format: email, maxLength: 254 }
+        phone: { type: string, nullable: true, description: 'E.164 number, or an Indian 10-digit mobile. Null or blank clears it.' }
+        currentPassword: { type: string, format: password, minLength: 1, maxLength: 200, writeOnly: true, description: 'Required only when changing the login email. Never stored in the audit log.' }
+
+    PlatformSettings:
+      type: object
+      required: [id, name, region, supportEmail, version, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        region: { type: string }
+        supportEmail: { type: string, format: email }
+        version: { type: integer, minimum: 1 }
+        updatedAt: { type: string, format: date-time }
+
+    PlatformSettingsUpdate:
+      type: object
+      required: [version]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        region: { type: string, minLength: 1, maxLength: 100 }
+        supportEmail: { type: string, format: email, maxLength: 254 }
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        actorLabel: { type: string }
+        action: { type: string, example: "approved_with_override" }
+        entityType: { type: string }
+        entityId: { type: string, format: uuid }
+        detail: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }

@@ -1,0 +1,3 @@
+.payout-pagination { justify-content: flex-end; margin-top: 16px; }
+.payout-reference { overflow-wrap: anywhere; }
+.payout-warning { border-radius: 12px; background: #fff4da; color: #765414; padding: 14px; }

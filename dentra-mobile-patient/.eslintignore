@@ -1,0 +1,6 @@
+ios/Pods/
+ios/build/
+android/build/
+android/app/build/
+vendor/
+src/api/generated/

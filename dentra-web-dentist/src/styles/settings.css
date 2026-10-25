@@ -1,0 +1,526 @@
+.dentist-settings {
+  width: 100%;
+  max-width: 1100px;
+}
+.settings-profile-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.settings-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.settings-profile-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-size: 23px;
+  font-weight: 600;
+}
+.settings-profile-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.settings-profile-name h2 {
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+.settings-profile-description {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 3px;
+}
+.settings-profile-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-profile-contact > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.settings-profile-contact svg {
+  flex: none;
+}
+.settings-primary-clinic {
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+  max-width: 240px;
+}
+.settings-primary-clinic > span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+.settings-primary-clinic b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  font-size: 14px;
+}
+.settings-primary-clinic svg {
+  flex: none;
+  color: var(--accent);
+}
+.settings-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  margin: 22px 0;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.settings-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 0 auto;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--muted);
+  background: transparent;
+}
+.settings-tabs button:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+.settings-tabs button[aria-selected='true'] {
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+}
+.dentist-settings [role='tabpanel']:focus-visible {
+  outline-offset: 4px;
+  border-radius: 16px;
+}
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 2px 4px rgb(16 40 58 / 2%);
+  min-width: 0;
+}
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-card-title {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.settings-card-title h2 {
+  font-size: 17px;
+  letter-spacing: -0.015em;
+}
+.settings-card-title p {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.settings-section-icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #eff7f5;
+  color: var(--accent);
+}
+.settings-card-body {
+  padding: 24px;
+}
+.settings-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 40px;
+  margin: 0;
+}
+.settings-detail-grid dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.settings-detail-grid dd {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.settings-form-grid .field {
+  min-width: 0;
+}
+.settings-field-wide {
+  grid-column: 1 / -1;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.settings-form-grid > .settings-actions {
+  margin-top: 0;
+}
+.settings-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f2f7f6;
+  color: var(--muted);
+  font-size: 13px;
+}
+.settings-note svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+.settings-note b {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.settings-note p {
+  margin: 0;
+}
+.settings-note b + p {
+  margin-top: 3px;
+}
+.settings-feedback {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--red);
+}
+.settings-clinic-grid,
+.settings-fee-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.settings-clinic-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 0;
+}
+.settings-clinic-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-clinic-name h3 {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.settings-clinic-hours {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.settings-clinic-hours svg {
+  flex: none;
+}
+.settings-clinic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.settings-clinic-actions .btn {
+  font-size: 12px;
+  padding: 7px 10px;
+  min-height: 34px;
+}
+.settings-editor-title {
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+.settings-fee-card {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.settings-fee-card > svg {
+  color: var(--accent);
+  margin-bottom: 7px;
+}
+.settings-fee-card > span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.settings-fee-card strong {
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.settings-fee-card p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-fee-grid + .settings-note {
+  margin-top: 20px;
+}
+.settings-video-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  background: #f5f9f8;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.settings-video-toggle b {
+  font-size: 14px;
+  font-weight: 500;
+}
+.settings-video-toggle p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.settings-video-toggle input {
+  width: 19px;
+  height: 19px;
+  accent-color: var(--accent);
+  flex: none;
+}
+.settings-document-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 17px 0;
+}
+.settings-document-row + .settings-document-row {
+  border-top: 1px solid var(--line);
+}
+.settings-document-row:first-child {
+  padding-top: 0;
+}
+.settings-document-row:last-child {
+  padding-bottom: 0;
+}
+.settings-document-row h3 {
+  font-size: 14px;
+  font-weight: 500;
+}
+.settings-document-row p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+.settings-document-icon {
+  width: 40px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: #7a8d98;
+  border-radius: 9px;
+}
+.settings-document-icon.on-file {
+  background: var(--green-soft);
+  color: var(--green);
+  border-color: transparent;
+}
+.settings-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 28px 18px;
+  text-align: center;
+  color: var(--muted);
+}
+.settings-empty h3 {
+  font-size: 16px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.settings-empty p {
+  max-width: 400px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.settings-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 6px;
+  border-radius: 18px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.settings-payout-content {
+  display: grid;
+  gap: 22px;
+}
+.settings-approved-account > .badge {
+  margin-bottom: 20px;
+}
+.settings-payout-status {
+  border: 1px solid var(--line);
+  padding: 20px;
+  border-radius: 12px;
+}
+.settings-payout-status.pending {
+  background: #fffdf7;
+  border-color: #eadcc2;
+}
+.settings-payout-status.rejected {
+  background: #fff9f8;
+  border-color: #ebc3bf;
+}
+.settings-payout-status > p {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.settings-payout-status .settings-detail-grid {
+  margin-top: 20px;
+}
+
+@media (max-width: 1000px) {
+  .settings-primary-clinic {
+    display: none;
+  }
+  .settings-tabs button {
+    padding: 10px 12px;
+  }
+  .settings-clinic-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .settings-profile-summary {
+    padding: 18px;
+  }
+  .settings-profile-identity {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .settings-profile-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+    font-size: 18px;
+  }
+  .settings-profile-name {
+    gap: 6px;
+  }
+  .settings-profile-name h2 {
+    font-size: 18px;
+  }
+  .settings-profile-contact {
+    gap: 7px;
+    flex-direction: column;
+  }
+  .settings-tabs {
+    margin: 16px 0;
+  }
+  .settings-tabs button {
+    justify-content: flex-start;
+  }
+  .settings-card-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 18px;
+  }
+  .settings-card-header > .btn {
+    margin-left: 53px;
+  }
+  .settings-card-body {
+    padding: 18px;
+  }
+  .settings-card-title {
+    align-items: flex-start;
+  }
+  .settings-card-title h2 {
+    font-size: 16px;
+  }
+  .settings-detail-grid,
+  .settings-form-grid,
+  .settings-fee-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .settings-detail-grid {
+    gap: 18px;
+  }
+  .settings-actions .btn {
+    flex: 1;
+  }
+  .settings-document-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .settings-document-row > .badge {
+    margin-left: 50px;
+  }
+  .settings-document-row .grow {
+    flex-basis: calc(100% - 50px);
+  }
+  .settings-clinic-card {
+    padding: 16px;
+  }
+}
