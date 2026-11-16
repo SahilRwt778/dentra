@@ -1,13 +1,20 @@
+import { useAppActive } from '@dentra/video/src/useAppActive';
+import { useIsFocused } from '@react-navigation/native';
+import { useConsultationCasesQuery } from '@/api/consultation-cases';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CalendarDays,
+  MessageCircle,
   FolderHeart,
   House,
   UserRound,
 } from 'lucide-react-native';
+import { MessagesScreen } from '@/screens/MessagesScreen';
+import { ChatScreen } from '@/screens/ChatScreen';
+import { FollowUpScreen } from '@/screens/FollowUpScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { AppointmentsScreen } from '@/screens/AppointmentsScreen';
 import { RecordsScreen, VisitScreen } from '@/screens/RecordsScreen';
@@ -31,9 +38,20 @@ const tabs = [
   { name: 'Home', icon: House },
   { name: 'Appointments', icon: CalendarDays },
   { name: 'Records', icon: FolderHeart },
+  { name: 'Messages', icon: MessageCircle },
   { name: 'Profile', icon: UserRound },
 ] as const;
 function MainScreen({ route, navigation }: PatientScreenProps<'Main'>) {
+  const focused = useIsFocused();
+  const active = useAppActive();
+  const { data: inbox } = useConsultationCasesQuery(
+    { page: 1 },
+    {
+      skip: !focused || !active,
+      pollingInterval: 10000,
+      refetchOnMountOrArgChange: true,
+    },
+  );
   const [tab, setTab] = useState<TabName>(route.params?.tab ?? 'Home');
   const [prescriptions, setPrescriptions] = useState(
     !!route.params?.prescriptions,
@@ -53,6 +71,8 @@ function MainScreen({ route, navigation }: PatientScreenProps<'Main'>) {
           <HomeScreen />
         ) : tab === 'Appointments' ? (
           <AppointmentsScreen />
+        ) : tab === 'Messages' ? (
+          <MessagesScreen />
         ) : tab === 'Records' ? (
           <RecordsScreen
             key={String(prescriptions)}
@@ -82,7 +102,12 @@ function MainScreen({ route, navigation }: PatientScreenProps<'Main'>) {
               color={tab === name ? colors.accent : colors.muted}
               strokeWidth={tab === name ? 2.3 : 1.8}
             />
-            <Text style={[s.label, tab === name && s.selected]}>{name}</Text>
+            <Text style={[s.label, tab === name && s.selected]}>
+              {name}
+              {name === 'Messages' && inbox?.unreadCount
+                ? ` (${inbox.unreadCount > 99 ? '99+' : inbox.unreadCount})`
+                : ''}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -113,6 +138,8 @@ export function PatientNavigator() {
           <Stack.Screen name="Reschedule" component={RescheduleScreen} />
           <Stack.Screen name="Visit" component={VisitScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          <Stack.Screen name="Chat" component={ChatScreen} />
+          <Stack.Screen name="FollowUp" component={FollowUpScreen} />
           <Stack.Screen name="Help" component={HelpScreen} />
         </Stack.Navigator>
       </VideoCallProvider>

@@ -5,7 +5,7 @@ const config = {
   apiImport: 'baseApi',
   outputFile: './src/api/generated-api.ts',
   exportName: 'dentraApi',
-  filterEndpoints: name => name !== 'postVideoWebhook',
+  filterEndpoints: name => !['postVideoWebhook', 'getProfilePhoto'].includes(name),
   hooks: true,
   tag: true,
 };

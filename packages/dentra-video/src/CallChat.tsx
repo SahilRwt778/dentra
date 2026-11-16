@@ -1,3 +1,4 @@
+import { useAppActive } from './useAppActive';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,7 +31,7 @@ export type NativeChatClient = ChatClient & {
   download(
     id: string,
     file: ChatAttachment,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<string>;
   openFile(path: string, mime: string): Promise<void>;
 };
@@ -46,18 +47,23 @@ export function CallChat({
   onClose,
   onUnread,
   callCamera,
+  title = 'Consultation chat',
+  subtitle,
 }: {
   appointmentId: string;
   client: NativeChatClient;
   visible: boolean;
   onClose(): void;
   onUnread(count: number): void;
+  title?: string;
+  subtitle?: string;
   callCamera?: {
     enabled: boolean;
     setEnabled(enabled: boolean): Promise<void>;
   };
 }) {
-  const chat = useCallChat(appointmentId, client, visible);
+  const active = useAppActive();
+  const chat = useCallChat(appointmentId, client, visible && active);
   const [text, setText] = useState('');
   const [file, setFile] = useState<ChatFile>();
   const [requestId, setRequestId] = useState(() => client.requestId());
@@ -114,7 +120,7 @@ export function CallChat({
         setNotice(
           error instanceof Error
             ? error.message
-            : 'Could not choose the attachment.'
+            : 'Could not choose the attachment.',
         );
     } finally {
       if (restoreCamera && live.current) {
@@ -145,7 +151,7 @@ export function CallChat({
       const path = await client.download(
         appointmentId,
         attachment,
-        abort.signal
+        abort.signal,
       );
       if (abort.signal.aborted) return;
       if (attachment.mimeType.startsWith('image/'))
@@ -156,7 +162,7 @@ export function CallChat({
         setNotice(
           error instanceof Error
             ? error.message
-            : 'Could not open the attachment.'
+            : 'Could not open the attachment.',
         );
     } finally {
       if (live.current) setOpening(undefined);
@@ -183,11 +189,13 @@ export function CallChat({
                 numberOfLines={1}
                 style={[styles.title, photo && styles.white]}
               >
-                {photo?.name ?? 'Consultation chat'}
+                {photo?.name ?? title}
               </Text>
               {!photo && (
                 <Text style={styles.muted}>
-                  Private messages during your video consultation
+                  {!chat.canSend
+                    ? 'Messaging closed · History available'
+                    : subtitle ?? 'Private consultation messages'}
                 </Text>
               )}
             </View>
@@ -224,7 +232,8 @@ export function CallChat({
                 {chat.loading && <ActivityIndicator color="#0D7870" />}
                 {!chat.loading && !chat.items.length && (
                   <Text style={styles.muted}>
-                    Send a message, photo or PDF during your call.
+                    Messages, photos and PDF reports shared for this
+                    consultation appear here.
                   </Text>
                 )}
                 {chat.items.map((item) => (
@@ -321,7 +330,7 @@ export function CallChat({
                     accessibilityRole="button"
                     accessibilityLabel="Add attachment"
                     accessibilityState={{ expanded: attachmentsOpen }}
-                    disabled={chat.sending || picking}
+                    disabled={!chat.canSend || chat.sending || picking}
                     onPress={() => {
                       Keyboard.dismiss();
                       setAttachmentsOpen((value) => !value);
@@ -340,7 +349,7 @@ export function CallChat({
                     value={text}
                     onChangeText={edit}
                     onFocus={() => setAttachmentsOpen(false)}
-                    editable={!chat.sending}
+                    editable={chat.canSend && !chat.sending}
                     multiline
                     maxLength={4000}
                     style={styles.input}
@@ -349,7 +358,10 @@ export function CallChat({
                     accessibilityRole="button"
                     accessibilityLabel="Send chat message"
                     disabled={
-                      chat.sending || picking || (!text.trim() && !file)
+                      !chat.canSend ||
+                      chat.sending ||
+                      picking ||
+                      (!text.trim() && !file)
                     }
                     onPress={send}
                     style={styles.send}

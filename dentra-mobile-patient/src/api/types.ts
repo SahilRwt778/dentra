@@ -1,5 +1,6 @@
 // App-facing models. The OpenAPI generator owns their definitions.
 export type {
+  ConsultationCaseBrief,
   Appointment,
   AuthTokens,
   BookAppointment,
@@ -9,7 +10,6 @@ export type {
   DentistPublic,
   Notification,
   Patient,
-  PatientAppointmentNotification,
   PatientRegistration,
   PatientUpdate,
   PatientFile,
@@ -23,3 +23,11 @@ export type QueryOptions = {
   pollingInterval?: number;
   refetchOnMountOrArgChange?: boolean | number;
 };
+
+import type {
+  PatientAppointmentNotification as AppointmentNotice,
+  ConsultationMessageNotification,
+} from './generated/patient-api';
+export type PatientAppointmentNotification =
+  | AppointmentNotice
+  | ConsultationMessageNotification;

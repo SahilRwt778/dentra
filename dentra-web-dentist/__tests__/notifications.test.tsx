@@ -301,3 +301,33 @@ test('older withdrawal notifications remain readable and mark-all uses the lates
   ).toEqual({ through: withdrawal.id });
   expect(text()).not.toContain('notification-unread');
 });
+
+test('a consultation message opens its separate conversation', async () => {
+  await mount();
+  latest = [
+    {
+      id: 'chat-notice',
+      type: 'consultation_message',
+      caseId: 'case-one',
+      appointmentId: 'original',
+      senderName: 'Case patient',
+      dentistName: 'Dentist',
+      sequence: '10',
+      date: '2026-11-16',
+      time: '10:00',
+      appointmentType: 'video',
+      paymentRequired: false,
+      createdAt: '2026-11-16T10:00:00Z',
+      readAt: null,
+    },
+  ];
+  await reload();
+  const options = vi.mocked(toast).mock.calls[0][1]!;
+  await act(async () => {
+    (options.action as { onClick: () => void }).onClick();
+    await flush();
+  });
+  expect(tree.root.findByType('output').children.join('')).toBe(
+    '/messages/case-one',
+  );
+});

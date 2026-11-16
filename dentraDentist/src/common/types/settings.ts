@@ -1,4 +1,9 @@
+import type { ProfilePhoto } from './profile-photo';
+
 export type DentistUpdate = {
+  /** Device-local descriptor, converted to multipart by the Axios adapter. */
+  profilePhoto?: ProfilePhoto;
+  removeProfilePhoto?: boolean;
   qualification?: string;
   specialization?: string;
   councilRegNo?: string;

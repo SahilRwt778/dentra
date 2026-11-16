@@ -24,7 +24,7 @@ test('sends a private generic alert with an opaque notification ID and matching 
   expect(payload.data).toEqual({ notificationId: 'notification-id' });
   expect(payload.notification).toEqual({
     title: 'Dentra',
-    body: 'You have a new appointment update. Open Dentra to view it.',
+    body: 'You have a new update. Open Dentra to view it.',
   });
   expect(payload.android.ttl).toBe(1800000);
   expect(payload.android.notification).toMatchObject({ channelId: 'dentra_appointments', visibility: 'private' });

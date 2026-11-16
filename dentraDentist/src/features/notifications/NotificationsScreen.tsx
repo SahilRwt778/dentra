@@ -48,7 +48,9 @@ export function NotificationsScreen({
     inbox.dismissNotice();
     // Open the destination even if marking read temporarily fails.
     inbox.markRead(item);
-    if (item.type === 'wallet_withdrawal_updated') {
+    if (item.type === 'consultation_message')
+      navigation.navigate('Chat', { caseId: item.caseId });
+    else if (item.type === 'wallet_withdrawal_updated') {
       navigation.navigate('Withdrawal', { withdrawalId: item.withdrawalId });
     } else {
       navigation.navigate('Appointment', { appointmentId: item.appointmentId });

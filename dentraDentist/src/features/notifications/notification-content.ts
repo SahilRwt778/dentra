@@ -15,6 +15,14 @@ const withdrawalTitles: Record<WalletWithdrawalNotification['status'], string> =
   };
 
 export function notificationContent(item: DentistNotification) {
+  if (item.type === 'consultation_message')
+    return {
+      title: 'New consultation message',
+      description: `${item.senderName} sent you a message.`,
+      detail: '',
+      action: 'Open conversation',
+      accessibilityLabel: `New message from ${item.senderName}. Open conversation.`,
+    };
   if (item.type === 'appointment_booked') {
     return {
       title: 'New appointment booking',

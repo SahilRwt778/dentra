@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
+import { useMediaControls } from '@dentra/video/src/useMediaControls';
 
 export function useCallControls(
   minimized: boolean,
@@ -8,8 +9,8 @@ export function useCallControls(
   const [visible, setVisible] = useState(true);
   const [activity, setActivity] = useState(0);
   const [screenReader, setScreenReader] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const lock = useRef(false);
+  const media = useMediaControls(report);
+  const { busy } = media;
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -39,28 +40,14 @@ export function useCallControls(
     setVisible(true);
     setActivity(value => value + 1);
   }
-  async function change(action: () => Promise<unknown>) {
-    if (lock.current) return;
-    lock.current = true;
+  function change(...args: Parameters<typeof media.change>) {
     reveal();
-    setBusy(true);
-    try {
-      await action();
-    } catch (error) {
-      if (mounted.current)
-        report(
-          error instanceof Error
-            ? error.message
-            : 'Could not update the call controls. Please try again.',
-        );
-    } finally {
-      lock.current = false;
-      if (mounted.current) setBusy(false);
-    }
+    return media.change(...args);
   }
   return {
     visible: minimized || visible || screenReader || busy,
     busy,
+    isBusy: media.isBusy,
     reveal,
     change,
   };

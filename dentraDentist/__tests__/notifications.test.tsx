@@ -471,3 +471,31 @@ test('leaving an older inbox page during mark-all does not restart its request a
     calls.filter(call => call.url === '/notifications' && call.params?.cursor),
   ).toHaveLength(olderRequests);
 });
+
+test('a consultation message opens the conversation instead of the appointment', async () => {
+  latest = [
+    {
+      id: 'chat-notice',
+      type: 'consultation_message',
+      caseId: 'case-one',
+      appointmentId: 'original',
+      senderName: 'Case patient',
+      sequence: '10',
+      createdAt: '2026-11-16T10:00:00Z',
+      readAt: null,
+    },
+  ];
+  await mount(screen());
+  await act(async () => {
+    renderer.root
+      .findAll(node => typeof node.props.onPress === 'function')
+      .find(node =>
+        node.props.accessibilityLabel?.includes(
+          'New message from Case patient',
+        ),
+      )!
+      .props.onPress();
+    await flush();
+  });
+  expect(mockNavigate).toHaveBeenCalledWith('Chat', { caseId: 'case-one' });
+});

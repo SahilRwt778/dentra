@@ -29,11 +29,17 @@ export function ConsultationAction({
   const needsStart =
     appointment.status === 'booked' || appointment.status === 'waiting';
   const future = needsStart && appointment.date > dateKey();
+  const coverageClosed =
+    needsStart &&
+    (appointment.payment?.status === 'coverage_revoked' ||
+      (!!appointment.followUpOf &&
+        appointment.type === 'clinic' &&
+        appointment.consultationCase?.status !== 'active'));
   function openNotes() {
     navigation.navigate('Consultation', { appointmentId: appointment.id });
   }
   async function open() {
-    if (disabled || lock.current || future) return;
+    if (disabled || lock.current || future || coverageClosed) return;
     if (!needsStart) {
       openNotes();
       return;
@@ -68,7 +74,9 @@ export function ConsultationAction({
       <ErrorMessage message={error} />
       <Button
         title={
-          future
+          coverageClosed
+            ? 'Follow-up pass unavailable'
+            : future
             ? `Starts ${formatDate(appointment.date)}, ${formatTime(
                 appointment.time,
               )}`
@@ -79,7 +87,7 @@ export function ConsultationAction({
             : 'Continue consultation'
         }
         loading={starting.isLoading}
-        disabled={disabled || future}
+        disabled={disabled || future || coverageClosed}
         onPress={open}
       />
     </View>

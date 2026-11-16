@@ -13,7 +13,13 @@ export function CallChat({
   onClose,
   onUnread,
   cameraTrack,
+  title = 'Consultation chat',
+  subtitle,
+  standalone = false,
 }: {
+  title?: string;
+  subtitle?: string;
+  standalone?: boolean;
   appointmentId: string;
   target: HTMLElement | null;
   open: boolean;
@@ -21,7 +27,15 @@ export function CallChat({
   onUnread(count: number): void;
   cameraTrack?: MediaStreamTrack;
 }) {
-  const chat = useCallChat(appointmentId, callChat, open);
+  const [foreground, setForeground] = useState(
+    document.visibilityState !== 'hidden',
+  );
+  useEffect(() => {
+    const update = () => setForeground(document.visibilityState !== 'hidden');
+    document.addEventListener('visibilitychange', update);
+    return () => document.removeEventListener('visibilitychange', update);
+  }, []);
+  const chat = useCallChat(appointmentId, callChat, open && foreground);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File>();
   const [key, setKey] = useState(() => crypto.randomUUID());
@@ -75,7 +89,7 @@ export function CallChat({
       if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
       files.current.forEach((url) => URL.revokeObjectURL(url));
     },
-    []
+    [],
   );
   async function send() {
     if (await chat.send({ requestId: key, text, file })) {
@@ -94,7 +108,7 @@ export function CallChat({
       const blob = await downloadChatAttachment(
         appointmentId,
         item.id,
-        abort.signal
+        abort.signal,
       );
       if (abort.signal.aborted) return;
       if (blob.size !== item.sizeBytes || blob.type !== item.mimeType)
@@ -107,7 +121,7 @@ export function CallChat({
         setNotice(
           error instanceof Error
             ? error.message
-            : 'Could not open this attachment.'
+            : 'Could not open this attachment.',
         );
     } finally {
       if (!abort.signal.aborted) setOpening(undefined);
@@ -119,12 +133,12 @@ export function CallChat({
           <aside
             hidden={!open}
             inert={cameraOpen || !!viewer}
-            className="call-chat"
+            className={`call-chat ${standalone ? 'call-chat-standalone' : ''}`}
             aria-label="Consultation chat"
           >
             <header className="call-chat-header">
               <strong>
-                <MessageCircle size={18} /> Consultation chat
+                <MessageCircle size={18} /> {title}
               </strong>
               <button
                 type="button"
@@ -135,6 +149,11 @@ export function CallChat({
                 <X size={18} />
               </button>
             </header>
+            <p className="call-chat-subtitle">
+              {!chat.canSend
+                ? 'Messaging closed · History available'
+                : subtitle ?? 'Private consultation messages'}
+            </p>
             <div className="call-chat-messages" aria-live="polite">
               {chat.hasOlder && (
                 <button
@@ -220,7 +239,7 @@ export function CallChat({
                     type="button"
                     aria-label="Remove attachment"
                     className="call-chat-remove"
-                    disabled={chat.sending}
+                    disabled={!chat.canSend || chat.sending}
                     onClick={() => {
                       chooseFile(undefined);
                       setKey(crypto.randomUUID());
@@ -232,10 +251,14 @@ export function CallChat({
               )}
               <textarea
                 aria-label="Chat message"
-                placeholder="Write a message…"
+                placeholder={
+                  chat.canSend
+                    ? 'Write a message…'
+                    : 'Messaging closed · History available'
+                }
                 maxLength={4000}
                 value={text}
-                disabled={chat.sending}
+                disabled={!chat.canSend || chat.sending}
                 onChange={(event) => {
                   setText(event.target.value);
                   setKey(crypto.randomUUID());
@@ -243,7 +266,7 @@ export function CallChat({
               />
               <div className="call-chat-actions">
                 <ChatAttachmentMenu
-                  active={open && !chat.sending}
+                  active={open && chat.canSend && !chat.sending}
                   onSelect={selectAttachment}
                   onCamera={() => {
                     setNotice(undefined);
@@ -253,7 +276,9 @@ export function CallChat({
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={chat.sending || (!text.trim() && !file)}
+                  disabled={
+                    !chat.canSend || chat.sending || (!text.trim() && !file)
+                  }
                 >
                   <Send size={17} />
                   {chat.sending ? 'Sending…' : 'Send'}
@@ -273,7 +298,9 @@ export function CallChat({
           )}
           {viewer && (
             <div
-              className="call-chat-viewer"
+              className={`call-chat-viewer ${
+                standalone ? 'call-chat-viewer-standalone' : ''
+              }`}
               role="dialog"
               aria-modal="true"
               aria-label="Chat attachment"
@@ -304,7 +331,7 @@ export function CallChat({
             </div>
           )}
         </>,
-        target
+        target,
       )
     : null;
 }

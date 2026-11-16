@@ -43,6 +43,15 @@ type NotificationRow = {
   created_at: Date;
 } & (
   | {
+      template_key: 'consultation_message';
+      payload: {
+        caseId: string;
+        appointmentId: string;
+        senderName: string;
+        sequence: string;
+      };
+    }
+  | {
       template_key: 'appointment_booked';
       payload: {
         appointmentId: string;
@@ -109,6 +118,30 @@ export class NotificationsService {
           appointmentType: appointment.type,
         }),
       ],
+    );
+  }
+
+  async consultationMessage(
+    client: PoolClient,
+    caseId: string,
+    senderId: string,
+    sequence: string,
+  ) {
+    await client.query(
+      `with saved as (
+      insert into notifications(user_id,channel,template_key,payload)
+      select case when c.patient_id=$2 then c.dentist_id else c.patient_id end,'in_app','consultation_message',
+        jsonb_build_object('caseId',c.id,'appointmentId',c.original_appointment_id,'sequence',$3::text,
+          'dentistName',d.full_name,'date',a.scheduled_date::text,'time',to_char(a.scheduled_time,'HH24:MI'),'appointmentType',a.type,'paymentRequired',false,
+          'senderName',case when c.patient_id=$2 then p.full_name else d.full_name end)
+      from consultation_cases c join patients p on p.user_id=c.patient_id join dentists d on d.user_id=c.dentist_id join appointments a on a.id=c.original_appointment_id where c.id=$1
+      on conflict(user_id,(payload->>'caseId')) where template_key='consultation_message' and channel='in_app' and read_at is null
+      do update set payload=excluded.payload returning id,user_id)
+      insert into push_deliveries(notification_id,device_id,binding_id)
+      select n.id,pd.id,pd.binding_id from saved n join push_devices pd on pd.user_id=n.user_id and pd.enabled
+      where exists(select 1 from refresh_tokens rt where rt.user_id=pd.user_id and rt.device_id=pd.installation_id
+        and rt.session_id=pd.session_id and rt.revoked_at is null and rt.expires_at>now()) on conflict do nothing`,
+      [caseId, senderId, sequence],
     );
   }
 
@@ -230,13 +263,18 @@ export class NotificationsService {
     if (user.role === 'admin')
       return ['dentist_onboarding_submitted', 'wallet_withdrawal_requested'];
     if (user.role === 'dentist')
-      return ['appointment_booked', 'wallet_withdrawal_updated'];
+      return [
+        'appointment_booked',
+        'wallet_withdrawal_updated',
+        'consultation_message',
+      ];
     return [
       'booking_confirmed',
       'appointment_cancelled',
       'appointment_rescheduled',
       'appointment_reminder',
       'visit_summary_ready',
+      'consultation_message',
     ];
   }
 
@@ -307,6 +345,14 @@ export class NotificationsService {
   }
 
   private toResponse(row: NotificationRow) {
+    if (row.template_key === 'consultation_message')
+      return {
+        id: row.id,
+        type: row.template_key,
+        ...row.payload,
+        readAt: row.read_at,
+        createdAt: row.created_at,
+      };
     if (row.template_key === 'wallet_withdrawal_updated') {
       return {
         id: row.id,

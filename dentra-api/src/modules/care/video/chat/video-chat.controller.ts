@@ -1,3 +1,4 @@
+import { ReadChatDto } from '../../cases/consultation-cases.dto';
 import {
   BadRequestException,
   Body,
@@ -31,7 +32,7 @@ export class VideoChatController {
   list(
     @CurrentUser() user: AuthenticatedUser,
     @Param('appointmentId', ParseUUIDPipe) id: string,
-    @Query() page: ChatPageDto
+    @Query() page: ChatPageDto,
   ) {
     return this.chat.list(user, id, page);
   }
@@ -40,15 +41,23 @@ export class VideoChatController {
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: MAX_FILE_BYTES, files: 1, fields: 2, parts: 4 },
-    })
+    }),
   )
   send(
     @CurrentUser() user: AuthenticatedUser,
     @Param('appointmentId', ParseUUIDPipe) id: string,
     @Body() dto: SendChatDto,
-    @UploadedFile() file?: Express.Multer.File
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.chat.send(user, id, dto, file);
+  }
+  @Post('read')
+  read(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('appointmentId', ParseUUIDPipe) id: string,
+    @Body() dto: ReadChatDto,
+  ) {
+    return this.chat.read(user, id, dto.sequence);
   }
   @Get(':messageId/content')
   @Header('Cache-Control', 'private, no-store')
@@ -57,7 +66,7 @@ export class VideoChatController {
   async content(
     @CurrentUser() user: AuthenticatedUser,
     @Param('appointmentId', ParseUUIDPipe) id: string,
-    @Param('messageId', ParseUUIDPipe) messageId: string
+    @Param('messageId', ParseUUIDPipe) messageId: string,
   ) {
     const { file, bytes } = await this.chat.content(user, id, messageId);
     if (!file.mime_type)
@@ -69,7 +78,7 @@ export class VideoChatController {
         ? 'png'
         : 'jpg';
     const name = encodeURIComponent(
-      file.file_name ?? `Attachment.${extension}`
+      file.file_name ?? `Attachment.${extension}`,
     ).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16)}`);
     return new StreamableFile(bytes, {
       type: file.mime_type,

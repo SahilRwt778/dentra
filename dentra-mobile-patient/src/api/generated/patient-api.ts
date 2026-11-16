@@ -4,9 +4,10 @@ export const addTagTypes = [
   "Patient Files",
   "Notifications",
   "Auth",
+  "Consultation Cases",
+  "Appointments",
   "Patients",
   "Dentists",
-  "Appointments",
   "Privacy",
 ] as const;
 const injectedRtkApi = api
@@ -150,6 +151,38 @@ const injectedRtkApi = api
           body: queryArg.body,
         }),
         invalidatesTags: ["Auth"],
+      }),
+      getConsultationCases: build.query<
+        GetConsultationCasesApiResponse,
+        GetConsultationCasesApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/consultation-cases`,
+          params: {
+            page: queryArg.page,
+          },
+        }),
+        providesTags: ["Consultation Cases"],
+      }),
+      getConsultationCase: build.query<
+        GetConsultationCaseApiResponse,
+        GetConsultationCaseApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/consultation-cases/${queryArg.caseId}`,
+        }),
+        providesTags: ["Consultation Cases"],
+      }),
+      bookConsultationFollowUp: build.mutation<
+        BookConsultationFollowUpApiResponse,
+        BookConsultationFollowUpApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/consultation-cases/${queryArg.caseId}/follow-ups`,
+          method: "POST",
+          body: queryArg.followUpBooking,
+        }),
+        invalidatesTags: ["Consultation Cases", "Appointments"],
       }),
       postPatientsRegister: build.mutation<
         PostPatientsRegisterApiResponse,
@@ -403,6 +436,22 @@ export type PostAuthOtpVerifyApiArg = {
     deviceId: string;
   };
 };
+export type GetConsultationCasesApiResponse =
+  /** status 200 Owned cases, including read-only history */ ConsultationCasePage;
+export type GetConsultationCasesApiArg = {
+  page?: number;
+};
+export type GetConsultationCaseApiResponse =
+  /** status 200 Current server-checked pass */ ConsultationCase;
+export type GetConsultationCaseApiArg = {
+  caseId: string;
+};
+export type BookConsultationFollowUpApiResponse =
+  /** status 201 Covered appointment; no checkout or financial transaction is created */ Appointment;
+export type BookConsultationFollowUpApiArg = {
+  caseId: string;
+  followUpBooking: FollowUpBooking;
+};
 export type PostPatientsRegisterApiResponse =
   /** status 201 Account created */ Patient;
 export type PostPatientsRegisterApiArg = {
@@ -537,6 +586,21 @@ export type VideoSession = {
   closesAt: string;
   issuedAt: string;
 };
+export type ConsultationMessageNotification = {
+  id: string;
+  type: "consultation_message";
+  caseId: string;
+  appointmentId: string;
+  senderName: string;
+  sequence: string;
+  dentistName: string;
+  date: string;
+  time: string;
+  appointmentType: "clinic" | "video";
+  paymentRequired: boolean;
+  createdAt: string;
+  readAt: string | null;
+};
 export type BookingNotification = {
   id: string;
   type: "appointment_booked";
@@ -580,6 +644,8 @@ export type WalletWithdrawalNotification = {
   createdAt: string;
 };
 export type PatientAppointmentNotification = {
+  caseId?: string;
+  senderName?: string;
   id: string;
   type:
     | "booking_confirmed"
@@ -600,6 +666,9 @@ export type PatientAppointmentNotification = {
   readAt: string | null;
 };
 export type Notification =
+  | ({
+      type: "consultation_message";
+    } & ConsultationMessageNotification)
   | ({
       type: "appointment_booked";
     } & BookingNotification)
@@ -638,9 +707,106 @@ export type AuthTokens = {
   /** Patients only — true if registration is still needed before the token can be used for anything but POST /patients/register. */
   isNewAccount?: boolean;
 };
+export type ConsultationCaseBrief = {
+  id: string;
+  originalAppointmentId: string;
+  activatedAt: string | null;
+  expiresAt: string | null;
+  status: "pending" | "active" | "expired" | "revoked";
+};
+export type ConsultationCase = ConsultationCaseBrief & {
+  patientId: string;
+  dentistId: string;
+  patientName: string;
+  dentistName: string;
+  concern: string;
+  serverNow: string;
+  canMessage: boolean;
+  canBookFollowUp: boolean;
+  unreadCount: number;
+  latestMessageAt: string | null;
+};
+export type ConsultationCasePage = {
+  items: ConsultationCase[];
+  unreadCount: number;
+  nextPage: number | null;
+};
+export type AppointmentType = "video" | "clinic";
+export type AppointmentStatus =
+  "booked" | "waiting" | "in_consult" | "completed" | "cancelled";
+export type ClinicCollectionMethod = "cash" | "upi" | "card";
+export type ClinicPaymentReceipt = {
+  id: string;
+  amountPaise: number;
+  method: ClinicCollectionMethod;
+  /** Server-recorded receipt time. */
+  collectedAt: string;
+} | null;
+export type Appointment = {
+  id?: string;
+  patientId?: string;
+  patientName?: string;
+  patientAge?: number | null;
+  patientGender?: string | null;
+  dentistId?: string;
+  dentistName?: string;
+  clinicId?: string | null;
+  clinicName?: string | null;
+  type?: AppointmentType;
+  date?: string;
+  time?: string;
+  status?: AppointmentStatus;
+  followUpOf?: string | null;
+  consultationCase?: ConsultationCaseBrief | null;
+  concern?: string;
+  concerns?: string[];
+  symptomArea?: string;
+  symptomSince?: string;
+  painScore?: number | null;
+  swelling?: boolean;
+  note?: string;
+  photoUrls?: string[];
+  payment?: {
+    collection?: ClinicPaymentReceipt;
+    method?: string;
+    amountPaise?: number;
+    status?:
+      | "pending"
+      | "paid"
+      | "due_at_clinic"
+      | "refund_pending"
+      | "refund_failed"
+      | "refunded"
+      | "cancelled"
+      | "failed"
+      | "covered"
+      | "coverage_revoked";
+    /** New online bookings hold the slot for 15 minutes. Legacy and pay-at-clinic bookings have no checkout deadline. */
+    expiresAt?: string | null;
+    /** Razorpay order id. Null for pay_at_clinic bookings, which never create a gateway order. */
+    gatewayOrderId?: string | null;
+    /** Public Razorpay checkout key id. Never the API signing secret. */
+    gatewayKeyId?: string | null;
+  };
+  bookedAt?: string;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  rescheduledAt?: string | null;
+};
+export type FollowUpBooking = {
+  type: "video" | "clinic";
+  clinicId?: string;
+  date: string;
+  time: string;
+  note?: string;
+  attachmentIds?: string[];
+  idempotencyKey: string;
+};
 export type Patient = {
   id?: string;
   fullName?: string;
+  /** Expiring image URL relative to the API origin, or null when no photo is set. */
+  profilePhotoUrl?: string | null;
   mobile?: string;
   dateOfBirth?: string;
   gender?: string;
@@ -706,6 +872,8 @@ export type DentistPublic = {
   videoWorkingDays?: WorkingDays;
   id?: string;
   fullName?: string;
+  /** Expiring image URL relative to the API origin, or null when no photo is set. */
+  profilePhotoUrl?: string | null;
   qualification?: string;
   specialization?: string;
   yearsExperience?: number;
@@ -717,64 +885,6 @@ export type DentistPublic = {
   videoHoursTo?: string | null;
   clinics?: Clinic[];
   councilRegNo?: string;
-};
-export type AppointmentType = "video" | "clinic";
-export type AppointmentStatus =
-  "booked" | "waiting" | "in_consult" | "completed" | "cancelled";
-export type ClinicCollectionMethod = "cash" | "upi" | "card";
-export type ClinicPaymentReceipt = {
-  id: string;
-  amountPaise: number;
-  method: ClinicCollectionMethod;
-  /** Server-recorded receipt time. */
-  collectedAt: string;
-} | null;
-export type Appointment = {
-  id?: string;
-  patientId?: string;
-  patientName?: string;
-  patientAge?: number | null;
-  patientGender?: string | null;
-  dentistId?: string;
-  dentistName?: string;
-  clinicId?: string | null;
-  clinicName?: string | null;
-  type?: AppointmentType;
-  date?: string;
-  time?: string;
-  status?: AppointmentStatus;
-  concern?: string;
-  concerns?: string[];
-  symptomArea?: string;
-  symptomSince?: string;
-  painScore?: number | null;
-  swelling?: boolean;
-  note?: string;
-  photoUrls?: string[];
-  payment?: {
-    collection?: ClinicPaymentReceipt;
-    method?: string;
-    amountPaise?: number;
-    status?:
-      | "pending"
-      | "paid"
-      | "due_at_clinic"
-      | "refund_pending"
-      | "refund_failed"
-      | "refunded"
-      | "cancelled"
-      | "failed";
-    /** New online bookings hold the slot for 15 minutes. Legacy and pay-at-clinic bookings have no checkout deadline. */
-    expiresAt?: string | null;
-    /** Razorpay order id. Null for pay_at_clinic bookings, which never create a gateway order. */
-    gatewayOrderId?: string | null;
-    /** Public Razorpay checkout key id. Never the API signing secret. */
-    gatewayKeyId?: string | null;
-  };
-  bookedAt?: string;
-  completedAt?: string | null;
-  cancelledAt?: string | null;
-  rescheduledAt?: string | null;
 };
 export type BookAppointment = {
   dentistId: string;
@@ -860,6 +970,11 @@ export const {
   usePostNotificationsReadAllMutation,
   usePostAuthOtpRequestMutation,
   usePostAuthOtpVerifyMutation,
+  useGetConsultationCasesQuery,
+  useLazyGetConsultationCasesQuery,
+  useGetConsultationCaseQuery,
+  useLazyGetConsultationCaseQuery,
+  useBookConsultationFollowUpMutation,
   usePostPatientsRegisterMutation,
   useGetPatientsMeQuery,
   useLazyGetPatientsMeQuery,

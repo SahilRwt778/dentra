@@ -55,6 +55,12 @@ export function PatientPushProvider({ children }: { children: ReactNode }) {
         setBanner(undefined);
         whenPatientNavigationReady(() => {
           if (!live || currentPushSession()?.key !== key) return;
+          if (notification.type === 'consultation_message') {
+            patientNavigationRef.navigate('Chat', {
+              caseId: notification.caseId,
+            });
+            return;
+          }
           patientNavigationRef.navigate(
             notification.type === 'visit_summary_ready'
               ? 'Visit'
@@ -114,10 +120,17 @@ export function PatientPushProvider({ children }: { children: ReactNode }) {
         new AbortController().signal,
       );
       if (notification && currentPushSession()?.key === scope.key) {
-        patientNavigationRef.navigate(
-          notification.type === 'visit_summary_ready' ? 'Visit' : 'Appointment',
-          { appointmentId: notification.appointmentId },
-        );
+        if (notification.type === 'consultation_message')
+          patientNavigationRef.navigate('Chat', {
+            caseId: notification.caseId,
+          });
+        else
+          patientNavigationRef.navigate(
+            notification.type === 'visit_summary_ready'
+              ? 'Visit'
+              : 'Appointment',
+            { appointmentId: notification.appointmentId },
+          );
         pushRequest(scope, `/notifications/${banner}/read`, 'PATCH').catch(
           () => undefined,
         );
@@ -139,14 +152,14 @@ export function PatientPushProvider({ children }: { children: ReactNode }) {
             <Pressable
               style={s.content}
               accessibilityRole="button"
-              accessibilityLabel="New Dentra appointment update. View update"
+              accessibilityLabel="New Dentra update. View update"
               onPress={() => {
                 openBanner().catch(() => undefined);
               }}
             >
               <Bell size={22} color={colors.accent} />
               <View style={s.copy}>
-                <Text style={s.title}>New appointment update</Text>
+                <Text style={s.title}>New Dentra update</Text>
                 <Text style={s.body}>Tap to view your update.</Text>
               </View>
             </Pressable>

@@ -57,7 +57,8 @@ export const videoStyles = StyleSheet.create({
   },
   fill: { width: '100%', height: '100%' },
   placeholder: { flex: 1, justifyContent: 'center', padding: 24, gap: 14 },
-  miniHeading: { fontSize: 14 },
+  miniHeading: { fontSize: 14, lineHeight: 19 },
+  miniPlaceholder: { padding: 12, gap: 0 },
   local: {
     position: 'absolute',
     height: 160,
@@ -110,14 +111,7 @@ export const videoStyles = StyleSheet.create({
     right: 0,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  collaboration: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 24,
-    paddingTop: 12,
-  },
-  collaborationButton: {
+  headerAction: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -127,8 +121,6 @@ export const videoStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#42606A',
   },
-  sharingButton: { backgroundColor: '#0D7870', borderColor: '#85D6CF' },
-  collaborationDisabled: { opacity: 0.4 },
   unreadBadge: {
     position: 'absolute',
     right: -5,
@@ -146,8 +138,12 @@ export const videoStyles = StyleSheet.create({
   },
   controls: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 420,
+    gap: 8,
     paddingVertical: 18,
   },
   miniControls: { paddingVertical: 8, gap: 20 },

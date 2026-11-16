@@ -1,4 +1,5 @@
 import { CallChat } from '@dentra/video/src/CallChat';
+import { useMediaControls } from '@dentra/video/src/useMediaControls';
 import { callChat } from '@/api/call-chat';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -18,7 +19,6 @@ import {
 import {
   Camera,
   CameraOff,
-  Maximize2,
   MessageCircle,
   Mic,
   MicOff,
@@ -206,6 +206,7 @@ function NativeCall({
   const meeting = sdk.useMeeting();
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [footerHeight, setFooterHeight] = useState(156);
   const displayTile = meeting.remoteScreenTrack ?? meeting.remoteCameraTrack;
   const {
     connection,
@@ -219,7 +220,9 @@ function NativeCall({
   }, [isMicrophoneEnabled, isCameraEnabled]);
   const hasRemoteVideo = displayTile != null;
   const [front, setFront] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const media = useMediaControls(report);
+  const { busy } = media;
+  const disconnected = connection !== 'connected';
   useEffect(() => {
     let active = true;
     AccessibilityInfo.isScreenReaderEnabled()
@@ -241,7 +244,7 @@ function NativeCall({
     setControlsVisible(true);
   }, [minimized]);
   const showControls =
-    !systemPip && (minimized || controlsVisible || screenReader);
+    !systemPip && !minimized && (controlsVisible || screenReader);
   useEffect(() => {
     if (minimized || !controlsVisible || screenReader || busy) return;
     const timer = setTimeout(() => setControlsVisible(false), 4000);
@@ -251,21 +254,9 @@ function NativeCall({
     setControlsVisible(true);
     setActivity(value => value + 1);
   }
-  async function change(action: () => Promise<unknown>) {
-    if (busy) return;
+  function change(...args: Parameters<typeof media.change>) {
     revealControls();
-    setBusy(true);
-    try {
-      await action();
-    } catch (error) {
-      report(
-        error instanceof Error
-          ? error.message
-          : 'Could not update the call controls. Please try again.',
-      );
-    } finally {
-      setBusy(false);
-    }
+    return media.change(...args);
   }
   const heading =
     connection === 'reconnecting'
@@ -287,7 +278,10 @@ function NativeCall({
         appointmentId={appointmentId}
         client={callChat}
         visible={chatOpen && !minimized && !systemPip}
-        onClose={() => setChatOpen(false)}
+        onClose={() => {
+          setChatOpen(false);
+          revealControls();
+        }}
         onUnread={setUnread}
         callCamera={{
           enabled: isCameraEnabled,
@@ -304,7 +298,10 @@ function NativeCall({
           />
         )}
         {!hasRemoteVideo && (
-          <View testID="call-waiting-state" style={[s.remote, s.placeholder]}>
+          <View
+            testID="call-waiting-state"
+            style={[s.remote, s.placeholder, minimized && s.miniPlaceholder]}
+          >
             <Text style={[s.heading, minimized && s.miniHeading]}>
               {videoStatus}
             </Text>
@@ -323,10 +320,11 @@ function NativeCall({
           s.local,
           {
             right: Math.max(insets.right, 12),
-            bottom: Math.max(insets.bottom, 12) + (showControls ? 174 : 12),
+            bottom: showControls
+              ? footerHeight + 12
+              : Math.max(insets.bottom, 12) + 12,
           },
-          minimized && s.miniLocal,
-          systemPip && s.hidden,
+          (minimized || systemPip) && s.hidden,
         ]}
       >
         {localCameraTrack != null && isCameraEnabled ? (
@@ -372,17 +370,30 @@ function NativeCall({
               accessibilityLiveRegion="polite"
               style={[s.status, minimized && s.miniStatus]}
             >
-              {heading}
+              {meeting.remoteScreenTrack != null
+                ? `${heading} · Dentist’s screen`
+                : heading}
             </Text>
           </View>
-          {minimized && (
+          {!minimized && (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Expand call"
-              onPress={expand}
-              style={s.layoutButton}
+              accessibilityLabel="Open call chat"
+              accessibilityHint={
+                unread ? `${unread} unread messages` : undefined
+              }
+              style={s.headerAction}
+              onPress={() => {
+                revealControls();
+                setChatOpen(true);
+              }}
             >
-              <Maximize2 size={20} color="#fff" />
+              <MessageCircle size={23} color="#FFFFFF" />
+              {unread > 0 && (
+                <Text style={s.unreadBadge}>
+                  {unread > 99 ? '99+' : unread}
+                </Text>
+              )}
             </Pressable>
           )}
         </View>
@@ -390,6 +401,9 @@ function NativeCall({
       {showControls && (
         <View
           testID="call-controls"
+          onLayout={event => {
+            if (!minimized) setFooterHeight(event.nativeEvent.layout.height);
+          }}
           style={[
             s.callFooter,
             {
@@ -400,58 +414,6 @@ function NativeCall({
             minimized && s.miniCallFooter,
           ]}
         >
-          {!minimized && (
-            <View style={s.collaboration}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  meeting.screenSharing ? 'Stop sharing screen' : 'Share screen'
-                }
-                accessibilityState={{
-                  selected: !!meeting.screenSharing,
-                  disabled: busy,
-                }}
-                style={[
-                  s.collaborationButton,
-                  meeting.screenSharing && s.sharingButton,
-                  busy && s.disabled,
-                ]}
-                disabled={busy}
-                onPress={() =>
-                  change(() =>
-                    meeting.screenSharing
-                      ? meeting.stopScreenShare()
-                      : meeting.startScreenShare(),
-                  )
-                }
-              >
-                {meeting.screenSharing ? (
-                  <MonitorOff size={23} color="#FFFFFF" />
-                ) : (
-                  <MonitorUp size={23} color="#FFFFFF" />
-                )}
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Open call chat"
-                accessibilityHint={
-                  unread ? `${unread} unread messages` : undefined
-                }
-                style={s.collaborationButton}
-                onPress={() => setChatOpen(true)}
-              >
-                <MessageCircle size={23} color="#FFFFFF" />
-                {unread > 0 && (
-                  <Text style={s.unreadBadge}>
-                    {unread > 99 ? '99+' : unread}
-                  </Text>
-                )}
-              </Pressable>
-              {meeting.remoteScreenTrack != null && (
-                <Text style={s.status}>Dentist’s screen</Text>
-              )}
-            </View>
-          )}
           <View style={[s.controls, minimized && s.miniControls]}>
             <Control
               compact={minimized}
@@ -459,10 +421,11 @@ function NativeCall({
                 isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'
               }
               on={isMicrophoneEnabled}
-              disabled={busy}
+              disabled={disconnected}
+              busy={media.isBusy('microphone')}
               icon={isMicrophoneEnabled ? Mic : MicOff}
               onPress={() => {
-                change(() =>
+                change('microphone', () =>
                   meeting.setMicrophoneEnabled(!isMicrophoneEnabled),
                 ).catch(() => undefined);
               }}
@@ -472,10 +435,11 @@ function NativeCall({
                 <Control
                   label={isCameraEnabled ? 'Turn camera off' : 'Turn camera on'}
                   on={isCameraEnabled}
-                  disabled={busy}
+                  disabled={disconnected}
+                  busy={media.isBusy('camera')}
                   icon={isCameraEnabled ? Camera : CameraOff}
                   onPress={() => {
-                    change(() =>
+                    change('camera', () =>
                       meeting.setCameraEnabled(!isCameraEnabled),
                     ).catch(() => undefined);
                   }}
@@ -483,13 +447,34 @@ function NativeCall({
                 <Control
                   label="Switch camera"
                   on
-                  disabled={busy || !isCameraEnabled}
+                  disabled={
+                    disconnected || media.isBusy('camera') || !isCameraEnabled
+                  }
                   icon={RefreshCw}
                   onPress={() => {
-                    change(async () => {
+                    change('camera', async () => {
                       await meeting.switchCamera();
                       setFront(value => !value);
                     }).catch(() => undefined);
+                  }}
+                />
+                <Control
+                  label={
+                    meeting.screenSharing
+                      ? 'Stop sharing screen'
+                      : 'Share screen'
+                  }
+                  on
+                  selected={!!meeting.screenSharing}
+                  icon={meeting.screenSharing ? MonitorOff : MonitorUp}
+                  disabled={disconnected}
+                  busy={media.isBusy('screenShare')}
+                  onPress={() => {
+                    change('screenShare', () =>
+                      meeting.screenSharing
+                        ? meeting.stopScreenShare()
+                        : meeting.startScreenShare(),
+                    ).catch(() => undefined);
                   }}
                 />
               </>
@@ -523,6 +508,8 @@ function Control({
   danger,
   disabled,
   compact,
+  busy = false,
+  selected,
 }: {
   compact?: boolean;
   label: string;
@@ -531,19 +518,22 @@ function Control({
   onPress: () => void;
   danger?: boolean;
   disabled?: boolean;
+  busy?: boolean;
+  selected?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: !!disabled || busy, busy, selected }}
+      disabled={disabled || busy}
       onPress={onPress}
       style={[
         s.control,
         compact && s.compactControl,
         !on && s.off,
         danger && s.danger,
+        selected && s.sharingButton,
         disabled && s.disabled,
       ]}
     >
@@ -556,7 +546,8 @@ const s = StyleSheet.create({
   disabled: { opacity: 0.4 },
   root: { flex: 1, backgroundColor: '#102B39' },
   layoutButton: { padding: 10 },
-  miniHeading: { fontSize: 14 },
+  miniHeading: { fontSize: 14, lineHeight: 19 },
+  miniPlaceholder: { padding: 12, gap: 0 },
   miniLocal: {
     width: 52,
     height: 68,
@@ -589,14 +580,7 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
   copy: { color: '#C7D8DE', fontSize: 15, lineHeight: 23, textAlign: 'center' },
-  collaboration: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 24,
-    paddingTop: 12,
-  },
-  collaborationButton: {
+  headerAction: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -624,14 +608,18 @@ const s = StyleSheet.create({
   },
   controls: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 420,
+    gap: 8,
     paddingVertical: 18,
   },
   control: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#27636B',
     alignItems: 'center',
     justifyContent: 'center',

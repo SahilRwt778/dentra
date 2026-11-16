@@ -1,3 +1,4 @@
+import type { ConsultationCaseBrief } from '@dentra/call-core';
 import type { ClinicPaymentReceipt } from './clinic-payment';
 // Types for the endpoints used by this app. The contract lives in ../dentra-api/openapi.yaml.
 export type AuthTokens = {
@@ -40,6 +41,7 @@ export type Clinic = {
 };
 export type Dentist = {
   id: string;
+  profilePhotoUrl?: string | null;
   fullName: string;
   mobile: string;
   email?: string | null;
@@ -88,6 +90,8 @@ export type AppointmentStatus =
   | 'completed'
   | 'cancelled';
 export type Appointment = {
+  followUpOf?: string | null;
+  consultationCase?: ConsultationCaseBrief | null;
   id: string;
   patientId: string;
   patientName: string;
@@ -148,6 +152,7 @@ export type WalletWithdrawalNotification = {
   readAt: string | null;
 };
 export type DentistNotification =
+  | ConsultationMessageNotification
   | BookingNotification
   | WalletWithdrawalNotification;
 export type PatientFile = {
@@ -181,4 +186,15 @@ export type VideoSession = import('@dentra/video').VideoCredentials & {
   role: 'dentist';
   closesAt: string;
   issuedAt: string;
+};
+
+export type ConsultationMessageNotification = {
+  id: string;
+  type: 'consultation_message';
+  caseId: string;
+  appointmentId: string;
+  senderName: string;
+  sequence: string;
+  createdAt: string;
+  readAt: string | null;
 };

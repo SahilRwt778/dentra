@@ -1,3 +1,4 @@
+import { ProfilePhotosService, type ProfilePhotoUpload } from '../profile-photos/profile-photos.service';
 import {
   BadRequestException,
   ConflictException,
@@ -16,6 +17,7 @@ import type { PatientUpdateDto } from './dto/patient-update.dto';
 export interface PatientResponse {
   id: string;
   fullName: string;
+  profilePhotoUrl: string | null;
   mobile: string;
   dateOfBirth: string;
   gender: string | null;
@@ -37,9 +39,9 @@ export interface PatientResponse {
 
 @Injectable()
 export class PatientsService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool, private readonly users: UsersService) {}
+  constructor(@Inject(PG_POOL) private readonly pool: Pool, private readonly users: UsersService, private readonly photos: ProfilePhotosService) {}
 
-  async register(userId: string, dto: PatientRegistrationDto): Promise<PatientResponse> {
+  async register(userId: string, dto: PatientRegistrationDto, photo?: ProfilePhotoUpload): Promise<PatientResponse> {
     if (await this.users.hasProfile(userId, 'patient')) {
       throw new ConflictException('This account is already registered.');
     }
@@ -56,28 +58,46 @@ export class PatientsService {
       }
     }
 
-    const { rows } = await this.pool.query(
-      `insert into patients (
-         user_id, full_name, date_of_birth, gender, email, city, preferred_lang,
-         guardian_name, guardian_relationship, guardian_mobile, guardian_consent_at
-       ) values ($1, $2, $3, $4, $5, $6, coalesce($7, 'English'), $8, $9, $10, $11)
-       returning *`,
-      [
-        userId,
-        dto.fullName,
-        dto.dateOfBirth,
-        dto.gender ?? null,
-        dto.email ?? null,
-        dto.city ?? null,
-        dto.preferredLanguage ?? null,
-        minor ? dto.guardianName : null,
-        minor ? dto.guardianRelationship : null,
-        minor ? dto.guardianMobile : null,
-        minor ? new Date() : null,
-      ],
-    );
+    const client = await this.pool.connect();
+    let reference: string | undefined;
+    let committing = false;
+    try {
+      await client.query('BEGIN');
+      await client.query('select id from users where id = $1 for update', [userId]);
+      const existing = await client.query('select 1 from patients where user_id = $1', [userId]);
+      if (existing.rowCount) throw new ConflictException('This account is already registered.');
+      if (photo) reference = await this.photos.save('patient', userId, photo);
+      const { rows } = await client.query(
+        `insert into patients (
+           user_id, full_name, date_of_birth, gender, email, city, preferred_lang,
+           guardian_name, guardian_relationship, guardian_mobile, guardian_consent_at, profile_photo_url
+         ) values ($1, $2, $3, $4, $5, $6, coalesce($7, 'English'), $8, $9, $10, $11, $12)
+         returning *`,
+        [
+          userId,
+          dto.fullName,
+          dto.dateOfBirth,
+          dto.gender ?? null,
+          dto.email ?? null,
+          dto.city ?? null,
+          dto.preferredLanguage ?? null,
+          minor ? dto.guardianName : null,
+          minor ? dto.guardianRelationship : null,
+          minor ? dto.guardianMobile : null,
+          minor ? new Date() : null,
+          reference ?? null,
+        ],
+      );
 
-    return this.toResponse(rows[0], await this.mobileFor(userId));
+      committing = true;
+      await client.query('COMMIT');
+      return this.toResponse(rows[0], await this.mobileFor(userId));
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      // A lost COMMIT response may still have saved the new profile.
+      if (reference && !committing) await this.photos.removeUnused('patient', userId, reference);
+      throw error;
+    } finally { client.release(); }
   }
 
   async findMe(userId: string): Promise<PatientResponse> {
@@ -139,6 +159,7 @@ export class PatientsService {
     return {
       id: row.user_id,
       fullName: row.full_name,
+      profilePhotoUrl: this.photos.url('patient', row.user_id, row.profile_photo_url),
       mobile,
       dateOfBirth: row.date_of_birth,
       gender: row.gender,

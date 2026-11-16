@@ -1,4 +1,7 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ProfilePhotoFormInterceptor } from '../profile-photos/profile-photo-form.interceptor';
+import { MAX_PROFILE_PHOTO_BYTES } from '../profile-photos/profile-photos.service';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Roles } from '@common/decorators/roles.decorator';
 import { CurrentUser, type AuthenticatedUser } from '@common/decorators/current-user.decorator';
@@ -14,8 +17,9 @@ export class PatientsController {
   constructor(private readonly patients: PatientsService) {}
 
   @Post('register')
-  register(@CurrentUser() user: AuthenticatedUser, @Body() dto: PatientRegistrationDto) {
-    return this.patients.register(user.userId, dto);
+  @UseInterceptors(FileInterceptor('profilePhoto', { limits: { fileSize: MAX_PROFILE_PHOTO_BYTES, files: 1, fields: 1 } }), ProfilePhotoFormInterceptor)
+  register(@CurrentUser() user: AuthenticatedUser, @Body() dto: PatientRegistrationDto, @UploadedFile() photo?: Express.Multer.File) {
+    return this.patients.register(user.userId, dto, photo);
   }
 
   @Get('me')

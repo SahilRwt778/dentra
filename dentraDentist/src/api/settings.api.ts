@@ -9,9 +9,25 @@ import type {
 } from '../common/types/settings';
 
 export const settingsApi = {
-  async updateProfile(details: DentistUpdate, signal?: AbortSignal) {
-    const { data } = await api.patch<Dentist>('/dentists/me', details, {
+  async updateProfile(
+    { profilePhoto, ...details }: DentistUpdate,
+    signal?: AbortSignal,
+  ) {
+    let body: typeof details | FormData = details;
+    if (profilePhoto) {
+      body = new FormData();
+      body.append('details', JSON.stringify(details));
+      body.append('profilePhoto', {
+        uri: profilePhoto.uri,
+        name: profilePhoto.name,
+        type: profilePhoto.type,
+      } as unknown as Blob);
+    }
+    const { data } = await api.patch<Dentist>('/dentists/me', body, {
       signal,
+      ...(profilePhoto
+        ? { timeout: 60000, headers: { 'Content-Type': 'multipart/form-data' } }
+        : {}),
     });
     return data;
   },

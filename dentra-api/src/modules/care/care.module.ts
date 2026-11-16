@@ -1,3 +1,5 @@
+import { ConsultationCasesService } from './cases/consultation-cases.service';
+import { ConsultationCasesController } from './cases/consultation-cases.controller';
 import { VideoWebhookController } from './video/video-webhook.controller';
 import { VideoChatController } from './video/chat/video-chat.controller';
 import { VideoChatService } from './video/chat/video-chat.service';
@@ -44,6 +46,7 @@ import { DentistPaymentsService } from './payments/dentist-payments.service';
 @Module({
   imports: [PaymentsModule, IdentityModule, NotificationsModule, AuditModule],
   controllers: [
+    ConsultationCasesController,
     DentistPaymentsController,
     ClinicPaymentsController,
     AppointmentsController,
@@ -56,6 +59,7 @@ import { DentistPaymentsService } from './payments/dentist-payments.service';
     CareDocumentsController,
   ],
   providers: [
+    ConsultationCasesService,
     AppointmentsService,
     ConsultationsService,
     DentistPatientsService,

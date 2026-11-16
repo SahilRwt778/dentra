@@ -42,6 +42,7 @@ let mockRemotes: { identity: string; cameraPublication?: CameraPublication }[];
 const MockVideo = (props: object) => <View {...props} />;
 const mockMute = jest.fn(),
   mockCamera = jest.fn();
+const mockStartSharing = jest.fn().mockResolvedValue(undefined);
 let mockScope: string | null, mockStatus: VideoStatus, mockError: unknown;
 const MockRoom = ({ children, ...props }: React.PropsWithChildren<object>) => (
   <View {...props}>{children}</View>
@@ -68,12 +69,16 @@ const mockSdk = {
     )
       ? 2
       : null,
-    localCameraTrack: mockTracks.some(track => track.participant.isLocal) ? 1 : null,
+    localCameraTrack: mockTracks.some(track => track.participant.isLocal)
+      ? 1
+      : null,
     microphone: true,
     camera: true,
     setMicrophoneEnabled: mockMute,
     setCameraEnabled: mockCamera,
     switchCamera: jest.fn().mockResolvedValue(undefined),
+    startScreenShare: mockStartSharing,
+    stopScreenShare: jest.fn().mockResolvedValue(undefined),
   }),
 };
 jest.mock('../src/video/native-video', () => ({ nativeVideo: () => mockSdk }));
@@ -305,9 +310,11 @@ test('minimizing, browsing, and restoring keep one connected room and audio sess
   await tap('Restore full-screen call');
   expect(tree.root.findByType(MockRoom)).toBe(room);
   await phoneBack();
+  await tap('Restore full-screen call');
   await tap('Leave call');
   expect(tree.root.findAllByType(MockRoom)).toHaveLength(0);
   expect(mockAudioStop).toHaveBeenCalledTimes(1);
+  await tap('Back to appointment');
   expect(tree.root.findAllByType(VideoCallPanel)).toHaveLength(0);
 });
 
@@ -341,9 +348,7 @@ test('system PiP fills its window without app controls and closing it stops medi
   );
   expect(tree.root.findByType(MockRoom)).toBe(room);
   expect(tree.root.findByType(MovableCallWindow).props.minimized).toBe(true);
-  expect(
-    tree.root.findAllByProps({ testID: 'call-controls' }).length,
-  ).toBeGreaterThan(0);
+  expect(tree.root.findAllByProps({ testID: 'call-controls' })).toHaveLength(0);
   await act(async () =>
     DeviceEventEmitter.emit('DentraCallBackground', {
       inPictureInPicture: true,
@@ -521,6 +526,31 @@ test('using a call control restarts the hide timer', async () => {
     jest.advanceTimersByTime(1000);
   });
   expect(tree.root.findAllByProps({ testID: 'call-controls' })).toHaveLength(0);
+});
+test('waiting for screen sharing does not disable or block the microphone and camera', async () => {
+  let finishSharing!: () => void;
+  mockStartSharing.mockImplementationOnce(
+    () =>
+      new Promise<void>(resolve => {
+        finishSharing = resolve;
+      }),
+  );
+  await render();
+  await join();
+  await tap('Share screen');
+  const button = (label: string) =>
+    tree.root.findByProps({ accessibilityLabel: label });
+  expect(button('Share screen').props.disabled).toBe(true);
+  expect(button('Mute microphone').props.disabled).toBe(false);
+  expect(button('Turn camera off').props.disabled).toBe(false);
+  await tap('Mute microphone');
+  await tap('Turn camera off');
+  expect(mockMute).toHaveBeenCalledWith(false);
+  expect(mockCamera).toHaveBeenCalledWith(false);
+  await act(async () => {
+    finishSharing();
+  });
+  expect(button('Share screen').props.disabled).toBe(false);
 });
 test('screen-reader users keep their call controls visible', async () => {
   jest.useFakeTimers({ doNotFake: ['setImmediate'] });

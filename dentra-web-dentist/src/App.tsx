@@ -1,3 +1,4 @@
+import { MessagesPage } from '@/pages/messages-page';
 import { PaymentsPage } from '@/pages/payments-page';
 import { WalletPage } from '@/pages/wallet-page';
 import { WithdrawalPage } from '@/pages/withdrawal-page';
@@ -28,12 +29,20 @@ function AppRoutes() {
           <Route element={<AppShell />}>
             <Route index element={<TodayPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/messages/:caseId" element={<MessagesPage />} />
             <Route path="/patients" element={<PatientsPage />} />
-            <Route path="/patients/:patientId" element={<PatientRecordPage />} />
+            <Route
+              path="/patients/:patientId"
+              element={<PatientRecordPage />}
+            />
             <Route path="/consult/:appointmentId" element={<ConsultPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/wallet" element={<WalletPage />} />
-            <Route path="/wallet/withdrawals/:withdrawalId" element={<WithdrawalPage />} />
+            <Route
+              path="/wallet/withdrawals/:withdrawalId"
+              element={<WithdrawalPage />}
+            />
             <Route path="/payouts" element={<PayoutHistoryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

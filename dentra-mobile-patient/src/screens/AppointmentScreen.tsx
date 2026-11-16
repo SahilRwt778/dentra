@@ -1,3 +1,4 @@
+import { ConsultationPassCard } from '@/components/consultation-pass-card';
 import { ClinicPaymentDetails } from '@/components/clinic-payment-details';
 import { cancellationPaymentMessage } from '@/lib/clinic-payment';
 import { useEffect, useState } from 'react';
@@ -279,6 +280,18 @@ export function AppointmentScreen({
               />
             </Card>
           ) : null}
+          {a.followUpOf && <Badge title="Free follow-up" />}
+          <ConsultationPassCard
+            item={a.consultationCase}
+            onMessage={() =>
+              navigation.navigate('Chat', { caseId: a.consultationCase!.id })
+            }
+            onBook={() =>
+              navigation.navigate('FollowUp', {
+                caseId: a.consultationCase!.id,
+              })
+            }
+          />
           <AppointmentFiles appointmentId={appointmentId} />
           {a.status === 'completed' ? (
             <CompletedVisitDocuments appointmentId={appointmentId} />
@@ -324,19 +337,22 @@ export function AppointmentScreen({
               <Video color={colors.accent} size={25} />
               <Text style={ui.heading}>Video consultation</Text>
               <Text style={ui.muted}>
-                {a.payment?.status === 'paid'
+                {['paid', 'covered'].includes(a.payment?.status ?? '')
                   ? 'Join from 10 minutes before your appointment. Your dentist will meet you in a private video room.'
                   : 'Complete your payment before joining the video consultation.'}
               </Text>
               <Button
                 title="Open video consultation"
-                disabled={a.payment?.status !== 'paid'}
+                disabled={
+                  !['paid', 'covered'].includes(a.payment?.status ?? '')
+                }
                 onPress={() => videoCall.open(appointmentId)}
               />
             </Card>
           ) : null}
           {actionError ? <ErrorState message={actionError} /> : null}
-          {a.status === 'booked' ? (
+          {a.status === 'booked' &&
+          (!a.followUpOf || a.consultationCase?.status === 'active') ? (
             <Button
               title="Reschedule"
               variant="secondary"
@@ -417,6 +433,11 @@ export function RescheduleScreen({
             />
           </Card>
           <SlotPicker
+            expiresAt={
+              a.followUpOf
+                ? a.consultationCase?.expiresAt ?? undefined
+                : undefined
+            }
             dentistId={a.dentistId!}
             type={a.type!}
             clinicId={a.clinicId ?? undefined}

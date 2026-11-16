@@ -1,3 +1,5 @@
+import { ProfilePhotosController } from './profile-photos/profile-photos.controller';
+import { ProfilePhotosService } from './profile-photos/profile-photos.service';
 import { DentistDocumentsStorage } from './dentists/documents.storage';
 import { Module } from '@nestjs/common';
 import { AuthController } from './auth/auth.controller';
@@ -27,8 +29,8 @@ import { NotificationsModule } from '@modules/notifications/notifications.module
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [AuthController, PatientsController, AvailabilityController, DentistsController, ApplicationsController],
-  providers: [DentistDocumentsStorage, AuthService, OtpService, UsersService, TokensService, PatientsService, DentistsService, AvailabilityService],
+  controllers: [ProfilePhotosController, AuthController, PatientsController, AvailabilityController, DentistsController, ApplicationsController],
+  providers: [ProfilePhotosService, DentistDocumentsStorage, AuthService, OtpService, UsersService, TokensService, PatientsService, DentistsService, AvailabilityService],
   exports: [UsersService, DentistsService, OtpService, AvailabilityService],
 })
 export class IdentityModule {}

@@ -3,14 +3,20 @@ import type { Notification, PatientAppointmentNotification } from '@/api/types';
 export function isPatientNotification(
   item: Notification,
 ): item is PatientAppointmentNotification {
-  return (
-    item.type !== 'appointment_booked' &&
-    item.type !== 'dentist_onboarding_submitted'
-  );
+  return [
+    'booking_confirmed',
+    'appointment_cancelled',
+    'appointment_rescheduled',
+    'appointment_reminder',
+    'visit_summary_ready',
+    'consultation_message',
+  ].includes(item.type);
 }
 
 export function notificationTitle(item: PatientAppointmentNotification) {
   switch (item.type) {
+    case 'consultation_message':
+      return 'New consultation message';
     case 'booking_confirmed':
       return item.paymentRequired
         ? 'Booking received'
@@ -28,6 +34,8 @@ export function notificationTitle(item: PatientAppointmentNotification) {
 
 export function notificationMessage(item: PatientAppointmentNotification) {
   switch (item.type) {
+    case 'consultation_message':
+      return `${item.senderName} sent you a message. Open the conversation to reply.`;
     case 'booking_confirmed':
       return item.paymentRequired
         ? 'Your slot is reserved. Open the appointment to check or complete payment.'

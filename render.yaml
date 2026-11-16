@@ -50,6 +50,11 @@ services:
         sync: false
       - key: VIDEO_ENABLED
         value: "true"
-      # Enable after adding Firebase server credentials in Render.
+      # Upload firebase-service-account.json as a Render Secret File before enabling push.
+      # Keep the enable switch in Render so Blueprint syncs preserve its chosen value.
       - key: PUSH_ENABLED
-        value: "false"
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        value: dentra-a5c03
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/firebase-service-account.json

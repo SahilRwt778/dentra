@@ -33,7 +33,8 @@ beforeEach(() => {
     null as never,
     null as never,
     null as never,
-    documents as unknown as DentistDocumentsStorage
+    documents as unknown as DentistDocumentsStorage,
+    null as never
   );
 });
 const upload = () =>

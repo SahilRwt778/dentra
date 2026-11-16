@@ -20,6 +20,17 @@ export function AppointmentPaymentCard({
   const [open, setOpen] = useState(false);
   const payment = useClinicPayment(appointment, disabled);
   if (!appointment.payment) return null;
+  if (appointment.payment.method === 'follow_up')
+    return (
+      <section className="card">
+        <h3>Free follow-up</h3>
+        <p>
+          {appointment.payment.status === 'covered'
+            ? 'Covered by the original consultation. No payment required.'
+            : 'The original consultation no longer provides coverage.'}
+        </p>
+      </section>
+    );
   const receipt = appointment.payment.collection;
   const canCollect = canCollectClinicPayment(appointment);
   function submit(event: FormEvent) {

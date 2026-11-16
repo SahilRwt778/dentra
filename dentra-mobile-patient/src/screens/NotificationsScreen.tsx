@@ -53,6 +53,10 @@ export function NotificationsScreen({
         ),
       );
     }
+    if (item.type === 'consultation_message') {
+      navigation.navigate('Chat', { caseId: item.caseId });
+      return;
+    }
     navigation.navigate(
       item.type === 'visit_summary_ready' ? 'Visit' : 'Appointment',
       { appointmentId: item.appointmentId },
@@ -137,12 +141,14 @@ export function NotificationsScreen({
                   <Text style={ui.body}>
                     {formatDate(item.date)} · {formatTime(item.time)} IST
                   </Text>
-                  {item.previousDate && item.previousTime && (
-                    <Text style={ui.small}>
-                      Previously {formatDate(item.previousDate)} ·{' '}
-                      {formatTime(item.previousTime)} IST
-                    </Text>
-                  )}
+                  {item.type === 'appointment_rescheduled' &&
+                    item.previousDate &&
+                    item.previousTime && (
+                      <Text style={ui.small}>
+                        Previously {formatDate(item.previousDate)} ·{' '}
+                        {formatTime(item.previousTime)} IST
+                      </Text>
+                    )}
                   <Text style={ui.small}>
                     {new Date(item.createdAt).toLocaleString('en-IN', {
                       timeZone: 'Asia/Kolkata',
@@ -153,7 +159,9 @@ export function NotificationsScreen({
                     })}
                   </Text>
                   <Text style={s.link}>
-                    {item.type === 'visit_summary_ready'
+                    {item.type === 'consultation_message'
+                      ? 'Open conversation'
+                      : item.type === 'visit_summary_ready'
                       ? 'View visit summary'
                       : 'View appointment'}{' '}
                     →

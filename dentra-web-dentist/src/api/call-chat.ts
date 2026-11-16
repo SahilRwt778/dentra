@@ -1,11 +1,27 @@
+import { store } from '@/store/store';
+import { dentraApi } from './generated-api';
 import type { ChatClient, ChatMessage, ChatPage } from '@dentra/call-core';
 import { requestPrivate } from './private-request';
 
 export const callChat: ChatClient = {
+  async read(id, sequence, signal) {
+    const result = await requestPrivate(
+      {
+        url: `/appointments/${id}/video/chat/read`,
+        method: 'POST',
+        body: { sequence },
+      },
+      signal,
+    );
+    store.dispatch(
+      dentraApi.util.invalidateTags(['Notifications', 'Consultation Cases']),
+    );
+    return result;
+  },
   list: (id, cursor, signal) =>
     requestPrivate<ChatPage>(
       { url: `/appointments/${id}/video/chat`, params: cursor },
-      signal
+      signal,
     ),
   send: (id, draft, signal) => {
     const body = new FormData();
@@ -19,14 +35,14 @@ export const callChat: ChatClient = {
         body,
         timeout: 60000,
       },
-      signal
+      signal,
     );
   },
 };
 export function downloadChatAttachment(
   id: string,
   messageId: string,
-  signal: AbortSignal
+  signal: AbortSignal,
 ) {
   return requestPrivate<Blob>(
     {
@@ -35,6 +51,6 @@ export function downloadChatAttachment(
       responseHandler: (response) =>
         response.ok ? response.blob() : response.json(),
     },
-    signal
+    signal,
   );
 }

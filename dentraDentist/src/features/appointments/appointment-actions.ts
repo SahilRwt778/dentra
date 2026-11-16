@@ -9,8 +9,14 @@ export function availableAppointmentActions(
     checkIn:
       appointment.status === 'booked' &&
       appointment.type === 'clinic' &&
+      appointment.payment?.status !== 'coverage_revoked' &&
+      (!appointment.followUpOf ||
+        appointment.consultationCase?.status === 'active') &&
       appointment.date === today,
-    reschedule: appointment.status === 'booked',
+    reschedule:
+      appointment.status === 'booked' &&
+      (!appointment.followUpOf ||
+        appointment.consultationCase?.status === 'active'),
     cancel: appointment.status === 'booked' || appointment.status === 'waiting',
   };
 }

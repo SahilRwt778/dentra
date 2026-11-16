@@ -1,3 +1,4 @@
+import { ProfilePhotoField } from '@/components/profile-photo-field';
 import { useState, type FormEvent } from 'react';
 import { Toothbrush } from 'lucide-react';
 import {
@@ -6,6 +7,7 @@ import {
   usePostDentistsApplicationsMeSubmitMutation,
   usePostDentistsApplicationsByDentistIdDocumentsMutation,
   type Dentist,
+  type DentistApplication,
   type KycDocType,
   type PostDentistsApplicationsByDentistIdDocumentsApiArg,
 } from '@/api/generated-api';
@@ -23,7 +25,11 @@ const SPECIALTIES = [
 
 const KYC_DOCS: { docType: KycDocType; label: string; required: boolean }[] = [
   { docType: 'degree', label: 'Degree certificate (BDS/MDS)', required: true },
-  { docType: 'council', label: 'State Dental Council registration certificate', required: true },
+  {
+    docType: 'council',
+    label: 'State Dental Council registration certificate',
+    required: true,
+  },
   {
     docType: 'id_proof',
     label: 'Government photo ID (Aadhaar / passport / driving licence)',
@@ -34,8 +40,16 @@ const KYC_DOCS: { docType: KycDocType; label: string; required: boolean }[] = [
     label: 'Clinic establishment proof (Shop & Establishment licence)',
     required: false,
   },
-  { docType: 'insurance', label: 'Professional indemnity insurance certificate', required: false },
-  { docType: 'selfie', label: 'Live selfie (matched against photo ID)', required: true },
+  {
+    docType: 'insurance',
+    label: 'Professional indemnity insurance certificate',
+    required: false,
+  },
+  {
+    docType: 'selfie',
+    label: 'Live selfie (matched against photo ID)',
+    required: true,
+  },
 ];
 
 const EMPTY_FORM = {
@@ -53,7 +67,13 @@ const EMPTY_FORM = {
   terms: false,
 };
 
-export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; onSubmitted: () => void }) {
+export function OnboardingPage({
+  dentist,
+  onSubmitted,
+}: {
+  dentist?: Dentist;
+  onSubmitted: () => void;
+}) {
   const { logout } = useAuth();
   const [createApplication] = usePostDentistsApplicationsMutation();
   const [updateApplication] = usePatchDentistsApplicationsMeMutation();
@@ -76,13 +96,14 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
           feeVideo: (dentist.feeVideoPaise ?? 0) / 100,
           feeClinic: (dentist.feeClinicPaise ?? 0) / 100,
         }
-      : EMPTY_FORM
+      : EMPTY_FORM,
   );
   const [application, setApplication] = useState(dentist);
   const [uploadedDocs, setUploadedDocs] = useState(
-    () => new Set(dentist?.documents?.map((doc) => doc.docType))
+    () => new Set(dentist?.documents?.map((doc) => doc.docType)),
   );
   const [files, setFiles] = useState<Partial<Record<KycDocType, File>>>({});
+  const [photo, setPhoto] = useState<File | null>(null);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState<string>();
   const isSubmitting = !!progress;
@@ -90,9 +111,14 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
   // The refetched profile also recovers a draft whose creation response was lost.
   const applicationId = application?.id ?? dentist?.id;
   const hasUploadedDoc = (type: KycDocType) =>
-    uploadedDocs.has(type) || !!dentist?.documents?.some((doc) => doc.docType === type);
+    uploadedDocs.has(type) ||
+    !!dentist?.documents?.some((doc) => doc.docType === type);
 
-  async function uploadDocument(dentistId: string, docType: KycDocType, file: File) {
+  async function uploadDocument(
+    dentistId: string,
+    docType: KycDocType,
+    file: File,
+  ) {
     const body = new FormData();
     body.append('docType', docType);
     body.append('file', file);
@@ -111,15 +137,19 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
       setError('You must agree to the terms and telemedicine guidelines.');
       return;
     }
-    const missing = KYC_DOCS.filter((d) => d.required && !files[d.docType] && !hasUploadedDoc(d.docType));
+    const missing = KYC_DOCS.filter(
+      (d) => d.required && !files[d.docType] && !hasUploadedDoc(d.docType),
+    );
     if (missing.length > 0) {
-      setError(`Upload required documents: ${missing.map((d) => d.label).join(', ')}`);
+      setError(
+        `Upload required documents: ${missing.map((d) => d.label).join(', ')}`,
+      );
       return;
     }
 
     try {
       setProgress('Saving your details…');
-      const payload = {
+      const payload: { dentistApplication: DentistApplication } = {
         dentistApplication: {
           fullName: form.fullName.trim(),
           email: form.email.trim() || undefined,
@@ -139,15 +169,29 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
           telemedicineConsent: true,
         },
       };
+      if (photo) {
+        const body = new FormData();
+        body.append('details', JSON.stringify(payload.dentistApplication));
+        body.append('profilePhoto', photo);
+        payload.dentistApplication = body as unknown as DentistApplication;
+      }
       const saved = await (applicationId
         ? updateApplication(payload)
         : createApplication(payload)
       ).unwrap();
       if (!saved.id) throw new Error('Could not save your application.');
       setApplication(saved);
+      setPhoto(null);
 
-      for (const [docType, file] of Object.entries(files) as [KycDocType, File][]) {
-        setProgress(`Uploading ${KYC_DOCS.find((doc) => doc.docType === docType)?.label ?? docType}…`);
+      for (const [docType, file] of Object.entries(files) as [
+        KycDocType,
+        File,
+      ][]) {
+        setProgress(
+          `Uploading ${
+            KYC_DOCS.find((doc) => doc.docType === docType)?.label ?? docType
+          }…`,
+        );
         await uploadDocument(saved.id, docType, file);
         setUploadedDocs((current) => new Set([...current, docType]));
         setFiles((current) => {
@@ -160,7 +204,11 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
       await submitApplication().unwrap();
       onSubmitted();
     } catch (err) {
-      const failure = err as { status?: number; data?: { message?: string | string[] }; message?: string };
+      const failure = err as {
+        status?: number;
+        data?: { message?: string | string[] };
+        message?: string;
+      };
       const message =
         failure.data?.message ??
         failure.message ??
@@ -181,19 +229,30 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
         </div>
         <h1 style={{ marginTop: 18 }}>Apply to join Dentra</h1>
         <p className="muted small" style={{ margin: '6px 0 18px' }}>
-          Your mobile number is verified{dentist?.mobile ? `: ${dentist.mobile}` : ''}. Fill in your details
-          and upload your documents. An admin will review your application before you can access the clinic
-          portal.
+          Your mobile number is verified
+          {dentist?.mobile ? `: ${dentist.mobile}` : ''}. Fill in your details
+          and upload your documents. An admin will review your application
+          before you can access the clinic portal.
         </p>
         <form onSubmit={handleSubmit} className="stack">
-          <fieldset className="application-fields stack" disabled={isSubmitting}>
+          <fieldset
+            className="application-fields stack"
+            disabled={isSubmitting}
+          >
+            <ProfilePhotoField
+              value={photo}
+              onChange={setPhoto}
+              existingUrl={application?.profilePhotoUrl}
+            />
             <div className="cols-2">
               <label className="field">
                 <span>Full name</span>
                 <input
                   className="input"
                   value={form.fullName}
-                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, fullName: e.target.value })
+                  }
                   required
                 />
               </label>
@@ -217,7 +276,12 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                   max={100}
                   step={1}
                   value={form.yearsExperience}
-                  onChange={(e) => setForm({ ...form, yearsExperience: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      yearsExperience: Number(e.target.value),
+                    })
+                  }
                   required
                 />
               </label>
@@ -227,7 +291,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                   className="input"
                   placeholder="e.g. English, Hindi"
                   value={form.languages}
-                  onChange={(e) => setForm({ ...form, languages: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, languages: e.target.value })
+                  }
                 />
               </label>
             </div>
@@ -238,7 +304,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                   className="input"
                   placeholder="e.g. BDS, MDS"
                   value={form.qualification}
-                  onChange={(e) => setForm({ ...form, qualification: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, qualification: e.target.value })
+                  }
                   required
                 />
               </label>
@@ -247,7 +315,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                 <select
                   className="input"
                   value={form.specialization}
-                  onChange={(e) => setForm({ ...form, specialization: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, specialization: e.target.value })
+                  }
                 >
                   {SPECIALTIES.map((s) => (
                     <option key={s} value={s}>
@@ -262,7 +332,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
               <input
                 className="input"
                 value={form.councilRegNo}
-                onChange={(e) => setForm({ ...form, councilRegNo: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, councilRegNo: e.target.value })
+                }
                 required
               />
             </label>
@@ -272,11 +344,15 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                 <input
                   className="input"
                   value={form.primaryClinicName}
-                  onChange={(e) => setForm({ ...form, primaryClinicName: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, primaryClinicName: e.target.value })
+                  }
                   required
                 />
               </label>
-              <p className="hint">More locations can be added later from Settings, once verified.</p>
+              <p className="hint">
+                More locations can be added later from Settings, once verified.
+              </p>
             </div>
             <div className="cols-2">
               <label className="field">
@@ -287,7 +363,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                   min={0}
                   step="0.01"
                   value={form.feeVideo}
-                  onChange={(e) => setForm({ ...form, feeVideo: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setForm({ ...form, feeVideo: Number(e.target.value) })
+                  }
                 />
               </label>
               <label className="field">
@@ -298,7 +376,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                   min={0}
                   step="0.01"
                   value={form.feeClinic}
-                  onChange={(e) => setForm({ ...form, feeClinic: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setForm({ ...form, feeClinic: Number(e.target.value) })
+                  }
                 />
               </label>
             </div>
@@ -306,7 +386,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
               <input
                 type="checkbox"
                 checked={form.offersVideo}
-                onChange={(e) => setForm({ ...form, offersVideo: e.target.checked })}
+                onChange={(e) =>
+                  setForm({ ...form, offersVideo: e.target.checked })
+                }
               />
               <span>Offers video consults</span>
             </label>
@@ -319,7 +401,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
               <div key={doc.docType} className="application-document-row">
                 <span className="small">
                   {doc.label}
-                  {doc.required && <span className="muted tiny"> (required)</span>}
+                  {doc.required && (
+                    <span className="muted tiny"> (required)</span>
+                  )}
                 </span>
                 <label
                   className="btn small"
@@ -335,7 +419,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                     }
                   }}
                 >
-                  {files[doc.docType] || hasUploadedDoc(doc.docType) ? 'Replace' : 'Upload'}
+                  {files[doc.docType] || hasUploadedDoc(doc.docType)
+                    ? 'Replace'
+                    : 'Upload'}
                   <input
                     type="file"
                     aria-label={`Upload ${doc.label}`}
@@ -355,7 +441,9 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                   />
                 </label>
                 {(files[doc.docType] || hasUploadedDoc(doc.docType)) && (
-                  <span className="badge green">{files[doc.docType] ? 'Added' : 'Uploaded'}</span>
+                  <span className="badge green">
+                    {files[doc.docType] ? 'Added' : 'Uploaded'}
+                  </span>
                 )}
               </div>
             ))}
@@ -368,7 +456,8 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
                 onChange={(e) => setForm({ ...form, terms: e.target.checked })}
               />
               <span>
-                I agree to the platform terms of service and the Telemedicine Practice Guidelines (2020).
+                I agree to the platform terms of service and the Telemedicine
+                Practice Guidelines (2020).
               </span>
             </label>
           </fieldset>
@@ -379,13 +468,23 @@ export function OnboardingPage({ dentist, onSubmitted }: { dentist?: Dentist; on
           )}
           {applicationId && (
             <p className="hint">
-              Your draft is saved. The request reaches admin after all required documents finish uploading.
+              Your draft is saved. The request reaches admin after all required
+              documents finish uploading.
             </p>
           )}
-          <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={isSubmitting}>
+          <button
+            type="submit"
+            className="btn btn-primary btn-lg btn-block"
+            disabled={isSubmitting}
+          >
             {progress || 'Submit application to admin'}
           </button>
-          <button type="button" className="btn-link btn" disabled={isSubmitting} onClick={logout}>
+          <button
+            type="button"
+            className="btn-link btn"
+            disabled={isSubmitting}
+            onClick={logout}
+          >
             Log out
           </button>
         </form>

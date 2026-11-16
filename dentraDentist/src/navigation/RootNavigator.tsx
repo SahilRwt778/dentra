@@ -88,7 +88,9 @@ function AuthenticatedNavigation() {
 
     dismissNotice();
     markRead(notification);
-    if (notification.type === 'wallet_withdrawal_updated') {
+    if (notification.type === 'consultation_message')
+      navigationRef.navigate('Chat', { caseId: notification.caseId });
+    else if (notification.type === 'wallet_withdrawal_updated') {
       navigationRef.navigate('Withdrawal', {
         withdrawalId: notification.withdrawalId,
       });

@@ -1,3 +1,4 @@
+import { activateConsultationPass } from '@common/utils/consultation-pass';
 import {
   ConflictException,
   ForbiddenException,
@@ -114,6 +115,7 @@ export class ConsultationsService {
         `update appointments set status = 'completed', completed_at = now(), updated_at = now() where id = $1`,
         [appointmentId],
       );
+      await activateConsultationPass(client, appointmentId);
       await this.notifications.dismissAppointmentReminders(client, appointmentId);
       await this.documents.record(client, appointmentId, 'visit-summary');
       await this.notifications.patientAppointmentEvent(client, 'visit_summary_ready', appointmentId);

@@ -46,6 +46,7 @@ jest.mock('lucide-react-native', () => {
       'Trash2',
       'ArrowLeft',
       'Camera',
+      'UserRound',
       'Images',
       'Paperclip',
       'MessageCircle',

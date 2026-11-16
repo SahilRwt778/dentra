@@ -126,7 +126,7 @@ export function ProfileScreen() {
         <>
           <Card>
             <View style={ui.row}>
-              <Avatar name={me.fullName} large />
+              <Avatar photoUrl={me.profilePhotoUrl} name={me.fullName} large />
               <View style={ui.grow}>
                 <Text style={ui.heading}>{me.fullName}</Text>
                 <Text style={ui.muted}>{me.mobile}</Text>

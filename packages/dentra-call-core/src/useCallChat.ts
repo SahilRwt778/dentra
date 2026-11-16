@@ -5,7 +5,7 @@ function ordered(items: ChatMessage[]) {
   return [...new Map(items.map((item) => [item.id, item])).values()].sort(
     (a, b) =>
       a.sequence.length - b.sequence.length ||
-      a.sequence.localeCompare(b.sequence)
+      a.sequence.localeCompare(b.sequence),
   );
 }
 function message(error: unknown) {
@@ -24,7 +24,7 @@ function message(error: unknown) {
 export function useCallChat(
   appointmentId: string,
   client: ChatClient,
-  visible: boolean
+  visible: boolean,
 ) {
   const [items, setItems] = useState<ChatMessage[]>([]);
   const [unread, setUnread] = useState(0);
@@ -32,7 +32,12 @@ export function useCallChat(
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
+  const [access, setAccess] = useState<{
+    canSend?: boolean;
+    expiresAt?: string | null;
+  }>({});
   const latest = useRef<ChatMessage[]>([]);
+  const loadedId = useRef<string | null>(null);
   const shown = useRef(visible);
   shown.current = visible;
   const controller = useRef<AbortController | null>(null);
@@ -50,6 +55,8 @@ export function useCallChat(
     let timer: ReturnType<typeof setTimeout>;
     let ready = false;
     let cursor: string | undefined;
+    loadedId.current = null;
+    setAccess({});
     latest.current = [];
     setItems([]);
     setUnread(0);
@@ -60,9 +67,11 @@ export function useCallChat(
         const page = await client.list(
           appointmentId,
           ready && cursor ? { after: cursor } : {},
-          abort.signal
+          abort.signal,
         );
         if (abort.signal.aborted) return;
+        loadedId.current = appointmentId;
+        setAccess({ canSend: page.canSend, expiresAt: page.expiresAt });
         if (!ready) setHasOlder(page.hasMore);
         else if (!shown.current) {
           const known = new Set(latest.current.map((item) => item.id));
@@ -70,7 +79,7 @@ export function useCallChat(
             (count) =>
               count +
               page.items.filter((item) => !item.own && !known.has(item.id))
-                .length
+                .length,
           );
         }
         if (page.items.length) cursor = page.items.at(-1)!.sequence;
@@ -80,7 +89,7 @@ export function useCallChat(
         setError(undefined);
         timer = setTimeout(
           refresh,
-          page.hasMore && cursor && ready ? 100 : 2000
+          page.hasMore && cursor && ready ? 100 : 2000,
         );
       } catch (failure) {
         if (abort.signal.aborted) return;
@@ -96,7 +105,27 @@ export function useCallChat(
       if (controller.current === abort) controller.current = null;
     };
   }, [appointmentId, client, merge]);
+  const tail = items.at(-1)?.sequence;
+  useEffect(() => {
+    if (!visible || !tail || !client.read || loadedId.current !== appointmentId)
+      return;
+    const abort = new AbortController();
+    let retry: ReturnType<typeof setTimeout>;
+    const read = () =>
+      client.read!(appointmentId, tail, abort.signal).catch(() => {
+        if (!abort.signal.aborted) retry = setTimeout(read, 5000);
+      });
+    void read();
+    return () => {
+      abort.abort();
+      clearTimeout(retry);
+    };
+  }, [appointmentId, client, visible, tail]);
   async function send(draft: ChatDraft) {
+    if (access.canSend === false) {
+      setError('Messaging is closed. Your history is still available.');
+      return false;
+    }
     const abort = controller.current;
     if (!abort || locked.current) return false;
     locked.current = true;
@@ -123,7 +152,7 @@ export function useCallChat(
       const page = await client.list(
         appointmentId,
         { before: first.sequence },
-        abort.signal
+        abort.signal,
       );
       if (abort.signal.aborted) return;
       merge(page.items);
@@ -132,5 +161,16 @@ export function useCallChat(
       if (!abort.signal.aborted) setError(message(failure));
     }
   }
-  return { items, unread, hasOlder, loading, sending, error, send, older };
+  return {
+    items,
+    unread,
+    hasOlder,
+    loading,
+    sending,
+    error,
+    send,
+    older,
+    canSend: !loading && access.canSend !== false,
+    expiresAt: access.expiresAt,
+  };
 }

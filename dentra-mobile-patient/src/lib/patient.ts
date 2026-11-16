@@ -93,6 +93,8 @@ export const statusLabel: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 export const paymentLabel: Record<string, string> = {
+  covered: 'Covered by 3-day pass',
+  coverage_revoked: 'Follow-up pass unavailable',
   pending: 'Awaiting payment',
   paid: 'Paid',
   due_at_clinic: 'Pay at clinic',

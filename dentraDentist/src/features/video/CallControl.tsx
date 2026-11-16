@@ -10,6 +10,8 @@ type Props = {
   danger?: boolean;
   disabled?: boolean;
   compact?: boolean;
+  busy?: boolean;
+  selected?: boolean;
 };
 export function CallControl({
   label,
@@ -19,19 +21,22 @@ export function CallControl({
   danger,
   disabled,
   compact,
+  busy = false,
+  selected,
 }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: !!disabled || busy, busy, selected }}
+      disabled={disabled || busy}
       onPress={onPress}
       style={[
         styles.button,
         compact && styles.compact,
         !active && styles.off,
         danger && styles.danger,
+        selected && styles.selected,
         disabled && styles.disabled,
       ]}
     >
@@ -41,9 +46,9 @@ export function CallControl({
 }
 const styles = StyleSheet.create({
   button: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#27636B',
     alignItems: 'center',
     justifyContent: 'center',
@@ -51,5 +56,10 @@ const styles = StyleSheet.create({
   compact: { width: 42, height: 42, borderRadius: 21 },
   off: { backgroundColor: '#52616E' },
   danger: { backgroundColor: '#C34F30' },
+  selected: {
+    backgroundColor: '#0D7870',
+    borderWidth: 1,
+    borderColor: '#85D6CF',
+  },
   disabled: { opacity: 0.45 },
 });

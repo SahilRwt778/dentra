@@ -14,7 +14,11 @@ Android uses LiveKit WebRTC's `MediaProjection` capture and foreground service. 
 
 ## Chat and attachments
 
-Open **Chat** from the call controls. Both participants can send text, choose a photo, or attach a PDF. A selected photo has a compact preview and a red remove button before Send. Received attachments open through authenticated downloads; native photos open in a safe-area-aware viewer and PDFs use the device's document viewer.
+In both mobile apps, open **Chat** using the speech-bubble icon in the call header; the unread badge stays with that icon. Microphone, camera, camera switch, screen sharing and hang-up occupy a single bottom row. The self-preview clears the measured footer height. Dentist Web keeps chat in its call controls. Both participants can send text, choose a photo, or attach a PDF. A selected photo has a compact preview and a red remove button before Send. Received attachments open through authenticated downloads; native photos open in a safe-area-aware viewer and PDFs use the device's document viewer.
+
+The in-app minimized call is a small 9:16 portrait tile, roughly one-third of the available screen width and at most 140 points wide. It shows only the other participant's video or camera-off message, without a header, self-preview or controls. Drag the tile to move it; tap it to restore the full call and access controls. Moving, minimizing and restoring keep the same media connection mounted. Native system picture-in-picture continues to use the OS-managed window.
+
+Mobile media actions use separate microphone, camera and screen-sharing locks. A pending device or capture prompt only makes the affected control busy, leaving other media controls, chat and hang-up usable. Camera switching shares the camera lock and remains disabled while the camera is off. Call controls remain unavailable while the room is connecting or reconnecting. Failed actions release their lock and display an error without disconnecting the call.
 
 The composer has one paperclip button opening **Gallery**, **Camera** and **File** options in Patient Mobile, Dentist Mobile and Dentist Web. Gallery picks a photo; Camera takes a new photo; File accepts a JPEG/PNG image or PDF report. Choosing or taking an attachment stages a preview until Send is pressed. Cancelling a picker preserves the current draft. Native photo capture pauses and restores an enabled call camera while keeping the room connected; web capture reuses a clone of the active camera track or opens a separate photo stream and releases it on close. Reinstall the dentist iOS app to include its photo-library permission description.
 
@@ -27,7 +31,7 @@ The composer has one paperclip button opening **Gallery**, **Camera** and **File
 
 Messages are associated with the appointment in PostgreSQL. Attachments use the shared patient-file storage adapter: private Supabase Storage when `STORAGE_PROVIDER=supabase`, or `PATIENT_FILES_DIRECTORY` in local mode. Local mode requires persistent server storage. No public file URL is generated. Message content and file bytes use authenticated HTTP rather than LiveKit data messages or Redux request caches. See [HOSTING.md](HOSTING.md) for cloud settings.
 
-Only the appointment's patient and treating dentist can read the conversation or download its files. Sending additionally requires current video eligibility and the login session associated with that role's joined room. Replacing a role's device prevents its older device from sending. Cancellation, completion or expiry closes writing while preserving the private history endpoint. Existing booking, payment and consultation time rules remain in force.
+Only the appointment's patient and treating dentist can read the conversation or download its files. Before the original visit is completed, sending requires current video eligibility and the login session associated with that role's joined room. After a paid visit is completed, its fixed 72-hour consultation pass permits sending from the separate Messages inbox without joining a room. Follow-up visits share this original conversation. Expiry or revocation closes writing and preserves private history. See [CONSULTATION_PASSES.md](CONSULTATION_PASSES.md) for timing, payment, and rollout rules.
 
 ## Backend deployment
 

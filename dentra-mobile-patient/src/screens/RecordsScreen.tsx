@@ -1,3 +1,4 @@
+import { ConsultationPassCard } from '@/components/consultation-pass-card';
 import { useState } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -177,11 +178,17 @@ export function VisitScreen({
       `Diagnosis: ${c.diagnosis ?? '—'}`,
       `Treatment: ${c.treatmentDone ?? '—'}`,
       `Plan: ${c.plan ?? '—'}`,
-      ...(c.planItems ?? []).map((item, index) => [
-        `${index + 1}. ${item.procedure}`,
-        item.teeth.length ? `Teeth: ${item.teeth.join(', ')}` : 'General treatment',
-        item.estimatedCostPaise == null ? 'Cost not estimated' : `Estimated cost: ${rupees(item.estimatedCostPaise)}`,
-      ].join('\n')),
+      ...(c.planItems ?? []).map((item, index) =>
+        [
+          `${index + 1}. ${item.procedure}`,
+          item.teeth.length
+            ? `Teeth: ${item.teeth.join(', ')}`
+            : 'General treatment',
+          item.estimatedCostPaise == null
+            ? 'Cost not estimated'
+            : `Estimated cost: ${rupees(item.estimatedCostPaise)}`,
+        ].join('\n'),
+      ),
       c.followUpDate ? `Follow-up: ${formatDate(c.followUpDate)}` : '',
       c.prescription?.signedAt
         ? `Prescription (${formatDate(
@@ -214,6 +221,17 @@ export function VisitScreen({
         ) : undefined
       }
     >
+      {a?.consultationCase && (
+        <ConsultationPassCard
+          item={a.consultationCase}
+          onMessage={() =>
+            navigation.navigate('Chat', { caseId: a.consultationCase!.id })
+          }
+          onBook={() =>
+            navigation.navigate('FollowUp', { caseId: a.consultationCase!.id })
+          }
+        />
+      )}
       {appointment.error || consult.error ? (
         <ErrorState
           retry={() => {
@@ -248,7 +266,9 @@ export function VisitScreen({
           <AppointmentFiles appointmentId={appointmentId} />
           <CareDocumentDownloads
             appointmentId={appointmentId}
-            hasPrescription={!!c.prescription?.signedAt && !!c.prescription.items?.length}
+            hasPrescription={
+              !!c.prescription?.signedAt && !!c.prescription.items?.length
+            }
           />
           <Card>
             <Text style={ui.heading}>What your dentist found</Text>

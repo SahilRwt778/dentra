@@ -1,3 +1,7 @@
+import {
+  ProfilePhotoField,
+  type ProfilePhoto,
+} from '@/components/profile-photo-field';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRegisterPatientMutation } from '@/api/patients';
@@ -33,6 +37,7 @@ export function RegisterScreen() {
     termsConsent: false,
     telemedicineConsent: false,
   });
+  const [photo, setPhoto] = useState<ProfilePhoto | null>(null);
   const [error, setError] = useState<string>();
   const today = new Date();
   const maximumDob = new Date(
@@ -76,7 +81,7 @@ export function RegisterScreen() {
     }
     setError(undefined);
     try {
-      await register(payload);
+      await register(payload, photo);
     } catch (err) {
       setError(
         errorMessage(err, 'We couldn’t create your account. Please try again.'),
@@ -97,6 +102,11 @@ export function RegisterScreen() {
       <Text style={ui.title}>Let’s set up your account</Text>
       <Text style={ui.muted}>A few details before your first booking.</Text>
       <Card>
+        <ProfilePhotoField
+          value={photo}
+          onChange={setPhoto}
+          disabled={isLoading}
+        />
         <Field
           label="Full name"
           value={form.fullName}

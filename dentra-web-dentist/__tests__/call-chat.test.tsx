@@ -117,3 +117,26 @@ test('older history is merged in sequence order and unmount aborts pending reque
   await act(async () => tree.unmount());
   expect(signal.aborted).toBe(true);
 });
+
+test('a pass closing during an open conversation blocks a new send without removing history', async () => {
+  list
+    .mockResolvedValueOnce({
+      items: [item('1')],
+      hasMore: false,
+      canSend: true,
+    })
+    .mockResolvedValue({ items: [], hasMore: false, canSend: false });
+  await mount(true);
+  expect(chat.canSend).toBe(true);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000);
+  });
+  expect(chat.canSend).toBe(false);
+  expect(chat.items).toHaveLength(1);
+  await act(async () => {
+    expect(await chat.send({ requestId: 'late', text: 'Too late' })).toBe(
+      false,
+    );
+  });
+  expect(send).not.toHaveBeenCalled();
+});

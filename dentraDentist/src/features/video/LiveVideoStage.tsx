@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Camera,
   CameraOff,
-  Maximize2,
   MessageCircle,
   Mic,
   MicOff,
@@ -47,6 +46,7 @@ export function LiveVideoStage({
   const insets = useSafeAreaInsets();
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [footerHeight, setFooterHeight] = useState(156);
   const meeting = sdk.useMeeting();
   const {
     connection,
@@ -68,7 +68,7 @@ export function LiveVideoStage({
       : hasPatient
       ? 'Patient connected'
       : 'Waiting for the patient';
-  const disabled = controls.busy || connection !== 'connected';
+  const disconnected = connection !== 'connected';
   const videoStatus =
     connection !== 'connected' || !hasPatient
       ? heading
@@ -80,13 +80,15 @@ export function LiveVideoStage({
   }, [isMicrophoneEnabled, isCameraEnabled]);
 
   function toggleMicrophone() {
-    controls.change(() => meeting.setMicrophoneEnabled(!isMicrophoneEnabled));
+    controls.change('microphone', () =>
+      meeting.setMicrophoneEnabled(!isMicrophoneEnabled),
+    );
   }
   function toggleCamera() {
-    controls.change(() => meeting.setCameraEnabled(!isCameraEnabled));
+    controls.change('camera', () => meeting.setCameraEnabled(!isCameraEnabled));
   }
   function switchCamera() {
-    controls.change(async () => {
+    controls.change('camera', async () => {
       await meeting.switchCamera();
       setFrontCamera(value => !value);
     });
@@ -98,7 +100,10 @@ export function LiveVideoStage({
         appointmentId={appointmentId}
         client={callChat}
         visible={chatOpen && !minimized && !systemPip}
-        onClose={() => setChatOpen(false)}
+        onClose={() => {
+          setChatOpen(false);
+          controls.reveal();
+        }}
         onUnread={setUnread}
         callCamera={{
           enabled: isCameraEnabled,
@@ -117,7 +122,11 @@ export function LiveVideoStage({
         {displayTile == null && (
           <View
             testID="video-waiting-state"
-            style={[styles.remote, styles.placeholder]}
+            style={[
+              styles.remote,
+              styles.placeholder,
+              minimized && styles.miniPlaceholder,
+            ]}
           >
             <Text style={[styles.heading, minimized && styles.miniHeading]}>
               {videoStatus}
@@ -137,10 +146,11 @@ export function LiveVideoStage({
           styles.local,
           {
             right: Math.max(insets.right, 12),
-            bottom: Math.max(insets.bottom, 12) + (controls.visible ? 145 : 12),
+            bottom: controls.visible
+              ? footerHeight + 12
+              : Math.max(insets.bottom, 12) + 12,
           },
-          minimized && styles.miniLocal,
-          systemPip && styles.hidden,
+          (minimized || systemPip) && styles.hidden,
         ]}
       >
         {localCameraTrack != null && isCameraEnabled ? (
@@ -166,7 +176,7 @@ export function LiveVideoStage({
         }
         onPress={minimized ? expand : controls.reveal}
       />
-      {controls.visible && !systemPip && (
+      {controls.visible && !minimized && !systemPip && (
         <>
           <View
             testID="video-top-overlay"
@@ -191,27 +201,47 @@ export function LiveVideoStage({
               </Pressable>
             )}
             <View pointerEvents="none" style={styles.headerCopy}>
-              {!minimized && <Text style={styles.title}>{patientName}</Text>}
+              {!minimized && (
+                <Text numberOfLines={1} style={styles.title}>
+                  {patientName}
+                </Text>
+              )}
               <Text
                 accessibilityLiveRegion="polite"
                 style={[styles.status, minimized && styles.miniStatus]}
               >
-                {heading}
+                {meeting.remoteScreenTrack != null
+                  ? `${heading} · Patient’s screen`
+                  : heading}
               </Text>
             </View>
-            {minimized && (
+            {!minimized && (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Expand call"
-                onPress={expand}
-                style={styles.layoutButton}
+                accessibilityLabel="Open call chat"
+                accessibilityHint={
+                  unread ? `${unread} unread messages` : undefined
+                }
+                style={styles.headerAction}
+                onPress={() => {
+                  controls.reveal();
+                  setChatOpen(true);
+                }}
               >
-                <Maximize2 size={20} color="#FFFFFF" />
+                <MessageCircle size={23} color="#FFFFFF" />
+                {unread > 0 && (
+                  <Text style={styles.unreadBadge}>
+                    {unread > 99 ? '99+' : unread}
+                  </Text>
+                )}
               </Pressable>
             )}
           </View>
           <View
             testID="video-call-controls"
+            onLayout={event => {
+              if (!minimized) setFooterHeight(event.nativeEvent.layout.height);
+            }}
             style={[
               styles.footer,
               {
@@ -222,55 +252,6 @@ export function LiveVideoStage({
               minimized && styles.miniFooter,
             ]}
           >
-            {!minimized && (
-              <View style={styles.collaboration}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    sharing ? 'Stop sharing screen' : 'Share screen'
-                  }
-                  accessibilityState={{ selected: sharing, disabled }}
-                  style={[
-                    styles.collaborationButton,
-                    sharing && styles.sharingButton,
-                    disabled && styles.collaborationDisabled,
-                  ]}
-                  disabled={disabled}
-                  onPress={() =>
-                    controls.change(() =>
-                      sharing
-                        ? meeting.stopScreenShare()
-                        : meeting.startScreenShare(),
-                    )
-                  }
-                >
-                  {sharing ? (
-                    <MonitorOff size={23} color="#FFFFFF" />
-                  ) : (
-                    <MonitorUp size={23} color="#FFFFFF" />
-                  )}
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Open call chat"
-                  accessibilityHint={
-                    unread ? `${unread} unread messages` : undefined
-                  }
-                  style={styles.collaborationButton}
-                  onPress={() => setChatOpen(true)}
-                >
-                  <MessageCircle size={23} color="#FFFFFF" />
-                  {unread > 0 && (
-                    <Text style={styles.unreadBadge}>
-                      {unread > 99 ? '99+' : unread}
-                    </Text>
-                  )}
-                </Pressable>
-                {meeting.remoteScreenTrack != null && (
-                  <Text style={styles.status}>Patient’s screen</Text>
-                )}
-              </View>
-            )}
             <View style={[styles.controls, minimized && styles.miniControls]}>
               <CallControl
                 compact={minimized}
@@ -279,7 +260,8 @@ export function LiveVideoStage({
                 }
                 icon={isMicrophoneEnabled ? Mic : MicOff}
                 active={isMicrophoneEnabled}
-                disabled={disabled}
+                disabled={disconnected}
+                busy={controls.isBusy('microphone')}
                 onPress={toggleMicrophone}
               />
               {!minimized && (
@@ -290,14 +272,33 @@ export function LiveVideoStage({
                     }
                     icon={isCameraEnabled ? Camera : CameraOff}
                     active={isCameraEnabled}
-                    disabled={disabled}
+                    disabled={disconnected}
+                    busy={controls.isBusy('camera')}
                     onPress={toggleCamera}
                   />
                   <CallControl
                     label="Switch camera"
                     icon={RefreshCw}
-                    disabled={disabled || !isCameraEnabled}
+                    disabled={
+                      disconnected ||
+                      !isCameraEnabled ||
+                      controls.isBusy('camera')
+                    }
                     onPress={switchCamera}
+                  />
+                  <CallControl
+                    label={sharing ? 'Stop sharing screen' : 'Share screen'}
+                    icon={sharing ? MonitorOff : MonitorUp}
+                    selected={sharing}
+                    disabled={disconnected}
+                    busy={controls.isBusy('screenShare')}
+                    onPress={() => {
+                      controls.change('screenShare', () =>
+                        sharing
+                          ? meeting.stopScreenShare()
+                          : meeting.startScreenShare(),
+                      );
+                    }}
                   />
                 </>
               )}

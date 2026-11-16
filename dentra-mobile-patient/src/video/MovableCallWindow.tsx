@@ -40,14 +40,21 @@ export function MovableCallWindow({
   const bounds = useMemo(() => {
     const left = Math.max(insets.left, GAP);
     const top = Math.max(insets.top, GAP);
+    const availableWidth = Math.max(
+      1,
+      viewport.width - left - Math.max(insets.right, GAP),
+    );
+    const availableHeight = Math.max(
+      1,
+      viewport.height - top - Math.max(insets.bottom, GAP),
+    );
+    // A small 9:16 tile, matching the portrait shape of system picture-in-picture.
     const width = Math.min(
-      260,
-      Math.max(1, viewport.width - left - Math.max(insets.right, GAP)),
+      140,
+      availableWidth * 0.34,
+      (availableHeight * 9) / 16,
     );
-    const height = Math.min(
-      290,
-      Math.max(1, viewport.height - top - Math.max(insets.bottom, GAP)),
-    );
+    const height = (width * 16) / 9;
     return {
       left,
       top,
@@ -77,14 +84,19 @@ export function MovableCallWindow({
   );
 
   useLayoutEffect(() => {
-    // Start above the tabs; rotation and smaller layouts keep the window reachable.
-    move(savedPosition.current ?? { x: bounds.right, y: bounds.bottom - 76 });
+    // Start midway down the right edge; dragging and rotation keep the tile reachable.
+    move(
+      savedPosition.current ?? {
+        x: bounds.right,
+        y: (bounds.top + bounds.bottom) / 2,
+      },
+    );
   }, [bounds, move]);
 
   const responder = useMemo(
     () =>
       PanResponder.create({
-        // Let taps reach the controls. Capture only after a finger actually moves.
+        // A tap restores the call. Capture only after a finger actually moves.
         onMoveShouldSetPanResponderCapture: (_event, gesture) =>
           floating &&
           gesture.numberActiveTouches === 1 &&

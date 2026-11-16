@@ -1,3 +1,4 @@
+import { ConsultationPassCard } from '../messages/ConsultationPassCard';
 import React from 'react';
 import { Text } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -108,6 +109,7 @@ function AppointmentDetails({
           disabled={disabled}
         />
       </AppointmentOverview>
+      <ConsultationPassCard appointment={appointment} />
       <AppointmentConcerns appointment={appointment} />
       <AppointmentVideoCard appointment={appointment} disabled={disabled} />
       <AppointmentAttachments

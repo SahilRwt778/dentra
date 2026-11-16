@@ -1,3 +1,4 @@
+import { coveredFollowUp } from '@common/utils/consultation-pass';
 import { Inject, Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Pool } from 'pg';
@@ -46,11 +47,11 @@ export class AppointmentRemindersService implements OnApplicationBootstrap, OnMo
       const { rows } = await client.query<{ id: string; event_key: string }>(
         `select a.id, a.id::text || ':' || extract(epoch from coalesce(a.rescheduled_at, a.booked_at))::text as event_key
          from appointments a
-         join transactions t on t.appointment_id = a.id
+         left join transactions t on t.appointment_id = a.id
          join users u on u.id = a.patient_id and u.status = 'active'
          join dentists d on d.user_id = a.dentist_id and d.status = 'verified'
          join users du on du.id = a.dentist_id and du.status = 'active'
-         where a.status = 'booked' and t.status in ('paid', 'due_at_clinic')
+         where a.status = 'booked' and (t.status in ('paid', 'due_at_clinic') or ${coveredFollowUp('a')})
            and (a.scheduled_date + a.scheduled_time) at time zone 'Asia/Kolkata' > $1::timestamptz
            and (a.scheduled_date + a.scheduled_time) at time zone 'Asia/Kolkata' <= $1::timestamptz + interval '1 hour'
            and not exists (select 1 from notifications n where n.user_id = a.patient_id

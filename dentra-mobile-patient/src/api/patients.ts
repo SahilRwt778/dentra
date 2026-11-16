@@ -1,3 +1,4 @@
+import type { ProfilePhoto } from '@/components/profile-photo-field';
 import { useCallback } from 'react';
 import {
   useGetPatientsMeQuery,
@@ -22,8 +23,20 @@ export function useDentalChartQuery(options?: QueryOptions) {
 export function useRegisterPatientMutation() {
   const [send, state] = usePostPatientsRegisterMutation();
   const register = useCallback(
-    (patient: PatientRegistration) =>
-      send({ patientRegistration: patient }).unwrap(),
+    (patient: PatientRegistration, photo?: ProfilePhoto | null) => {
+      if (!photo) return send({ patientRegistration: patient }).unwrap();
+      const body = new FormData();
+      body.append('details', JSON.stringify(patient));
+      body.append('profilePhoto', {
+        uri: photo.uri,
+        name: photo.name,
+        type: photo.type,
+      } as unknown as Blob);
+      // Native multipart descriptors differ from OpenAPI's JSON registration type.
+      return send({
+        patientRegistration: body as unknown as PatientRegistration,
+      }).unwrap();
+    },
     [send],
   );
   return [register, state] as const;

@@ -57,7 +57,7 @@ export function DentistScreen({
       ) : (
         <>
           <Card style={{ alignItems: 'center' }}>
-            <Avatar name={d.fullName} large />
+            <Avatar photoUrl={d.profilePhotoUrl} name={d.fullName} large />
             <Text style={ui.title}>{d.fullName}</Text>
             <Text style={ui.muted}>{d.qualification}</Text>
             <View style={ui.wrap}>

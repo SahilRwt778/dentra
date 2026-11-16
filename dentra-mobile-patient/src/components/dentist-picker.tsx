@@ -94,7 +94,7 @@ export function DentistPicker({
             }
           >
             <View style={[ui.row, { alignItems: 'flex-start' }]}>
-              <Avatar name={d.fullName} />
+              <Avatar photoUrl={d.profilePhotoUrl} name={d.fullName} />
               <View style={[ui.grow, { gap: 4 }]}>
                 <Text style={[ui.body, { fontWeight: '600' }]}>
                   {d.fullName}

@@ -1,3 +1,5 @@
+import { consultationCasesApi } from '../api/consultation-cases.api';
+import type { ConsultationCase, ConsultationCasePage } from '@dentra/call-core';
 import { paymentsApi } from '../api/payments.api';
 import { walletApi } from '../api/wallet.api';
 import type {
@@ -79,6 +81,7 @@ export const dentraApi = createApi({
   keepUnusedDataFor: 30,
   refetchOnMountOrArgChange: true,
   tagTypes: [
+    'ConsultationCases',
     'Dentist',
     'Appointments',
     'Notifications',
@@ -96,6 +99,17 @@ export const dentraApi = createApi({
     'TimeOff',
   ],
   endpoints: builder => ({
+    getConsultationCases: builder.query<ConsultationCasePage, number>({
+      queryFn: (page, { signal }) =>
+        queryResult(() => consultationCasesApi.list(page, signal)),
+      providesTags: ['ConsultationCases'],
+      keepUnusedDataFor: 0,
+    }),
+    getConsultationCase: builder.query<ConsultationCase, string>({
+      queryFn: (id, { signal }) =>
+        queryResult(() => consultationCasesApi.get(id, signal)),
+      providesTags: ['ConsultationCases', 'Appointments'],
+    }),
     getWallet: builder.query<DentistWallet, void>({
       queryFn: (_, { signal }) => queryResult(() => walletApi.get(signal)),
       providesTags: ['Wallet', 'Appointments'],
@@ -450,6 +464,8 @@ export const dentraApi = createApi({
 });
 
 export const {
+  useGetConsultationCasesQuery,
+  useGetConsultationCaseQuery,
   useGetWalletQuery,
   useGetWithdrawalsQuery,
   useGetWithdrawalQuery,

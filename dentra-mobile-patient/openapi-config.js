@@ -9,6 +9,9 @@ const config = {
   tag: true,
   // Generate the patient app's contract; feature modules expose the app-facing hooks.
   filterEndpoints: [
+    'getConsultationCases',
+    'getConsultationCase',
+    'bookConsultationFollowUp',
     'postAuthOtpRequest',
     'postAuthOtpVerify',
     'postPatientsRegister',

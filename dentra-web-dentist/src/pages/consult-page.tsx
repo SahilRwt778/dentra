@@ -1,3 +1,4 @@
+import { consultationDeadline } from '@dentra/call-core';
 import { AppointmentPaymentCard } from '@/components/payments/appointment-payment-card';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -22,9 +23,19 @@ import { AppointmentAttachments } from '@/components/appointment-attachments';
 import { CareDocumentDownloads } from '@/components/care-document-downloads';
 import { TreatmentProcedures } from '@/components/treatment-procedures';
 import { Modal } from '@/components/modal';
-import { DentalChart, ChartLegend, type ChartState } from '@/components/dental-chart';
+import {
+  DentalChart,
+  ChartLegend,
+  type ChartState,
+} from '@/components/dental-chart';
 import { statusBadge } from '@/lib/status';
-import { formatDate, formatTime, dayLabel, addDaysIso, todayIso } from '@/lib/date';
+import {
+  formatDate,
+  formatTime,
+  dayLabel,
+  addDaysIso,
+  todayIso,
+} from '@/lib/date';
 
 const MED_PRESETS: PrescriptionItemInput[] = [
   {
@@ -57,7 +68,8 @@ const MED_PRESETS: PrescriptionItemInput[] = [
     dose: '1 tablet',
     frequency: 'When needed for pain',
     duration: '3 days',
-    instructions: 'Keep at least 6 hours between doses. Not more than 4 tablets a day.',
+    instructions:
+      'Keep at least 6 hours between doses. Not more than 4 tablets a day.',
   },
   {
     medicineName: 'Chlorhexidine gluconate mouthwash',
@@ -87,11 +99,15 @@ const EMPTY_MED: PrescriptionItemInput = {
 };
 
 const VideoConsultation = lazy(() =>
-  import('@/components/video-consultation').then((module) => ({ default: module.VideoConsultation })),
+  import('@/components/video-consultation').then((module) => ({
+    default: module.VideoConsultation,
+  })),
 );
 
 function errorMessage(err: unknown, fallback: string): string {
-  const message = (err as { data?: { message?: string | string[] } } | undefined)?.data?.message;
+  const message = (
+    err as { data?: { message?: string | string[] } } | undefined
+  )?.data?.message;
   return Array.isArray(message) ? message.join('. ') : message ?? fallback;
 }
 
@@ -116,8 +132,12 @@ function RescheduleModal({
     type,
     clinicId: clinicId ?? undefined,
   });
-  const [reschedule, { isLoading }] = usePostAppointmentsByAppointmentIdRescheduleMutation();
-  const days = Array.from({ length: 14 }, (_, n) => addDaysIso(n + 1)).slice(0, 5);
+  const [reschedule, { isLoading }] =
+    usePostAppointmentsByAppointmentIdRescheduleMutation();
+  const days = Array.from({ length: 14 }, (_, n) => addDaysIso(n + 1)).slice(
+    0,
+    5,
+  );
 
   async function confirm() {
     if (!time) return;
@@ -134,13 +154,21 @@ function RescheduleModal({
     <Modal open onClose={onClose}>
       <div className="row between" style={{ marginBottom: 14 }}>
         <h2>Reschedule</h2>
-        <button type="button" className="btn" aria-label="Close" onClick={onClose}>
+        <button
+          type="button"
+          className="btn"
+          aria-label="Close"
+          onClick={onClose}
+        >
           <X size={16} />
         </button>
       </div>
       <div style={{ marginTop: 14 }}>
         <p className="q-label">New day</p>
-        <div className="day-strip" style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+        <div
+          className="day-strip"
+          style={{ display: 'flex', gap: 8, overflowX: 'auto' }}
+        >
           {days.map((d) => (
             <button
               key={d}
@@ -158,7 +186,14 @@ function RescheduleModal({
       </div>
       <div style={{ marginTop: 14 }}>
         <p className="q-label">New time</p>
-        <div className="slot-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <div
+          className="slot-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 8,
+          }}
+        >
           {(slotData?.slots ?? []).map((t) => (
             <button
               key={t}
@@ -171,12 +206,23 @@ function RescheduleModal({
           ))}
         </div>
       </div>
-      <p className="hint">The patient's original payment carries over. They're notified of the new time.</p>
-      <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+      <p className="hint">
+        The patient's original payment carries over. They're notified of the new
+        time.
+      </p>
+      <div
+        className="row"
+        style={{ marginTop: 14, justifyContent: 'flex-end' }}
+      >
         <button type="button" className="btn" onClick={onClose}>
           Cancel
         </button>
-        <button type="button" className="btn btn-primary" disabled={!time || isLoading} onClick={confirm}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!time || isLoading}
+          onClick={confirm}
+        >
           Confirm new time
         </button>
       </div>
@@ -202,7 +248,10 @@ export function ConsultPage() {
     refetch: refreshConsultation,
   } = useGetAppointmentsByAppointmentIdConsultationQuery(
     { appointmentId: appointmentId! },
-    { skip: !appt || (appt.status !== 'in_consult' && appt.status !== 'completed') },
+    {
+      skip:
+        !appt || (appt.status !== 'in_consult' && appt.status !== 'completed'),
+    },
   );
   const {
     currentData: patient,
@@ -213,12 +262,14 @@ export function ConsultPage() {
     { skip: !appt?.patientId, refetchOnMountOrArgChange: true },
   );
 
-  const [start, { isLoading: isStarting }] = usePostAppointmentsByAppointmentIdStartMutation();
+  const [start, { isLoading: isStarting }] =
+    usePostAppointmentsByAppointmentIdStartMutation();
   const [saveDraft] = usePutAppointmentsByAppointmentIdConsultationMutation();
   const [isSaving, setIsSaving] = useState(false);
   const [complete, { isLoading: isCompleting }] =
     usePostAppointmentsByAppointmentIdConsultationCompleteMutation();
-  const [signRx, { isLoading: isSigning }] = usePostAppointmentsByAppointmentIdPrescriptionSignMutation();
+  const [signRx, { isLoading: isSigning }] =
+    usePostAppointmentsByAppointmentIdPrescriptionSignMutation();
   const [requestSigningCode, { isLoading: isRequestingCode }] =
     usePostAppointmentsByAppointmentIdPrescriptionOtpMutation();
 
@@ -259,7 +310,8 @@ export function ConsultPage() {
   /* oxlint-disable react/set-state-in-effect */
   useEffect(() => {
     if (initializedFor === appointmentId) return;
-    if (!appt || appt.status !== 'in_consult' || !consultation || !patient) return;
+    if (!appt || appt.status !== 'in_consult' || !consultation || !patient)
+      return;
 
     setComplaint(consultation.chiefComplaint ?? '');
     setFindings(consultation.findings ?? '');
@@ -281,17 +333,23 @@ export function ConsultPage() {
   if (appointmentError || patientError || consultationError)
     return (
       <>
-        <PageHead title="Appointment" subtitle="Review the patient and manage their visit." />
+        <PageHead
+          title="Appointment"
+          subtitle="Review the patient and manage their visit."
+        />
         <div className="card stack" role="alert">
           <h2>Unable to load this visit</h2>
-          <p className="muted">Reload the appointment and patient record before continuing.</p>
+          <p className="muted">
+            Reload the appointment and patient record before continuing.
+          </p>
           <button
             type="button"
             className="btn"
             onClick={() => {
               void refreshAppointment();
               if (appt?.patientId) void refreshPatient();
-              if (appt?.status === 'in_consult' || appt?.status === 'completed') void refreshConsultation();
+              if (appt?.status === 'in_consult' || appt?.status === 'completed')
+                void refreshConsultation();
             }}
           >
             Try again
@@ -303,12 +361,16 @@ export function ConsultPage() {
   if (
     !appt ||
     !patient ||
-    ((appt.status === 'in_consult' || appt.status === 'completed') && !consultation) ||
+    ((appt.status === 'in_consult' || appt.status === 'completed') &&
+      !consultation) ||
     (appt.status === 'in_consult' && initializedFor !== appointmentId)
   )
     return (
       <>
-        <PageHead title="Appointment" subtitle="Review the patient and manage their visit." />
+        <PageHead
+          title="Appointment"
+          subtitle="Review the patient and manage their visit."
+        />
         <p className="muted" role="status">
           Loading visit…
         </p>
@@ -329,7 +391,10 @@ export function ConsultPage() {
         followUpDate: followUp || null,
         chart: Object.entries(chart)
           .filter(([, status]) => status)
-          .map(([toothNumber, status]) => ({ toothNumber, status: status as never })),
+          .map(([toothNumber, status]) => ({
+            toothNumber,
+            status: status as never,
+          })),
         // A signed medicine list is immutable; notes can still be saved before completion.
         prescriptionItems: signed ? undefined : items,
       },
@@ -349,7 +414,12 @@ export function ConsultPage() {
   }
 
   function addMedToList() {
-    if (!med.medicineName.trim() || !med.dose.trim() || !med.frequency.trim() || !med.duration.trim()) {
+    if (
+      !med.medicineName.trim() ||
+      !med.dose.trim() ||
+      !med.frequency.trim() ||
+      !med.duration.trim()
+    ) {
       toast.error('Add the medicine name, dose, how often and for how long');
       return;
     }
@@ -366,20 +436,26 @@ export function ConsultPage() {
       setSigningError(undefined);
       setShowSign(true);
     } catch (err) {
-      toast.error(errorMessage(err, 'Could not save the draft before signing.'));
+      toast.error(
+        errorMessage(err, 'Could not save the draft before signing.'),
+      );
     }
   }
 
   async function sendSigningCode() {
     setSigningError(undefined);
     try {
-      const challenge = await requestSigningCode({ appointmentId: appointmentId! }).unwrap();
+      const challenge = await requestSigningCode({
+        appointmentId: appointmentId!,
+      }).unwrap();
       setSigningOtpId(challenge.otpId);
       setSigningCode('');
       setOtpNow(Date.now());
       setResendAt(Date.now() + challenge.resendAfterSeconds * 1000);
     } catch (err) {
-      setSigningError(errorMessage(err, 'Could not send a signing code. Please try again.'));
+      setSigningError(
+        errorMessage(err, 'Could not send a signing code. Please try again.'),
+      );
     }
   }
 
@@ -450,30 +526,62 @@ export function ConsultPage() {
         <ArrowLeft size={16} />
         {fromLabel}
       </Link>
+      {appt.consultationCase?.activatedAt && (
+        <section className="card stack">
+          <h3>{appt.followUpOf ? 'Free follow-up' : '3-day follow-up pass'}</h3>
+          <p className="muted">
+            {appt.consultationCase.status === 'active'
+              ? `Messaging and free follow-ups for the same concern are open until ${consultationDeadline(
+                  appt.consultationCase.expiresAt!,
+                )}.`
+              : 'Messaging is closed. The conversation history remains available.'}
+          </p>
+          <Link className="btn" to={`/messages/${appt.consultationCase.id}`}>
+            Messages with patient
+          </Link>
+          {appt.followUpOf && (
+            <Link className="btn" to={`/consult/${appt.followUpOf}`}>
+              Original consultation
+            </Link>
+          )}
+        </section>
+      )}
       <PageHead
         title={appt.patientName ?? ''}
         subtitle={`${appt.patientAge != null ? `${appt.patientAge} y, ` : ''}${
           appt.patientGender ?? ''
-        } · ${formatTime(appt.time)}, ${appt.type === 'video' ? 'Video consult' : 'In-clinic visit'}`}
-        actions={<span className={statusBadge(appt.status).className}>{statusBadge(appt.status).label}</span>}
+        } · ${formatTime(appt.time)}, ${
+          appt.type === 'video' ? 'Video consult' : 'In-clinic visit'
+        }`}
+        actions={
+          <span className={statusBadge(appt.status).className}>
+            {statusBadge(appt.status).label}
+          </span>
+        }
       />
     </>
   );
 
   const patientPanel = (
     <aside className="stack">
-      <AppointmentPaymentCard key={appt.id} appointment={appt} disabled={!!appointmentError} />
+      <AppointmentPaymentCard
+        key={appt.id}
+        appointment={appt}
+        disabled={!!appointmentError}
+      />
       <div className="card">
         <h3 style={{ marginBottom: 10 }}>Reported by patient</h3>
         <dl className="kv">
           <dt>{(appt.concerns?.length ?? 0) > 1 ? 'Problems' : 'Problem'}</dt>
           <dd>
             <div className="row wrap" style={{ gap: 5 }}>
-              {(appt.concerns?.length ? appt.concerns : [appt.concern]).filter(Boolean).map((c) => (
-                <span key={c} className="badge teal">
-                  {c}
-                </span>
-              ))}
+              {(appt.concerns?.length ? appt.concerns : [appt.concern])
+                .filter(Boolean)
+                .map((c) => (
+                  <span key={c} className="badge teal">
+                    {c}
+                  </span>
+                ))}
             </div>
           </dd>
           <dt>Where</dt>
@@ -487,7 +595,9 @@ export function ConsultPage() {
             </>
           )}
           <dt>Swelling</dt>
-          <dd>{appt.swelling ? <span className="badge red">Yes</span> : 'No'}</dd>
+          <dd>
+            {appt.swelling ? <span className="badge red">Yes</span> : 'No'}
+          </dd>
           {appt.note && (
             <>
               <dt>Note</dt>
@@ -515,14 +625,19 @@ export function ConsultPage() {
       </div>
       <div className="card">
         <h3 style={{ marginBottom: 6 }}>Past visits with you</h3>
-        {(patient?.appointments ?? []).filter((a) => a.status === 'completed' && a.id !== appt.id).length ? (
+        {(patient?.appointments ?? []).filter(
+          (a) => a.status === 'completed' && a.id !== appt.id,
+        ).length ? (
           (patient?.appointments ?? [])
             .filter((a) => a.status === 'completed' && a.id !== appt.id)
             .map((a) => (
               <div
                 key={a.id}
                 className="small"
-                style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}
+                style={{
+                  padding: '6px 0',
+                  borderBottom: '1px solid var(--line)',
+                }}
               >
                 <b>{formatDate(a.date)}</b>
                 <div className="muted">{a.diagnosis ?? '—'}</div>
@@ -539,7 +654,11 @@ export function ConsultPage() {
     return (
       <>
         {patientHeader}
-        <AppointmentPaymentCard key={appt.id} appointment={appt} disabled={!!appointmentError} />
+        <AppointmentPaymentCard
+          key={appt.id}
+          appointment={appt}
+          disabled={!!appointmentError}
+        />
         <div className="card empty">
           <h3>Appointment cancelled</h3>
           <p className="muted" style={{ margin: '8px 0 16px' }}>
@@ -558,23 +677,31 @@ export function ConsultPage() {
       <>
         {patientHeader}
         <div className="two-col">
-          <div className="stack">{patientPanel}<AppointmentAttachments appointmentId={appointmentId!} /></div>
+          <div className="stack">
+            {patientPanel}
+            <AppointmentAttachments appointmentId={appointmentId!} />
+          </div>
           <div className="stack">
             <div className="card row between wrap">
               <div>
                 <b>Consultation completed</b>
                 <div className="small muted">
                   {consultation?.isEdited && consultation.editedAt
-                    ? `Last edited ${formatDate(consultation.editedAt.slice(0, 10))}`
+                    ? `Last edited ${formatDate(
+                        consultation.editedAt.slice(0, 10),
+                      )}`
                     : `Completed ${
-                        appt.completedAt ? formatDate(appt.completedAt.slice(0, 10)) : formatDate(appt.date)
+                        appt.completedAt
+                          ? formatDate(appt.completedAt.slice(0, 10))
+                          : formatDate(appt.date)
                       }`}
                 </div>
               </div>
               <CareDocumentDownloads
                 appointmentId={appointmentId!}
                 hasPrescription={
-                  !!consultation?.prescription?.signedAt && !!consultation.prescription.items?.length
+                  !!consultation?.prescription?.signedAt &&
+                  !!consultation.prescription.items?.length
                 }
               />
             </div>
@@ -594,7 +721,11 @@ export function ConsultPage() {
                 <dt>Plan</dt>
                 <dd>{consultation?.plan || '—'}</dd>
                 <dt>Follow-up</dt>
-                <dd>{consultation?.followUpDate ? formatDate(consultation.followUpDate) : '—'}</dd>
+                <dd>
+                  {consultation?.followUpDate
+                    ? formatDate(consultation.followUpDate)
+                    : '—'}
+                </dd>
               </dl>
               <TreatmentProcedures items={consultation?.planItems} />
             </div>
@@ -602,11 +733,17 @@ export function ConsultPage() {
               <div className="rx-sheet">
                 <div className="rx-head">
                   <div>
-                    <b>{appt.type === 'clinic' ? 'In-clinic visit' : 'Video consultation'}</b>
+                    <b>
+                      {appt.type === 'clinic'
+                        ? 'In-clinic visit'
+                        : 'Video consultation'}
+                    </b>
                     <div className="small muted">
                       {me?.fullName} · {me?.qualification}
                     </div>
-                    <div className="tiny muted">Reg. No. {me?.councilRegNo}</div>
+                    <div className="tiny muted">
+                      Reg. No. {me?.councilRegNo}
+                    </div>
                   </div>
                   <div className="rx-symbol">℞</div>
                 </div>
@@ -619,19 +756,28 @@ export function ConsultPage() {
                       <div className="small">
                         {m.dose}, {m.frequency}, for {m.duration}
                       </div>
-                      {m.instructions && <div className="small muted">{m.instructions}</div>}
+                      {m.instructions && (
+                        <div className="small muted">{m.instructions}</div>
+                      )}
                     </li>
                   ))}
                 </ol>
                 <div className="rx-sign">
                   {consultation.prescription.signedAt ? (
                     <>
-                      <div style={{ fontFamily: "'Brush Script MT', cursive", fontSize: 20 }}>
+                      <div
+                        style={{
+                          fontFamily: "'Brush Script MT', cursive",
+                          fontSize: 20,
+                        }}
+                      >
                         {me?.fullName}
                       </div>
                       <div className="tiny muted">
                         Confirmed by signing code on{' '}
-                        {formatDate(consultation.prescription.signedAt.slice(0, 10))}
+                        {formatDate(
+                          consultation.prescription.signedAt.slice(0, 10),
+                        )}
                       </div>
                     </>
                   ) : (
@@ -651,11 +797,19 @@ export function ConsultPage() {
   // Not started yet (booked/waiting), not editable today
   if (appt.status !== 'in_consult') {
     const future = appt.date && appt.date > todayIso();
+    const coverageClosed =
+      appt.payment?.status === 'coverage_revoked' ||
+      (!!appt.followUpOf &&
+        appt.type === 'clinic' &&
+        appt.consultationCase?.status !== 'active');
     return (
       <>
         {patientHeader}
         <div className="two-col">
-          <div className="stack">{patientPanel}<AppointmentAttachments appointmentId={appointmentId!} /></div>
+          <div className="stack">
+            {patientPanel}
+            <AppointmentAttachments appointmentId={appointmentId!} />
+          </div>
           <div className="card empty" style={{ padding: 44 }}>
             <h3 style={{ color: 'var(--ink)' }}>Ready when you are</h3>
             <p style={{ margin: '6px 0 16px' }}>
@@ -676,17 +830,25 @@ export function ConsultPage() {
                 <button
                   type="button"
                   className="btn btn-primary btn-lg"
-                  disabled={isStarting}
+                  disabled={isStarting || coverageClosed}
                   onClick={handleStart}
                 >
-                  Start consultation
+                  {coverageClosed
+                    ? 'Follow-up pass unavailable'
+                    : 'Start consultation'}
                 </button>
               )}
-              {appt.status === 'booked' && (
-                <button type="button" className="btn btn-lg" onClick={() => setShowReschedule(true)}>
-                  Reschedule
-                </button>
-              )}
+              {appt.status === 'booked' &&
+                (!appt.followUpOf ||
+                  appt.consultationCase?.status === 'active') && (
+                  <button
+                    type="button"
+                    className="btn btn-lg"
+                    onClick={() => setShowReschedule(true)}
+                  >
+                    Reschedule
+                  </button>
+                )}
             </div>
           </div>
         </div>
@@ -710,7 +872,11 @@ export function ConsultPage() {
       <div className="stack">
         <label className="field">
           <span>Chief complaint</span>
-          <input className="input" value={complaint} onChange={(e) => setComplaint(e.target.value)} />
+          <input
+            className="input"
+            value={complaint}
+            onChange={(e) => setComplaint(e.target.value)}
+          />
         </label>
         <label className="field">
           <span>Examination findings</span>
@@ -749,7 +915,9 @@ export function ConsultPage() {
     <div className="card">
       <div className="row between wrap" style={{ marginBottom: 12 }}>
         <h3>Dental chart</h3>
-        <span className="small muted">Pick a status, then click teeth to mark them</span>
+        <span className="small muted">
+          Pick a status, then click teeth to mark them
+        </span>
       </div>
       <ChartLegend active={brush} onPick={setBrush} />
       <div style={{ marginTop: 14 }}>
@@ -765,7 +933,11 @@ export function ConsultPage() {
         {signed && <span className="badge green">Signed</span>}
       </div>
       {signed ? (
-        <CareDocumentDownloads appointmentId={appointmentId!} hasPrescription showSummary={false} />
+        <CareDocumentDownloads
+          appointmentId={appointmentId!}
+          hasPrescription
+          showSummary={false}
+        />
       ) : null}
       {items.length > 0 ? (
         items.map((m, i) => (
@@ -777,14 +949,18 @@ export function ConsultPage() {
               <div className="small">
                 {m.dose}, {m.frequency}, for {m.duration}
               </div>
-              {m.instructions && <div className="small muted">{m.instructions}</div>}
+              {m.instructions && (
+                <div className="small muted">{m.instructions}</div>
+              )}
             </div>
             {!signed && (
               <button
                 type="button"
                 className="btn"
                 aria-label="Remove"
-                onClick={() => setItems((it) => it.filter((_, idx) => idx !== i))}
+                onClick={() =>
+                  setItems((it) => it.filter((_, idx) => idx !== i))
+                }
               >
                 <X size={16} />
               </button>
@@ -792,7 +968,9 @@ export function ConsultPage() {
           </div>
         ))
       ) : (
-        <p className="small muted">No medicines added. You can complete without a prescription.</p>
+        <p className="small muted">
+          No medicines added. You can complete without a prescription.
+        </p>
       )}
       {signed ? null : addingMed ? (
         <div className="card flat" style={{ marginTop: 12 }}>
@@ -819,7 +997,9 @@ export function ConsultPage() {
               <input
                 className="input"
                 value={med.medicineName}
-                onChange={(e) => setMed({ ...med, medicineName: e.target.value })}
+                onChange={(e) =>
+                  setMed({ ...med, medicineName: e.target.value })
+                }
               />
             </label>
             <label className="field">
@@ -860,27 +1040,45 @@ export function ConsultPage() {
               <input
                 className="input"
                 value={med.instructions}
-                onChange={(e) => setMed({ ...med, instructions: e.target.value })}
+                onChange={(e) =>
+                  setMed({ ...med, instructions: e.target.value })
+                }
               />
             </label>
           </div>
           <div className="row" style={{ marginTop: 12 }}>
-            <button type="button" className="btn btn-primary" onClick={addMedToList}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={addMedToList}
+            >
               Add to prescription
             </button>
-            <button type="button" className="btn" onClick={() => setAddingMed(false)}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setAddingMed(false)}
+            >
               Cancel
             </button>
           </div>
         </div>
       ) : (
         <div className="row" style={{ marginTop: 12 }}>
-          <button type="button" className="btn" onClick={() => setAddingMed(true)}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setAddingMed(true)}
+          >
             <Plus size={16} />
             Add medicine
           </button>
           {items.length > 0 && (
-            <button type="button" className="btn btn-primary" onClick={openSign}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={openSign}
+            >
               Preview and sign
             </button>
           )}
@@ -920,9 +1118,15 @@ export function ConsultPage() {
   const consultationActions = (
     <div className="complete-bar">
       <span className="small muted">
-        The visit summary{items.length > 0 ? ', prescription' : ''} and chart go to the patient's app.
+        The visit summary{items.length > 0 ? ', prescription' : ''} and chart go
+        to the patient's app.
       </span>
-      <button type="button" className="btn" disabled={isSaving || isCompleting} onClick={handleSave}>
+      <button
+        type="button"
+        className="btn"
+        disabled={isSaving || isCompleting}
+        onClick={handleSave}
+      >
         {isSaving ? 'Saving…' : 'Save draft'}
       </button>
       <button
@@ -942,14 +1146,20 @@ export function ConsultPage() {
     { id: 'prescription', label: 'Prescription', content: prescription },
     { id: 'plan', label: 'Treatment plan', content: treatmentPlan },
     { id: 'patient', label: 'Patient details', content: patientPanel },
-    { id: 'files', label: 'Photos and reports', content: <AppointmentAttachments appointmentId={appointmentId!} /> },
+    {
+      id: 'files',
+      label: 'Photos and reports',
+      content: <AppointmentAttachments appointmentId={appointmentId!} />,
+    },
   ];
 
   return (
     <>
       {patientHeader}
       {appt.type === 'video' ? (
-        <Suspense fallback={<div className="card">Loading video consultation…</div>}>
+        <Suspense
+          fallback={<div className="card">Loading video consultation…</div>}
+        >
           <VideoConsultation
             key={appointmentId}
             appointmentId={appointmentId!}
@@ -997,7 +1207,11 @@ export function ConsultPage() {
           <div className="rx-sheet">
             <div className="rx-head">
               <div>
-                <b>{appt.type === 'clinic' ? 'In-clinic visit' : 'Video consultation'}</b>
+                <b>
+                  {appt.type === 'clinic'
+                    ? 'In-clinic visit'
+                    : 'Video consultation'}
+                </b>
                 <div className="small muted">
                   {me?.fullName} · {me?.qualification}
                 </div>
@@ -1035,7 +1249,10 @@ export function ConsultPage() {
                   checked={allergyAck}
                   onChange={(e) => setAllergyAck(e.target.checked)}
                 />
-                <span>I have reviewed the allergy and want to issue this prescription.</span>
+                <span>
+                  I have reviewed the allergy and want to issue this
+                  prescription.
+                </span>
               </label>
             </>
           ) : (
@@ -1043,18 +1260,24 @@ export function ConsultPage() {
             !/none/i.test(patient.allergies) && (
               <div
                 className="emergency"
-                style={{ marginTop: 14, background: 'var(--amber-soft)', color: '#7A4C03' }}
+                style={{
+                  marginTop: 14,
+                  background: 'var(--amber-soft)',
+                  color: '#7A4C03',
+                }}
               >
                 <AlertTriangle size={16} />
                 <div>
-                  Patient allergy: <b>{patient.allergies}</b>. Check before signing.
+                  Patient allergy: <b>{patient.allergies}</b>. Check before
+                  signing.
                 </div>
               </div>
             )
           )}
           <div className="stack" style={{ marginTop: 14 }}>
             <p className="small muted">
-              Confirm this prescription using a four-digit code for your registered mobile number.
+              Confirm this prescription using a four-digit code for your
+              registered mobile number.
             </p>
             <button
               type="button"
@@ -1080,7 +1303,11 @@ export function ConsultPage() {
                   maxLength={4}
                   pattern="[0-9]{4}"
                   value={signingCode}
-                  onChange={(e) => setSigningCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  onChange={(e) =>
+                    setSigningCode(
+                      e.target.value.replace(/\D/g, '').slice(0, 4),
+                    )
+                  }
                 />
               </label>
             )}
@@ -1090,7 +1317,10 @@ export function ConsultPage() {
               </p>
             )}
           </div>
-          <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+          <div
+            className="row"
+            style={{ marginTop: 14, justifyContent: 'flex-end' }}
+          >
             <button
               type="button"
               className="btn"

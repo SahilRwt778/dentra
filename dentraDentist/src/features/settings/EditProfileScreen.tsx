@@ -8,6 +8,9 @@ import { errorMessage } from '../../common/utils/api-error';
 import { useDentist } from '../auth/DentistGate';
 import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/forms/Field';
+import { ProfilePhotoField } from '../../components/forms/ProfilePhotoField';
+import type { ProfilePhoto } from '../../common/types/profile-photo';
+import { API_BASE_URL } from '../../common/config/api';
 import { Button } from '../../components/ui/Button';
 import { ErrorMessage } from '../../components/ui/Feedback';
 import { profileForm, profileUpdate } from './settings-validation';
@@ -18,6 +21,8 @@ export function EditProfileScreen({
 }: NativeStackScreenProps<StackParamList, 'EditProfile'>) {
   const dentist = useDentist();
   const [form, setForm] = useState(() => profileForm(dentist));
+  const [photo, setPhoto] = useState<ProfilePhoto | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveProfile, saving] = useUpdateDentistMutation();
   const active = useScreenActive();
@@ -27,7 +32,11 @@ export function EditProfileScreen({
     lock.current = true;
     setError(null);
     try {
-      await saveProfile(profileUpdate(form)).unwrap();
+      await saveProfile({
+        ...profileUpdate(form),
+        ...(photo ? { profilePhoto: photo } : {}),
+        ...(removePhoto ? { removeProfilePhoto: true } : {}),
+      }).unwrap();
       if (active.current) navigation.goBack();
     } catch (failure) {
       if (active.current) setError(errorMessage(failure));
@@ -47,8 +56,40 @@ export function EditProfileScreen({
       }
     >
       <Text style={settingsStyles.description}>
-        Keep your qualifications and contact information up to date.
+        Keep your photo, qualifications and contact information up to date.
       </Text>
+      <Card style={settingsStyles.card}>
+        <ProfilePhotoField
+          value={photo}
+          disabled={saving.isLoading}
+          existingUrl={
+            !removePhoto && dentist.profilePhotoUrl
+              ? `${API_BASE_URL}${dentist.profilePhotoUrl}`
+              : null
+          }
+          onChange={selection => {
+            setPhoto(selection);
+            if (selection) setRemovePhoto(false);
+          }}
+          onRemoveExisting={() => setRemovePhoto(!!dentist.profilePhotoUrl)}
+        />
+        {removePhoto && (
+          <Text style={settingsStyles.description}>
+            Your photo will be removed when you save changes.
+          </Text>
+        )}
+        {(photo || removePhoto) && (
+          <Button
+            title="Undo photo change"
+            variant="secondary"
+            disabled={saving.isLoading}
+            onPress={() => {
+              setPhoto(null);
+              setRemovePhoto(false);
+            }}
+          />
+        )}
+      </Card>
       <Card style={settingsStyles.card}>
         <Field
           label="Qualification"

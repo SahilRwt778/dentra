@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { API_BASE_URL } from '@/config';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -275,7 +277,17 @@ export function Badge({
   );
 }
 
-export function Avatar({ name, large }: { name?: string; large?: boolean }) {
+export function Avatar({
+  name,
+  large,
+  photoUrl,
+}: {
+  name?: string;
+  large?: boolean;
+  photoUrl?: string | null;
+}) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const uri = photoUrl ? `${API_BASE_URL}${photoUrl}` : undefined;
   const initials =
     name
       ?.replace(/^dr\.?\s*/i, '')
@@ -287,7 +299,16 @@ export function Avatar({ name, large }: { name?: string; large?: boolean }) {
       .toUpperCase() || 'D';
   return (
     <View style={[s.avatar, large && s.largeAvatar]}>
-      <Text style={[s.initials, large && { fontSize: 25 }]}>{initials}</Text>
+      {uri && failedUrl !== uri ? (
+        <Image
+          source={{ uri }}
+          style={[StyleSheet.absoluteFill, s.avatarImage]}
+          accessibilityLabel={`${name || 'User'} profile photo`}
+          onError={() => setFailedUrl(uri)}
+        />
+      ) : (
+        <Text style={[s.initials, large && { fontSize: 25 }]}>{initials}</Text>
+      )}
     </View>
   );
 }
@@ -543,6 +564,7 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   badgeText: { fontSize: 11, fontWeight: '600' },
+  avatarImage: { borderRadius: 999 },
   avatar: {
     width: 46,
     height: 46,

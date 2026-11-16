@@ -1,3 +1,5 @@
+import { ProfilePhotoFormInterceptor } from '../profile-photos/profile-photo-form.interceptor';
+import { MAX_PROFILE_PHOTO_BYTES } from '../profile-photos/profile-photos.service';
 import {
   BadRequestException,
   Body,
@@ -37,20 +39,24 @@ export class ApplicationsController {
 
   @Roles('dentist')
   @Post()
+  @UseInterceptors(FileInterceptor('profilePhoto', { limits: { fileSize: MAX_PROFILE_PHOTO_BYTES, files: 1, fields: 1 } }), ProfilePhotoFormInterceptor)
   create(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: DentistApplicationDto
+    @Body() dto: DentistApplicationDto,
+    @UploadedFile() photo?: Express.Multer.File
   ) {
-    return this.dentists.createApplication(user.userId, dto);
+    return this.dentists.createApplication(user.userId, dto, photo);
   }
 
   @Roles('dentist')
   @Patch('me')
+  @UseInterceptors(FileInterceptor('profilePhoto', { limits: { fileSize: MAX_PROFILE_PHOTO_BYTES, files: 1, fields: 1 } }), ProfilePhotoFormInterceptor)
   update(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: DentistApplicationDto
+    @Body() dto: DentistApplicationDto,
+    @UploadedFile() photo?: Express.Multer.File
   ) {
-    return this.dentists.updateApplication(user.userId, dto);
+    return this.dentists.updateApplication(user.userId, dto, photo);
   }
 
   @Roles('dentist')

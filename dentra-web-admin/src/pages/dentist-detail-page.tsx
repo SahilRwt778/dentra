@@ -1,3 +1,4 @@
+import { ProfileAvatar } from '@/components/profile-avatar';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
@@ -106,15 +107,10 @@ export function DentistDetailPage() {
         <div className="stack" aria-busy={isFetching}>
           <section className="card dentist-summary" aria-label="Dentist status">
             <div className="row">
-              <div className="avatar" aria-hidden="true">
-                {dentist.fullName
-                  ?.split(' ')
-                  .filter(Boolean)
-                  .map((part) => part[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase() || 'D'}
-              </div>
+              <ProfileAvatar
+                name={dentist.fullName}
+                photoUrl={dentist.profilePhotoUrl}
+              />
               <div>
                 <h2>{dentist.fullName || 'Dentist'}</h2>
                 <p className="small muted">

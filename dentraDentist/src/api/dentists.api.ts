@@ -1,3 +1,4 @@
+import type { ProfilePhoto } from '../common/types/profile-photo';
 import axios from 'axios';
 import { api } from './client';
 import type {
@@ -19,10 +20,27 @@ export const dentistsApi = {
       throw error;
     }
   },
-  async saveApplication(details: DentistApplication, exists: boolean) {
+  async saveApplication(
+    details: DentistApplication,
+    exists: boolean,
+    photo?: ProfilePhoto | null,
+  ) {
+    let body: DentistApplication | FormData = details;
+    if (photo) {
+      body = new FormData();
+      body.append('details', JSON.stringify(details));
+      body.append('profilePhoto', {
+        uri: photo.uri,
+        name: photo.name,
+        type: photo.type,
+      } as unknown as Blob);
+    }
+    const options = photo
+      ? { timeout: 60000, headers: { 'Content-Type': 'multipart/form-data' } }
+      : undefined;
     const { data } = exists
-      ? await api.patch<Dentist>('/dentists/applications/me', details)
-      : await api.post<Dentist>('/dentists/applications', details);
+      ? await api.patch<Dentist>('/dentists/applications/me', body, options)
+      : await api.post<Dentist>('/dentists/applications', body, options);
     return data;
   },
   async uploadDocument(

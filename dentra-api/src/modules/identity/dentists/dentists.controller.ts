@@ -1,4 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ProfilePhotoFormInterceptor } from '../profile-photos/profile-photo-form.interceptor';
+import { MAX_PROFILE_PHOTO_BYTES } from '../profile-photos/profile-photos.service';
 import { ApiTags } from '@nestjs/swagger';
 import { Public } from '@common/decorators/public.decorator';
 import { Roles } from '@common/decorators/roles.decorator';
@@ -38,8 +41,9 @@ export class DentistsController {
 
   @Roles('dentist')
   @Patch('me')
-  updateMe(@CurrentUser() user: AuthenticatedUser, @Body() dto: DentistSelfUpdateDto) {
-    return this.dentists.updateMe(user.userId, dto);
+  @UseInterceptors(FileInterceptor('profilePhoto', { limits: { fileSize: MAX_PROFILE_PHOTO_BYTES, files: 1, fields: 1 } }), ProfilePhotoFormInterceptor)
+  updateMe(@CurrentUser() user: AuthenticatedUser, @Body() dto: DentistSelfUpdateDto, @UploadedFile() photo?: Express.Multer.File) {
+    return this.dentists.updateMe(user.userId, dto, photo);
   }
 
   @Roles('dentist')

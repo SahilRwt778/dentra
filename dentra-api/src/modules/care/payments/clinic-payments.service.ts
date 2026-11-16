@@ -1,3 +1,4 @@
+import { activateConsultationPass } from '@common/utils/consultation-pass';
 import {
   ConflictException,
   ForbiddenException,
@@ -117,6 +118,7 @@ export class ClinicPaymentsService {
           "update transactions set status = 'paid', updated_at = now() where id = $1",
           [transaction.id],
         );
+        await activateConsultationPass(client, appointmentId);
         await this.audit.log(
           {
             actorUserId: user.userId,

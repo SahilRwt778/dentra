@@ -1,7 +1,11 @@
+import { useGetConsultationCasesQuery } from '../store/dentraApi';
+import { useForegroundRefresh } from '../common/hooks/useForegroundRefresh';
+import { MessagesScreen } from '../features/messages/MessagesScreen';
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
   CalendarDays,
+  MessageCircle,
   House,
   UserRound,
   UsersRound,
@@ -32,11 +36,17 @@ function ProfileIcon(props: TabIconProps) {
   return <UserRound {...props} />;
 }
 
+function MessagesIcon(props: TabIconProps) {
+  return <MessageCircle {...props} />;
+}
+
 function PatientsIcon(props: TabIconProps) {
   return <UsersRound {...props} />;
 }
 
 export function TabNavigator() {
+  const inbox = useGetConsultationCasesQuery(1);
+  useForegroundRefresh(inbox.refetch, true, 10000);
   return (
     <Tab.Navigator
       screenOptions={{
@@ -63,6 +73,14 @@ export function TabNavigator() {
         name="Patients"
         component={PatientsScreen}
         options={{ tabBarIcon: PatientsIcon }}
+      />
+      <Tab.Screen
+        name="Messages"
+        component={MessagesScreen}
+        options={{
+          tabBarIcon: MessagesIcon,
+          tabBarBadge: inbox.data?.unreadCount || undefined,
+        }}
       />
       <Tab.Screen
         name="Profile"

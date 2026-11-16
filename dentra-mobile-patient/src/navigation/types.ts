@@ -3,7 +3,12 @@ import type {
   NativeStackScreenProps,
 } from '@react-navigation/native-stack';
 
-export type TabName = 'Home' | 'Appointments' | 'Records' | 'Profile';
+export type TabName =
+  | 'Home'
+  | 'Appointments'
+  | 'Records'
+  | 'Messages'
+  | 'Profile';
 export type PatientStackParams = {
   Main: { tab?: TabName; prescriptions?: boolean } | undefined;
   Dentists: undefined;
@@ -16,6 +21,8 @@ export type PatientStackParams = {
   };
   Reschedule: { appointmentId: string };
   Visit: { appointmentId: string };
+  Chat: { caseId: string };
+  FollowUp: { caseId: string };
   Notifications: undefined;
   Help: undefined;
 };

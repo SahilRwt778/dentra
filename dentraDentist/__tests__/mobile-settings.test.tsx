@@ -1,5 +1,6 @@
 import React from 'react';
-import { Switch, TextInput } from 'react-native';
+import { Image, Switch, TextInput, TurboModuleRegistry } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import Renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { createStoreHarness } from '../test-utils/store';
@@ -16,6 +17,10 @@ import type { Dentist } from '../src/common/types/api';
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
 let mockDentist: Dentist;
+jest.mock('react-native-image-picker', () => ({
+  launchCamera: jest.fn(),
+  launchImageLibrary: jest.fn(),
+}));
 jest.mock('@react-navigation/native', () => ({
   useIsFocused: () => true,
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -185,6 +190,113 @@ test('edits the supported profile fields without changing the login mobile numbe
     },
   });
   expect(mockGoBack).toHaveBeenCalledTimes(1);
+});
+
+test('previews photo removal locally, can undo it, and removes it only on Save changes', async () => {
+  mockDentist.profilePhotoUrl =
+    '/profile-photos/dentist/synthetic?signature=synthetic';
+  await mount(
+    <EditProfileScreen
+      navigation={navigation}
+      route={{ key: 'photo', name: 'EditProfile' }}
+    />,
+  );
+  await pressLabel('Remove profile photo');
+  expect(writes).toHaveLength(0);
+  expect(tree!.root.findAllByType(Image)).toHaveLength(0);
+  await press('Undo photo change');
+  expect(tree!.root.findByType(Image).props.source.uri).toContain(
+    mockDentist.profilePhotoUrl,
+  );
+  await pressLabel('Remove profile photo');
+  await press('Save changes');
+  expect(writes[0].body).toMatchObject({
+    removeProfilePhoto: true,
+    qualification: 'BDS',
+  });
+  expect(mockGoBack).toHaveBeenCalledTimes(1);
+});
+
+test('sends a selected profile photo through Axios multipart with the edited profile details', async () => {
+  let parts: {
+    fieldName: string;
+    string?: string;
+    uri?: string;
+    name?: string;
+    type?: string;
+  }[] = [];
+  api.defaults.adapter = async config => {
+    if (config.method === 'patch') {
+      parts = config.data.getParts();
+      return reply(config, {
+        ...mockDentist,
+        profilePhotoUrl: '/profile-photos/synthetic-new',
+      });
+    }
+    return reply(config, mockDentist);
+  };
+  jest
+    .mocked(launchImageLibrary)
+    .mockResolvedValueOnce({
+      assets: [
+        {
+          uri: 'file:///profile.png',
+          fileName: 'profile.png',
+          type: 'image/png',
+          fileSize: 100,
+        },
+      ],
+    });
+  await mount(
+    <EditProfileScreen
+      navigation={navigation}
+      route={{ key: 'photo', name: 'EditProfile' }}
+    />,
+  );
+  const native = jest
+    .spyOn(TurboModuleRegistry, 'get')
+    .mockReturnValue({} as never);
+  try {
+    await pressLabel('Choose profile photo from gallery');
+  } finally {
+    native.mockRestore();
+  }
+  expect(parts).toHaveLength(0);
+  expect(tree!.root.findByType(Image).props.source.uri).toBe(
+    'file:///profile.png',
+  );
+  await press('Save changes');
+  expect(parts.find(part => part.fieldName === 'profilePhoto')).toMatchObject({
+    uri: 'file:///profile.png',
+    name: 'profile.png',
+    type: 'image/png',
+  });
+  expect(
+    JSON.parse(parts.find(part => part.fieldName === 'details')!.string!),
+  ).toMatchObject({ qualification: 'BDS', email: 'test@example.test' });
+  expect(mockGoBack).toHaveBeenCalledTimes(1);
+});
+
+test('keeps photo removal as an unsaved draft if the server rejects the change', async () => {
+  mockDentist.profilePhotoUrl = '/profile-photos/synthetic-current';
+  api.defaults.adapter = async config => {
+    if (config.method === 'patch')
+      throw new Error('Synthetic photo save failure');
+    return reply(config, mockDentist);
+  };
+  await mount(
+    <EditProfileScreen
+      navigation={navigation}
+      route={{ key: 'photo', name: 'EditProfile' }}
+    />,
+  );
+  await pressLabel('Remove profile photo');
+  await press('Save changes');
+  expect(mockGoBack).not.toHaveBeenCalled();
+  await press('Undo photo change');
+  expect(tree!.root.findByType(Image).props.source.uri).toContain(
+    mockDentist.profilePhotoUrl,
+  );
 });
 
 test('editing only a clinic name preserves its address, PIN code, phone and hours', async () => {

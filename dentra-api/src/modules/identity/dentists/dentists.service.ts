@@ -1,5 +1,8 @@
+import { ProfilePhotosService, type ProfilePhotoUpload } from '../profile-photos/profile-photos.service';
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -44,6 +47,7 @@ export class DentistsService {
     private readonly notifications: NotificationsService,
     private readonly availability: AvailabilityService,
     private readonly documents: DentistDocumentsStorage,
+    private readonly photos: ProfilePhotosService,
   ) {}
 
   // ---------- public, patient-facing ----------
@@ -114,21 +118,24 @@ export class DentistsService {
 
   // ---------- self-serve onboarding ----------
 
-  async createApplication(userId: string, dto: DentistApplicationDto) {
+  async createApplication(userId: string, dto: DentistApplicationDto, photo?: ProfilePhotoUpload) {
     if (await this.users.hasProfile(userId, 'dentist')) {
       throw new ConflictException('This account already has a dentist application or profile.');
     }
 
     const client = await this.pool.connect();
+    let reference: string | undefined;
+    let committing = false;
     try {
       await client.query('BEGIN');
+      if (photo) reference = await this.photos.save('dentist', userId, photo);
       const offersVideo = dto.offersVideo ?? false;
       const { rows } = await client.query(
         `insert into dentists (
            user_id, full_name, email, qualification, specialization, council_reg_no,
            years_experience, languages, offers_video, video_hours_from, video_hours_to,
-           fee_video_paise, fee_clinic_paise, status, submitted_by, submitted_at
-         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft','self', now())
+           fee_video_paise, fee_clinic_paise, profile_photo_url, status, submitted_by, submitted_at
+         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft','self', now())
          returning *`,
         [
           userId,
@@ -147,24 +154,29 @@ export class DentistsService {
           offersVideo ? '18:30' : null,
           dto.feeVideoPaise ?? 0,
           dto.feeClinicPaise ?? 0,
+          reference ?? null,
         ],
       );
       await client.query(
         `insert into dentist_clinics (dentist_id, name, hours_from, hours_to) values ($1, $2, '10:00', '18:30')`,
         [userId, dto.primaryClinicName],
       );
+      committing = true;
       await client.query('COMMIT');
       return this.toFull(rows[0]);
     } catch (err) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (reference && !committing) await this.photos.removeUnused('dentist', userId, reference);
       throw err;
     } finally {
       client.release();
     }
   }
 
-  async updateApplication(userId: string, dto: DentistApplicationDto) {
+  async updateApplication(userId: string, dto: DentistApplicationDto, photo?: ProfilePhotoUpload) {
     const client = await this.pool.connect();
+    let reference: string | undefined;
+    let committing = false;
     try {
       await client.query('BEGIN');
       const { rows: existing } = await client.query('select * from dentists where user_id = $1 for update', [userId]);
@@ -172,22 +184,26 @@ export class DentistsService {
       if (existing[0].status !== 'draft' || existing[0].submitted_by !== 'self') {
         throw new ConflictException('Only your draft application can be edited.');
       }
+      if (photo) reference = await this.photos.save('dentist', userId, photo);
       const offersVideo = dto.offersVideo ?? false;
       const { rows } = await client.query(
         `update dentists set full_name = $2, email = $3, qualification = $4, specialization = $5,
          council_reg_no = $6, years_experience = $7, languages = $8, offers_video = $9,
          video_hours_from = $10, video_hours_to = $11, fee_video_paise = $12,
-         fee_clinic_paise = $13, updated_at = now() where user_id = $1 returning *`,
+         fee_clinic_paise = $13, profile_photo_url = coalesce($14, profile_photo_url), updated_at = now() where user_id = $1 returning *`,
         [userId, dto.fullName, dto.email ?? null, dto.qualification, dto.specialization, dto.councilRegNo,
           dto.yearsExperience ?? 0, dto.languages ?? [], offersVideo,
           offersVideo ? '10:00' : null, offersVideo ? '18:30' : null,
-          dto.feeVideoPaise ?? 0, dto.feeClinicPaise ?? 0],
+          dto.feeVideoPaise ?? 0, dto.feeClinicPaise ?? 0, reference ?? null],
       );
       await client.query('update dentist_clinics set name = $2, updated_at = now() where dentist_id = $1', [userId, dto.primaryClinicName]);
+      committing = true;
       await client.query('COMMIT');
+      if (reference) await this.photos.removeUnused('dentist', userId, existing[0].profile_photo_url);
       return this.toFull(rows[0]);
     } catch (err) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (reference && !committing) await this.photos.removeUnused('dentist', userId, reference);
       throw err;
     } finally {
       client.release();
@@ -296,7 +312,9 @@ export class DentistsService {
     return this.toFull(row);
   }
 
-  async updateMe(userId: string, dto: DentistSelfUpdateDto) {
+  async updateMe(userId: string, dto: DentistSelfUpdateDto, photo?: ProfilePhotoUpload) {
+    if (photo && dto.removeProfilePhoto)
+      throw new BadRequestException('Choose a new profile photo or remove the current one, not both.');
     let videoHoursFrom = dto.videoHoursFrom;
     let videoHoursTo = dto.videoHoursTo;
 
@@ -339,6 +357,7 @@ export class DentistsService {
       fee_video_paise: dto.feeVideoPaise,
       fee_clinic_paise: dto.feeClinicPaise,
     };
+    if (photo || dto.removeProfilePhoto) return this.updateProfilePhoto(userId, fields, photo);
     const set = Object.entries(fields).filter(([, v]) => v !== undefined);
     if (set.length === 0) return this.findMe(userId);
 
@@ -350,6 +369,36 @@ export class DentistsService {
     );
     if (!rows[0]) throw new NotFoundException('No application on file.');
     return this.toFull(rows[0]);
+  }
+
+  /** Commit the picture and edited details together; retain the old image until then. */
+  private async updateProfilePhoto(userId: string, fields: Record<string, unknown>, photo?: ProfilePhotoUpload) {
+    const client = await this.pool.connect();
+    let reference: string | undefined;
+    let committing = false;
+    try {
+      await client.query('BEGIN');
+      const { rows: current } = await client.query(
+        `select d.profile_photo_url, d.status from dentists d join users u on u.id = d.user_id
+         where d.user_id = $1 and u.status = 'active' for update of d`, [userId]);
+      if (!current[0]) throw new NotFoundException('No dentist profile on file.');
+      if (current[0].status !== 'verified') throw new ForbiddenException('Your dentist profile must be verified before editing it.');
+      if (photo) reference = await this.photos.save('dentist', userId, photo);
+      const changes = Object.entries({ ...fields, profile_photo_url: reference ?? null })
+        .filter(([, value]) => value !== undefined);
+      const assignments = changes.map(([column], index) => `${column} = $${index + 2}`).join(', ');
+      const { rows } = await client.query(
+        `update dentists set ${assignments}, updated_at = now() where user_id = $1 returning *`,
+        [userId, ...changes.map(([, value]) => value)]);
+      committing = true;
+      await client.query('COMMIT');
+      await this.photos.removeUnused('dentist', userId, current[0].profile_photo_url);
+      return this.toFull(rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (reference && !committing) await this.photos.removeUnused('dentist', userId, reference);
+      throw error;
+    } finally { client.release(); }
   }
 
   async listClinics(userId: string) {
@@ -468,6 +517,7 @@ export class DentistsService {
     return {
       id: row.user_id,
       fullName: row.full_name,
+      profilePhotoUrl: this.photos.url('dentist', row.user_id, row.profile_photo_url),
       qualification: row.qualification,
       specialization: row.specialization,
       yearsExperience: row.years_experience,

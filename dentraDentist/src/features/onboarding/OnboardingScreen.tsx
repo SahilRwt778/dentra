@@ -1,3 +1,8 @@
+import {
+  ProfilePhotoField,
+  type ProfilePhoto,
+} from '../../components/forms/ProfilePhotoField';
+import { API_BASE_URL } from '../../common/config/api';
 import React, { useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Check, FileText, Upload } from 'lucide-react-native';
@@ -50,6 +55,7 @@ export function OnboardingScreen({
   const { signOut } = useAuth();
   const [form, setForm] = useState(() => initialForm(dentist));
   const [draft, setDraft] = useState(dentist);
+  const [photo, setPhoto] = useState<ProfilePhoto | null>(null);
   const [files, setFiles] = useState<
     Partial<Record<DocumentType, LocalDocument>>
   >({});
@@ -106,8 +112,13 @@ export function OnboardingScreen({
             .join(', ')}.`,
         );
       setProgress('Saving your details…');
-      const saved = await dentistsApi.saveApplication(payload, !!existing);
+      const saved = await dentistsApi.saveApplication(
+        payload,
+        !!existing,
+        photo,
+      );
       setDraft(saved);
+      setPhoto(null);
       for (const doc of documents) {
         const file = files[doc.type];
         if (!file) continue;
@@ -143,6 +154,16 @@ export function OnboardingScreen({
       </View>
       <Card>
         <Text style={layout.heading}>Professional details</Text>
+        <ProfilePhotoField
+          value={photo}
+          onChange={setPhoto}
+          disabled={busy}
+          existingUrl={
+            draft?.profilePhotoUrl
+              ? `${API_BASE_URL}${draft.profilePhotoUrl}`
+              : null
+          }
+        />
         <Field
           label="Full name"
           value={form.fullName}

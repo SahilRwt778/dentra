@@ -1,3 +1,4 @@
+import { profilePhotoUrl } from '@/lib/profile-photo';
 import { useState, type FormEvent } from 'react';
 import { Pencil, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
@@ -160,6 +161,20 @@ export function ProfileSettings() {
         </form>
       ) : (
         <dl className="settings-detail-grid">
+          {me?.profilePhotoUrl && (
+            <SettingsDetail label="Profile photo">
+              <img
+                src={profilePhotoUrl(me.profilePhotoUrl)}
+                alt={`${me.fullName}'s profile`}
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                }}
+              />
+            </SettingsDetail>
+          )}
           <SettingsDetail label="Full name">{me?.fullName}</SettingsDetail>
           <SettingsDetail label="Qualification">
             {me?.qualification}

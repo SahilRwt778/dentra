@@ -1,3 +1,4 @@
+import { dentraApi } from './generated/patient-api';
 import uuid from 'react-native-uuid';
 import { Base64 } from 'js-base64';
 import type { NativeChatClient } from '@dentra/video/src/CallChat';
@@ -10,6 +11,20 @@ import { store } from '@/store/store';
 export const callChat: NativeChatClient = {
   requestId: () => String(uuid.v4()),
   pick: pickChatFile,
+  async read(id, sequence, signal) {
+    const result = await requestPrivate(
+      {
+        url: `/appointments/${id}/video/chat/read`,
+        method: 'POST',
+        body: { sequence },
+      },
+      signal,
+    );
+    store.dispatch(
+      dentraApi.util.invalidateTags(['Notifications', 'Consultation Cases']),
+    );
+    return result;
+  },
   list: (id, cursor, signal) =>
     requestPrivate<ChatPage>(
       { url: `/appointments/${id}/video/chat`, params: cursor },

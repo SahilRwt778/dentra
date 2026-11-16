@@ -1,11 +1,13 @@
 import type {
   BookingNotification,
+  ConsultationMessageNotification,
   Notification,
   WalletWithdrawalNotification,
 } from '@/api/generated-api';
 import { formatDate, formatTime, rupees } from './date';
 
 export type DentistNotification =
+  | ConsultationMessageNotification
   | BookingNotification
   | WalletWithdrawalNotification;
 
@@ -13,12 +15,20 @@ export function isDentistNotification(
   item: Notification,
 ): item is DentistNotification {
   return (
+    item.type === 'consultation_message' ||
     item.type === 'appointment_booked' ||
     item.type === 'wallet_withdrawal_updated'
   );
 }
 
 export function notificationContent(item: DentistNotification) {
+  if (item.type === 'consultation_message')
+    return {
+      title: 'New consultation message',
+      description: `${item.senderName} sent you a message.`,
+      path: `/messages/${item.caseId}`,
+      action: 'Open conversation',
+    };
   if (item.type === 'appointment_booked') {
     return {
       title: 'New appointment',

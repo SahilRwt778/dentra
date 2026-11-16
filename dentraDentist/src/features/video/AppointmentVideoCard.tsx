@@ -33,7 +33,9 @@ export function AppointmentVideoCard({
       </Text>
       {!closed && (
         <Button
-          disabled={disabled}
+          disabled={
+            disabled || appointment.payment?.status === 'coverage_revoked'
+          }
           title={
             current ? 'Return to video consultation' : 'Open video consultation'
           }

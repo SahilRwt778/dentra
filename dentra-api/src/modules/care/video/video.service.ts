@@ -1,3 +1,4 @@
+import { coveredFollowUp } from '@common/utils/consultation-pass';
 import {
   ConflictException,
   BadRequestException,
@@ -72,7 +73,7 @@ export class VideoService implements OnApplicationBootstrap, OnModuleDestroy {
   ) {
     const { rows } = await db.query<VideoAppointment>(
       `select a.*,
-      exists(select 1 from transactions t where t.appointment_id = a.id and t.status = 'paid') as payment_paid,
+      (exists(select 1 from transactions t where t.appointment_id = a.id and t.status = 'paid') or ${coveredFollowUp('a')}) as payment_paid,
       pu.status = 'active' as patient_active, du.status = 'active' as dentist_active, d.status = 'verified' as verified,
       exists(select 1 from refresh_tokens rt where rt.user_id = $2 and rt.session_id = $3 and rt.device_id = $4
         and rt.revoked_at is null and rt.expires_at > now()) as session_active
@@ -271,7 +272,7 @@ export class VideoService implements OnApplicationBootstrap, OnModuleDestroy {
     const { rows } = await this.pool.query(
       `select v.*, a.status, a.type, a.patient_id, a.dentist_id,
       pu.status = 'active' and du.status = 'active' and d.status = 'verified' as accounts_active,
-      exists(select 1 from transactions t where t.appointment_id = a.id and t.status = 'paid') as paid,
+      (exists(select 1 from transactions t where t.appointment_id = a.id and t.status = 'paid') or ${coveredFollowUp('a')}) as paid,
       a.scheduled_date = v.scheduled_date and a.scheduled_time = v.scheduled_time as same_schedule
       from video_rooms v join appointments a on a.id = v.appointment_id
       join users pu on pu.id = a.patient_id join users du on du.id = a.dentist_id join dentists d on d.user_id = du.id
@@ -337,7 +338,7 @@ export class VideoService implements OnApplicationBootstrap, OnModuleDestroy {
       `update video_rooms v set closed_at = coalesce(v.closed_at, now()) from appointments a
       where a.id = v.appointment_id and v.closed_at is null and (not $1 or v.provider <> 'livekit' or a.status not in ('booked','waiting','in_consult')
         or a.scheduled_date <> v.scheduled_date or a.scheduled_time <> v.scheduled_time or v.expires_at <= now()
-        or not exists(select 1 from transactions t where t.appointment_id = a.id and t.status = 'paid')
+        or not (exists(select 1 from transactions t where t.appointment_id = a.id and t.status = 'paid') or ${coveredFollowUp('a')})
         or not exists(select 1 from users u join dentists d on d.user_id = u.id where u.id = a.dentist_id and u.status = 'active' and d.status = 'verified')
         or not exists(select 1 from users u where u.id = a.patient_id and u.status = 'active')
         or (v.patient_session_id is not null and not exists(select 1 from refresh_tokens rt where rt.user_id = a.patient_id

@@ -3,6 +3,10 @@ import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsEmail, IsInt, IsOption
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export class DentistSelfUpdateDto {
+  @IsOptional()
+  @IsBoolean()
+  removeProfilePhoto?: boolean;
+
   @ValidateIf((input) => input.videoWorkingDays !== undefined)
   @IsArray()
   @ArrayMaxSize(7)

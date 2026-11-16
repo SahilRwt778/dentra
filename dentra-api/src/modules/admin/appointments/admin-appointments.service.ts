@@ -1,4 +1,9 @@
-import { CLINIC_PAYMENT_COLUMNS, clinicPaymentReceipt, type ClinicPaymentColumns } from '@common/utils/clinic-payment.util';
+import { coveredFollowUp } from '@common/utils/consultation-pass';
+import {
+  CLINIC_PAYMENT_COLUMNS,
+  clinicPaymentReceipt,
+  type ClinicPaymentColumns,
+} from '@common/utils/clinic-payment.util';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '@database/database.module';
@@ -6,6 +11,8 @@ import { ListAdminAppointmentsDto } from './dto/list-admin-appointments.dto';
 
 type AppointmentRow = ClinicPaymentColumns & {
   id: string;
+  follow_up_of: string | null;
+  consultation_case_id: string | null;
   patient_name: string;
   dentist_name: string;
   type: string;
@@ -67,9 +74,13 @@ export class AdminAppointmentsService {
       items: AppointmentRow[];
     }>(
       `with filtered as (
-         select a.id, a.type, a.scheduled_date, a.scheduled_time, a.concern_summary, a.status,
+         select a.id, a.follow_up_of, a.consultation_case_id, a.type, a.scheduled_date, a.scheduled_time, a.concern_summary, a.status,
                 p.full_name as patient_name, d.full_name as dentist_name,
-                t.method as payment_method, t.amount_paise as payment_amount, t.status as payment_status, ${CLINIC_PAYMENT_COLUMNS}
+                case when a.follow_up_of is not null then 'follow_up' else t.method::text end as payment_method,
+                case when a.follow_up_of is not null then 0 else t.amount_paise end as payment_amount,
+                case when a.follow_up_of is not null then case when ${coveredFollowUp(
+                  'a',
+                )} then 'covered' else 'coverage_revoked' end else t.status::text end as payment_status, ${CLINIC_PAYMENT_COLUMNS}
          from appointments a
          join patients p on p.user_id = a.patient_id
          join dentists d on d.user_id = a.dentist_id
@@ -98,6 +109,8 @@ export class AdminAppointmentsService {
     return {
       items: result.items.map((row) => ({
         id: row.id,
+        followUpOf: row.follow_up_of,
+        consultationCaseId: row.consultation_case_id,
         patientName: row.patient_name,
         dentistName: row.dentist_name,
         type: row.type,

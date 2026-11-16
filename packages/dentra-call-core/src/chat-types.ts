@@ -14,7 +14,13 @@ export type ChatMessage = {
   createdAt: string;
   attachment: ChatAttachment | null;
 };
-export type ChatPage = { items: ChatMessage[]; hasMore: boolean };
+export type ChatPage = {
+  items: ChatMessage[];
+  hasMore: boolean;
+  canSend?: boolean;
+  expiresAt?: string | null;
+  serverNow?: string;
+};
 export type ChatFile = {
   uri: string;
   name: string;
@@ -27,10 +33,11 @@ export type ChatDraft = {
   file?: ChatFile | Blob;
 };
 export type ChatClient = {
+  read?(id: string, sequence: string, signal: AbortSignal): Promise<unknown>;
   list(
     id: string,
     cursor: { after?: string; before?: string },
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<ChatPage>;
   send(id: string, draft: ChatDraft, signal: AbortSignal): Promise<ChatMessage>;
 };

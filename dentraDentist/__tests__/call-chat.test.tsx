@@ -1,6 +1,6 @@
 import React from 'react';
 import Renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { Image, TextInput, StyleSheet } from 'react-native';
+import { AppState, Image, TextInput, StyleSheet } from 'react-native';
 import { CallChat, type NativeChatClient } from '@dentra/video/src/CallChat';
 
 const photo = {
@@ -178,4 +178,118 @@ test('an unsuccessful send keeps the draft and retry key until the same message 
     { requestId: 'stable-retry', text: 'Hello', file: undefined },
   ]);
   expect(tree.root.findByType(TextInput).props.value).toBe('');
+});
+
+test('a closed consultation keeps its history and disables sending and attachments', async () => {
+  const read = jest.fn(async () => undefined);
+  const closed: NativeChatClient = {
+    ...client,
+    read,
+    list: jest.fn(async () => ({
+      canSend: false,
+      expiresAt: '2026-11-16T10:00:00Z',
+      hasMore: false,
+      items: [
+        {
+          id: 'history',
+          sequence: '10',
+          requestId: 'history',
+          text: 'Saved advice',
+          own: false,
+          senderRole: 'patient' as const,
+          createdAt: '2026-11-15T10:00:00Z',
+          attachment: null,
+        },
+      ],
+    })),
+  };
+  await act(async () =>
+    tree.update(
+      <CallChat
+        appointmentId="closed-case"
+        client={closed}
+        visible
+        title="Patient"
+        onClose={jest.fn()}
+        onUnread={jest.fn()}
+      />,
+    ),
+  );
+  expect(JSON.stringify(tree.toJSON())).toContain('Saved advice');
+  expect(JSON.stringify(tree.toJSON())).toContain('Messaging closed');
+  expect(tree.root.findByType(TextInput).props.editable).toBe(false);
+  expect(read).toHaveBeenCalledWith(
+    'closed-case',
+    '10',
+    expect.any(AbortSignal),
+  );
+  for (const label of ['Add attachment', 'Send chat message']) {
+    expect(
+      tree.root.findAll(
+        node =>
+          node.props.accessibilityLabel === label &&
+          typeof node.props.onPress === 'function',
+      )[0].props.disabled,
+    ).toBe(true);
+  }
+  await press('Send chat message');
+  expect(client.send).not.toHaveBeenCalled();
+});
+
+test('messages arriving while the phone is in the background stay unread until the chat is visible', async () => {
+  let change: (state: 'active' | 'background') => void = () => undefined;
+  const listener = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockImplementation((_event, handler) => {
+      change = handler;
+      return { remove: jest.fn() };
+    });
+  const read = jest.fn(async () => undefined);
+  const list = jest
+    .fn()
+    .mockResolvedValueOnce({ items: [], hasMore: false, canSend: true })
+    .mockResolvedValue({
+      items: [
+        {
+          id: 'new',
+          sequence: '11',
+          requestId: 'new',
+          text: 'New message',
+          own: false,
+          senderRole: 'patient',
+          createdAt: new Date().toISOString(),
+          attachment: null,
+        },
+      ],
+      hasMore: false,
+      canSend: true,
+    });
+  const backgroundClient: NativeChatClient = { ...client, list, read };
+  try {
+    await act(async () => {
+      tree.unmount();
+      tree = Renderer.create(
+        <CallChat
+          appointmentId="background-case"
+          client={backgroundClient}
+          visible
+          onClose={jest.fn()}
+          onUnread={jest.fn()}
+        />,
+      );
+    });
+    await act(async () => change('background'));
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+    expect(read).not.toHaveBeenCalled();
+    await act(async () => change('active'));
+    expect(read).toHaveBeenCalledWith(
+      'background-case',
+      '11',
+      expect.any(AbortSignal),
+    );
+  } finally {
+    listener.mockRestore();
+  }
 });

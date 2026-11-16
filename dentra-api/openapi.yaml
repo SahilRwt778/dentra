@@ -496,6 +496,88 @@ paths:
       responses:
         "204": { description: Logged out }
 
+  /profile-photos/{role}/{userId}:
+    get:
+      tags: [Profile Photos]
+      operationId: getProfilePhoto
+      security: []
+      summary: Read one profile image using the expiring signature from a profile response
+      parameters:
+        - { name: role, in: path, required: true, schema: { type: string, enum: [patient, dentist] } }
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: expires, in: query, required: true, schema: { type: integer } }
+        - { name: signature, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Profile photo. Private, no-store; the signature cannot authorize other API actions.
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /consultation-cases:
+    get:
+      operationId: getConsultationCases
+      tags: [Consultation Cases]
+      summary: My consultation conversations and follow-up passes
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+      responses:
+        "200":
+          description: Owned cases, including read-only history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationCasePage' }
+  /consultation-cases/{caseId}:
+    get:
+      operationId: getConsultationCase
+      tags: [Consultation Cases]
+      parameters:
+        - { name: caseId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Current server-checked pass
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationCase' }
+        "404": { $ref: '#/components/responses/NotFound' }
+  /consultation-cases/{caseId}/follow-ups:
+    post:
+      operationId: bookConsultationFollowUp
+      tags: [Consultation Cases, Appointments]
+      summary: Patient books a free follow-up for the same concern and dentist
+      parameters:
+        - { name: caseId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FollowUpBooking' }
+      responses:
+        "201":
+          description: Covered appointment; no checkout or financial transaction is created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        "409": { description: Pass expired/revoked, or selected time is unavailable/outside the pass }
+  /appointments/{appointmentId}/video/chat/read:
+    post:
+      operationId: readConsultationMessages
+      tags: [Consultation Cases]
+      parameters:
+        - { name: appointmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sequence]
+              properties:
+                sequence: { type: string }
+      responses:
+        "201": { description: Read cursor advanced to an existing message in this case }
+
   /patients/register:
     post:
       tags: [Patients]
@@ -506,6 +588,18 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/PatientRegistration" }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [details]
+              properties:
+                details:
+                  type: string
+                  description: JSON-encoded PatientRegistration object; validated exactly like the JSON request.
+                profilePhoto:
+                  type: string
+                  format: binary
+                  description: Optional JPEG/PNG image, up to 5 MB. Saved atomically with the profile.
       responses:
         "201":
           description: Account created
@@ -666,6 +760,18 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/DentistApplication" }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [details]
+              properties:
+                details:
+                  type: string
+                  description: JSON-encoded DentistApplication object; validated exactly like the JSON request.
+                profilePhoto:
+                  type: string
+                  format: binary
+                  description: Optional JPEG/PNG image, up to 5 MB. Saved atomically with the profile.
       responses:
         "201":
           description: Draft saved
@@ -688,6 +794,18 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/DentistApplication" }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [details]
+              properties:
+                details:
+                  type: string
+                  description: JSON-encoded DentistApplication object; validated exactly like the JSON request.
+                profilePhoto:
+                  type: string
+                  format: binary
+                  description: Optional JPEG/PNG image, up to 5 MB. Saved atomically with the profile.
       responses:
         "200":
           description: Draft updated
@@ -1497,6 +1615,18 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/DentistSelfUpdate" }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [details]
+              properties:
+                details:
+                  type: string
+                  description: JSON-encoded DentistSelfUpdate object; do not combine removeProfilePhoto with a new image.
+                profilePhoto:
+                  type: string
+                  format: binary
+                  description: JPEG/PNG profile photo, up to 5 MB. Existing photo is kept until the update commits.
       responses:
         "200":
           description: Updated
@@ -2201,6 +2331,49 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    ConsultationCaseBrief:
+      type: object
+      required: [id, originalAppointmentId, activatedAt, expiresAt, status]
+      properties:
+        id: { type: string, format: uuid }
+        originalAppointmentId: { type: string, format: uuid }
+        activatedAt: { type: string, nullable: true }
+        expiresAt: { type: string, nullable: true }
+        status: { type: string, enum: [pending, active, expired, revoked] }
+    ConsultationCase:
+      allOf:
+        - { $ref: '#/components/schemas/ConsultationCaseBrief' }
+        - type: object
+          required: [patientId, dentistId, patientName, dentistName, concern, serverNow, canMessage, canBookFollowUp, unreadCount, latestMessageAt]
+          properties:
+            patientId: { type: string, format: uuid }
+            dentistId: { type: string, format: uuid }
+            patientName: { type: string }
+            dentistName: { type: string }
+            concern: { type: string }
+            serverNow: { type: string }
+            canMessage: { type: boolean }
+            canBookFollowUp: { type: boolean }
+            unreadCount: { type: integer }
+            latestMessageAt: { type: string, nullable: true }
+    ConsultationCasePage:
+      type: object
+      required: [items, unreadCount, nextPage]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ConsultationCase' } }
+        unreadCount: { type: integer }
+        nextPage: { type: integer, nullable: true }
+    FollowUpBooking:
+      type: object
+      required: [type, date, time, idempotencyKey]
+      properties:
+        type: { type: string, enum: [video, clinic] }
+        clinicId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        time: { type: string }
+        note: { type: string, maxLength: 4000 }
+        attachmentIds: { type: array, maxItems: 8, uniqueItems: true, items: { type: string, format: uuid } }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 160 }
     VideoChatAttachment:
       type: object
       required: [id, name, mimeType, sizeBytes]
@@ -2225,6 +2398,9 @@ components:
       type: object
       required: [items, hasMore]
       properties:
+        canSend: { type: boolean }
+        expiresAt: { type: string, nullable: true }
+        serverNow: { type: string }
         items: { type: array, items: { $ref: '#/components/schemas/VideoChatMessage' } }
         hasMore: { type: boolean }
     VideoStatus:
@@ -2257,9 +2433,11 @@ components:
         - { $ref: "#/components/schemas/BookingNotification" }
         - { $ref: "#/components/schemas/DentistOnboardingNotification" }
         - { $ref: "#/components/schemas/PatientAppointmentNotification" }
+        - { $ref: "#/components/schemas/ConsultationMessageNotification" }
       discriminator:
         propertyName: type
         mapping:
+          consultation_message: "#/components/schemas/ConsultationMessageNotification"
           appointment_booked: "#/components/schemas/BookingNotification"
           dentist_onboarding_submitted: "#/components/schemas/DentistOnboardingNotification"
           wallet_withdrawal_requested: "#/components/schemas/WithdrawalNotification"
@@ -2274,6 +2452,8 @@ components:
       type: object
       required: [id, type, appointmentId, dentistName, date, time, appointmentType, paymentRequired, createdAt, readAt]
       properties:
+        caseId: { type: string, format: uuid }
+        senderName: { type: string }
         id: { type: string, format: uuid }
         type: { type: string, enum: [booking_confirmed, appointment_cancelled, appointment_rescheduled, appointment_reminder, visit_summary_ready] }
         appointmentId: { type: string, format: uuid }
@@ -2284,6 +2464,24 @@ components:
         paymentRequired: { type: boolean, description: Booking reserves the slot but an online payment still needs completion }
         previousDate: { type: string, format: date, nullable: true }
         previousTime: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    ConsultationMessageNotification:
+      type: object
+      required: [id, type, caseId, appointmentId, senderName, dentistName, date, time, appointmentType, paymentRequired, sequence, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [consultation_message] }
+        caseId: { type: string, format: uuid }
+        appointmentId: { type: string, format: uuid }
+        senderName: { type: string }
+        sequence: { type: string }
+        dentistName: { type: string }
+        date: { type: string, format: date }
+        time: { type: string }
+        appointmentType: { type: string, enum: [clinic, video] }
+        paymentRequired: { type: boolean }
         createdAt: { type: string, format: date-time }
         readAt: { type: string, format: date-time, nullable: true }
 
@@ -2361,6 +2559,10 @@ components:
       properties:
         id: { type: string, format: uuid }
         fullName: { type: string }
+        profilePhotoUrl:
+          type: string
+          nullable: true
+          description: Expiring image URL relative to the API origin, or null when no photo is set.
         mobile: { type: string }
         dateOfBirth: { type: string, format: date }
         gender: { type: string }
@@ -2560,6 +2762,10 @@ components:
         videoWorkingDays: { $ref: "#/components/schemas/WorkingDays" }
         id: { type: string, format: uuid }
         fullName: { type: string }
+        profilePhotoUrl:
+          type: string
+          nullable: true
+          description: Expiring image URL relative to the API origin, or null when no photo is set.
         qualification: { type: string }
         specialization: { type: string }
         yearsExperience: { type: integer }
@@ -2695,6 +2901,9 @@ components:
     DentistSelfUpdate:
       type: object
       properties:
+        removeProfilePhoto:
+          type: boolean
+          description: Remove the current photo when saving; omit to keep it. Cannot be combined with a profilePhoto upload.
         videoWorkingDays: { $ref: "#/components/schemas/WorkingDays" }
         qualification: { type: string }
         councilRegNo: { type: string }
@@ -2769,6 +2978,8 @@ components:
         date: { type: string, format: date }
         time: { type: string }
         status: { $ref: "#/components/schemas/AppointmentStatus" }
+        followUpOf: { type: string, nullable: true, format: uuid }
+        consultationCase: { allOf: [{ $ref: '#/components/schemas/ConsultationCaseBrief' }], nullable: true }
         concern: { type: string }
         concerns: { type: array, items: { type: string } }
         symptomArea: { type: string }
@@ -2783,7 +2994,7 @@ components:
             collection: { $ref: "#/components/schemas/ClinicPaymentReceipt" }
             method: { type: string }
             amountPaise: { type: integer }
-            status: { type: string, enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed] }
+            status: { type: string, enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed, covered, coverage_revoked] }
             expiresAt: { type: string, format: date-time, nullable: true, description: "New online bookings hold the slot for 15 minutes. Legacy and pay-at-clinic bookings have no checkout deadline." }
             gatewayOrderId: { type: string, nullable: true, description: "Razorpay order id. Null for pay_at_clinic bookings, which never create a gateway order." }
             gatewayKeyId: { type: string, nullable: true, description: "Public Razorpay checkout key id. Never the API signing secret." }
@@ -3219,6 +3430,8 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
+        followUpOf: { type: string, format: uuid, nullable: true }
+        consultationCaseId: { type: string, format: uuid, nullable: true }
         patientName: { type: string }
         dentistName: { type: string }
         type: { $ref: "#/components/schemas/AppointmentType" }
@@ -3233,7 +3446,7 @@ components:
             collection: { $ref: "#/components/schemas/ClinicPaymentReceipt" }
             method: { type: string }
             amountPaise: { type: integer }
-            status: { type: string, enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed] }
+            status: { type: string, enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed, covered, coverage_revoked] }
 
     PrescriptionItemInput:
       type: object

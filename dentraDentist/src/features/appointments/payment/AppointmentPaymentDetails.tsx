@@ -24,6 +24,14 @@ export function AppointmentPaymentDetails({
   disabled: boolean;
 }) {
   if (!appointment.payment) return null;
+  if (appointment.payment.method === 'follow_up')
+    return (
+      <Text style={styles.muted}>
+        {appointment.payment.status === 'covered'
+          ? 'Free follow-up · No payment required'
+          : 'Follow-up pass unavailable'}
+      </Text>
+    );
   const receipt = appointment.payment.collection;
   return (
     <View style={styles.stack}>

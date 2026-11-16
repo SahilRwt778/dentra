@@ -4,6 +4,7 @@ export type TabParamList = {
   Today: undefined;
   Schedule: undefined;
   Patients: undefined;
+  Messages: undefined;
   Profile: undefined;
 };
 
@@ -14,6 +15,7 @@ export type StackParamList = {
   PatientRecord: { patientId: string };
   Consultation: { appointmentId: string };
   PrescriptionPreview: { appointmentId: string };
+  Chat: { caseId: string };
   Notifications: undefined;
   EditProfile: undefined;
   Clinics: undefined;

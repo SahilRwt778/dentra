@@ -39,11 +39,14 @@ const mockAudioStop = jest.fn().mockResolvedValue(undefined);
 const mockMute = jest.fn().mockResolvedValue(undefined);
 const mockCamera = jest.fn().mockResolvedValue(undefined);
 const mockRestart = jest.fn().mockResolvedValue(undefined);
+const mockStartSharing = jest.fn().mockResolvedValue(undefined);
+const mockStopSharing = jest.fn().mockResolvedValue(undefined);
 const mockRoomMount = jest.fn();
 const mockRoomUnmount = jest.fn();
 const mockPermission = jest.fn().mockResolvedValue(true);
 let mockSdkAvailable = true;
 let mockScreenReader = false;
+let mockCameraEnabled = true;
 let mockTracks: {
   participant: { identity: string; isLocal: boolean };
   publication: { isMuted: boolean };
@@ -81,12 +84,16 @@ const mockSdk = {
     )
       ? 2
       : null,
-    localCameraTrack: mockTracks.some(track => track.participant.isLocal) ? 1 : null,
+    localCameraTrack: mockTracks.some(track => track.participant.isLocal)
+      ? 1
+      : null,
     microphone: true,
-    camera: true,
+    camera: mockCameraEnabled,
     setMicrophoneEnabled: mockMute,
     setCameraEnabled: mockCamera,
     switchCamera: mockRestart,
+    startScreenShare: mockStartSharing,
+    stopScreenShare: mockStopSharing,
   }),
 };
 jest.mock('../src/common/services/native-video', () => ({
@@ -198,6 +205,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   mockSdkAvailable = true;
   mockScreenReader = false;
+  mockCameraEnabled = true;
   mockTracks = [];
   tokenNumber = 0;
   requests = [];
@@ -409,7 +417,7 @@ test('Android Back minimizes and restoring keeps the same room and token', async
     tree.root
       .findAll(
         node =>
-          node.props.accessibilityLabel === 'Expand call' &&
+          node.props.accessibilityLabel === 'Restore full-screen call' &&
           typeof node.props.onPress === 'function',
       )[0]
       .props.onPress();
@@ -461,14 +469,27 @@ test('iOS PiP keeps React fallback views outside its native renderer as patient 
   expect(mockRoomMount).toHaveBeenCalledTimes(1);
 });
 
-test('leaving a minimized call releases media and does not complete the consultation', async () => {
+test('restoring a minimized call and leaving releases media without completing the consultation', async () => {
   await mount();
   await join();
   await act(async () => {
     back();
     await flush();
   });
+  await act(async () => {
+    tree.root
+      .findByProps({ accessibilityLabel: 'Restore full-screen call' })
+      .props.onPress();
+    await flush();
+  });
   await control('Leave call');
+  expect(rooms()).toHaveLength(0);
+  await act(async () => {
+    tree.root
+      .findByProps({ accessibilityLabel: 'Back to appointment' })
+      .props.onPress();
+    await flush();
+  });
   expect(tree.root.findAllByType(VideoCallPanel)).toHaveLength(0);
   expect(mockRoomUnmount).toHaveBeenCalledTimes(1);
   expect(mockAudioStop).toHaveBeenCalled();
@@ -642,6 +663,92 @@ test('camera switching and mute controls call the active participant', async () 
   expect(mockMute).toHaveBeenCalledWith(false);
   expect(mockCamera).toHaveBeenCalledWith(false);
   expect(mockRestart).toHaveBeenCalledTimes(1);
+});
+
+test('a pending screen share leaves microphone, camera and hang-up usable', async () => {
+  let finishSharing!: () => void;
+  mockStartSharing.mockImplementationOnce(
+    () =>
+      new Promise<void>(resolve => {
+        finishSharing = resolve;
+      }),
+  );
+  await mount();
+  await join();
+  await control('Share screen');
+  const controls = () => tree.root.findAllByType(CallControl);
+  expect(
+    controls().find(button => button.props.label === 'Share screen')!.props
+      .busy,
+  ).toBe(true);
+  for (const label of ['Mute microphone', 'Turn camera off', 'Leave call']) {
+    const button = controls().find(item => item.props.label === label)!;
+    expect(button.props.disabled).toBeFalsy();
+    expect(button.props.busy).toBeFalsy();
+  }
+  await control('Mute microphone');
+  await control('Turn camera off');
+  expect(mockMute).toHaveBeenCalledWith(false);
+  expect(mockCamera).toHaveBeenCalledWith(false);
+  // A second share tap cannot open a second native prompt.
+  await control('Share screen');
+  expect(mockStartSharing).toHaveBeenCalledTimes(1);
+  await control('Leave call');
+  expect(rooms()).toHaveLength(0);
+  await act(async () => {
+    finishSharing();
+    await flush();
+  });
+});
+
+test('a pending camera operation blocks switching but does not block the microphone', async () => {
+  let finishCamera!: () => void;
+  mockCamera.mockImplementationOnce(
+    () =>
+      new Promise<void>(resolve => {
+        finishCamera = resolve;
+      }),
+  );
+  await mount();
+  await join();
+  await control('Turn camera off');
+  expect(
+    tree.root
+      .findAllByType(CallControl)
+      .find(button => button.props.label === 'Switch camera')!.props.disabled,
+  ).toBe(true);
+  await control('Mute microphone');
+  expect(mockMute).toHaveBeenCalledWith(false);
+  await act(async () => {
+    finishCamera();
+    await flush();
+  });
+  expect(
+    tree.root
+      .findAllByType(CallControl)
+      .find(button => button.props.label === 'Switch camera')!.props.disabled,
+  ).toBe(false);
+});
+
+test('camera-off state only disables camera switching, and failed camera changes can be retried', async () => {
+  mockCameraEnabled = false;
+  mockCamera.mockRejectedValueOnce(new Error('Camera permission denied.'));
+  await mount();
+  await join();
+  expect(
+    tree.root
+      .findAllByType(CallControl)
+      .find(button => button.props.label === 'Switch camera')!.props.disabled,
+  ).toBe(true);
+  await control('Turn camera on');
+  expect(text()).toContain('Camera permission denied.');
+  expect(
+    tree.root
+      .findAllByType(CallControl)
+      .find(button => button.props.label === 'Turn camera on')!.props.busy,
+  ).toBe(false);
+  await control('Turn camera on');
+  expect(mockCamera).toHaveBeenCalledTimes(2);
 });
 
 test('late callbacks from an older connection do not tear down a rejoined room', async () => {

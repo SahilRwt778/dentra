@@ -1,3 +1,4 @@
+import { activateConsultationPass } from '@common/utils/consultation-pass';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '@database/database.module';
@@ -95,6 +96,7 @@ export class PaymentsWebhookService {
           txn.id,
         ]);
       }
+      if (captured) await activateConsultationPass(client, appointmentId);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');

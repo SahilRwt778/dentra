@@ -1,3 +1,5 @@
+import { store } from '../store/store';
+import { dentraApi } from '../store/dentraApi';
 import { encode } from 'base64-arraybuffer';
 import type { NativeChatClient } from '@dentra/video/src/CallChat';
 import type { ChatMessage, ChatPage } from '@dentra/call-core';
@@ -13,6 +15,17 @@ import {
 export const callChat: NativeChatClient = {
   requestId: createRequestId,
   pick: pickChatFile,
+  async read(id, sequence, signal) {
+    const { data } = await api.post(
+      `/appointments/${id}/video/chat/read`,
+      { sequence },
+      { signal },
+    );
+    store.dispatch(
+      dentraApi.util.invalidateTags(['Notifications', 'ConsultationCases']),
+    );
+    return data;
+  },
   async list(id, cursor, signal) {
     return (
       await api.get<ChatPage>(`/appointments/${id}/video/chat`, {

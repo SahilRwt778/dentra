@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useDentistSlotsQuery } from '@/api/dentists';
 import { Button, Choice, ErrorState, Loading } from '@/components/ui';
@@ -13,7 +13,9 @@ export function SlotPicker({
   time,
   onDate,
   onTime,
+  expiresAt,
 }: {
+  expiresAt?: string;
   dentistId: string;
   type: 'video' | 'clinic';
   clinicId?: string;
@@ -26,9 +28,19 @@ export function SlotPicker({
     { dentistId, date, type, clinicId },
     { pollingInterval: 30000, refetchOnMountOrArgChange: true },
   );
+  const slots = useMemo(
+    () =>
+      currentData?.slots?.filter(
+        slot =>
+          !expiresAt ||
+          new Date(`${date}T${slot}:00+05:30`).getTime() <
+            new Date(expiresAt).getTime(),
+      ),
+    [currentData, expiresAt, date],
+  );
   useEffect(() => {
-    if (currentData && time && !currentData.slots?.includes(time)) onTime('');
-  }, [currentData, time, onTime]);
+    if (currentData && time && !slots?.includes(time)) onTime('');
+  }, [currentData, time, onTime, slots]);
   return (
     <View style={ui.stack}>
       <Text style={ui.label}>Choose a day</Text>
@@ -37,27 +49,34 @@ export function SlotPicker({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={ui.row}
       >
-        {Array.from({ length: 14 }, (_, n) => addDays(n)).map(day => (
-          <Choice
-            compact
-            key={day}
-            title={dayLabel(day)}
-            selected={date === day}
-            onPress={() => {
-              onTime('');
-              onDate(day);
-            }}
-          />
-        ))}
+        {Array.from({ length: 14 }, (_, n) => addDays(n))
+          .filter(
+            day =>
+              !expiresAt ||
+              new Date(`${day}T00:00:00+05:30`).getTime() <
+                new Date(expiresAt).getTime(),
+          )
+          .map(day => (
+            <Choice
+              compact
+              key={day}
+              title={dayLabel(day)}
+              selected={date === day}
+              onPress={() => {
+                onTime('');
+                onDate(day);
+              }}
+            />
+          ))}
       </ScrollView>
       <Text style={ui.label}>Available times</Text>
       {error ? (
         <ErrorState retry={refetch} />
       ) : isFetching ? (
         <Loading />
-      ) : currentData?.slots?.length ? (
+      ) : slots?.length ? (
         <View style={ui.wrap}>
-          {currentData.slots.map(slot => (
+          {slots.map(slot => (
             <Choice
               compact
               key={slot}

@@ -24,11 +24,27 @@ function formatDate(iso: string): string {
 
 function PaymentCell({ payment }: { payment: AdminAppointment['payment'] }) {
   if (!payment || payment.amountPaise == null) return <>—</>;
+  if (payment.status === 'covered')
+    return <span className="badge teal">Free follow-up</span>;
+  if (payment.status === 'coverage_revoked')
+    return <span className="muted">Pass unavailable</span>;
   if (payment.status === 'refunded') {
-    return <span className="muted">{rupees(payment.amountPaise)} refunded</span>;
+    return (
+      <span className="muted">{rupees(payment.amountPaise)} refunded</span>
+    );
   }
-  if (payment.status === 'refund_pending' || payment.status === 'refund_failed') {
-    return <span className="muted">{rupees(payment.amountPaise)} · {payment.status === 'refund_pending' ? 'Refund processing' : 'Refund needs attention'}</span>;
+  if (
+    payment.status === 'refund_pending' ||
+    payment.status === 'refund_failed'
+  ) {
+    return (
+      <span className="muted">
+        {rupees(payment.amountPaise)} ·{' '}
+        {payment.status === 'refund_pending'
+          ? 'Refund processing'
+          : 'Refund needs attention'}
+      </span>
+    );
   }
   if (payment.status === 'due_at_clinic') {
     return (
@@ -69,7 +85,10 @@ export function AppointmentTable({ items }: { items: AdminAppointment[] }) {
         </thead>
         <tbody>
           {items.map((a) => {
-            const badge = STATUS_BADGE[a.status ?? ''] ?? { label: a.status, className: 'badge' };
+            const badge = STATUS_BADGE[a.status ?? ''] ?? {
+              label: a.status,
+              className: 'badge',
+            };
             return (
               <tr key={a.id}>
                 <td>

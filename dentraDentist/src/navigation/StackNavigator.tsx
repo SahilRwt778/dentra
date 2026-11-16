@@ -1,3 +1,4 @@
+import { ChatScreen } from '../features/messages/ChatScreen';
 import { PaymentsScreen } from '../features/payments/PaymentsScreen';
 import { WalletScreen } from '../features/wallet/WalletScreen';
 import { RequestWithdrawalScreen } from '../features/wallet/RequestWithdrawalScreen';
@@ -76,6 +77,11 @@ export function StackNavigator() {
         name="PrescriptionPreview"
         component={PrescriptionPreviewScreen}
         options={{ title: 'Prescription', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Notifications"

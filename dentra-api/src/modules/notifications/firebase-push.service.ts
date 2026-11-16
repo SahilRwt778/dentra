@@ -27,7 +27,7 @@ export class FirebasePushService implements OnModuleDestroy {
     return getMessaging(this.app).send({
       token,
       // Keep names, visit dates, diagnoses and medicines off lock screens and provider payloads.
-      notification: { title: 'Dentra', body: 'You have a new appointment update. Open Dentra to view it.' },
+      notification: { title: 'Dentra', body: 'You have a new update. Open Dentra to view it.' },
       data: { notificationId },
       android: {
         priority: 'high',

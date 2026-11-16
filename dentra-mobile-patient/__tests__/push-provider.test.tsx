@@ -63,12 +63,10 @@ const render = () =>
   });
 
 test('a notification tap resolves the owned record before opening a visit and marking it read', async () => {
-  jest
-    .mocked(resolvePushNotification)
-    .mockResolvedValue({
-      type: 'visit_summary_ready',
-      appointmentId: 'visit-id',
-    } as never);
+  jest.mocked(resolvePushNotification).mockResolvedValue({
+    type: 'visit_summary_ready',
+    appointmentId: 'visit-id',
+  } as never);
   await render();
   await act(async () => {
     jest.mocked(startPatientPush).mock.calls[0][1].open('notification-id');
@@ -127,7 +125,7 @@ test('foreground delivery refreshes inbox and appointment data and shows a dismi
   });
   expect(
     tree.root.findByProps({
-      accessibilityLabel: 'New Dentra appointment update. View update',
+      accessibilityLabel: 'New Dentra update. View update',
     }),
   ).toBeDefined();
   await act(async () =>
@@ -137,7 +135,31 @@ test('foreground delivery refreshes inbox and appointment data and shows a dismi
   );
   expect(
     tree.root.findAllByProps({
-      accessibilityLabel: 'New Dentra appointment update. View update',
+      accessibilityLabel: 'New Dentra update. View update',
     }),
   ).toHaveLength(0);
+});
+
+test('a message alert opens the conversation without requiring a video call', async () => {
+  jest
+    .mocked(resolvePushNotification)
+    .mockResolvedValue({
+      type: 'consultation_message',
+      caseId: 'case-id',
+      appointmentId: 'original-visit',
+    } as never);
+  await render();
+  await act(async () => {
+    jest.mocked(startPatientPush).mock.calls[0][1].open('message-notice');
+  });
+  expect(patientNavigationRef.navigate).toHaveBeenCalledWith('Chat', {
+    caseId: 'case-id',
+  });
+  expect(pushRequest).toHaveBeenCalledWith(
+    scope,
+    '/notifications/message-notice/read',
+    'PATCH',
+    undefined,
+    expect.any(AbortSignal),
+  );
 });
