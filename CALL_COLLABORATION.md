@@ -16,6 +16,8 @@ Android uses LiveKit WebRTC's `MediaProjection` capture and foreground service. 
 
 Open **Chat** from the call controls. Both participants can send text, choose a photo, or attach a PDF. A selected photo has a compact preview and a red remove button before Send. Received attachments open through authenticated downloads; native photos open in a safe-area-aware viewer and PDFs use the device's document viewer.
 
+The composer has one paperclip button opening **Gallery**, **Camera** and **File** options in Patient Mobile, Dentist Mobile and Dentist Web. Gallery picks a photo; Camera takes a new photo; File accepts a JPEG/PNG image or PDF report. Choosing or taking an attachment stages a preview until Send is pressed. Cancelling a picker preserves the current draft. Native photo capture pauses and restores an enabled call camera while keeping the room connected; web capture reuses a clone of the active camera track or opens a separate photo stream and releases it on close. Reinstall the dentist iOS app to include its photo-library permission description.
+
 - Text: up to 4,000 characters per message.
 - Files: one JPEG, PNG or PDF per message, up to 10 MB.
 - Consultation limits: 2,000 messages and 100 MB of attachments; each sender may send up to 30 messages per minute.
@@ -23,7 +25,7 @@ Open **Chat** from the call controls. Both participants can send text, choose a 
 - Latest history loads first, with an Earlier messages control. Incoming messages update through a two-second poll, with retry after network failure. Sending does not advance the receive cursor past unseen messages.
 - Web chat state lives above its movable visual portal, so minimizing or changing pages preserves drafts and history.
 
-Messages are associated with the appointment in PostgreSQL. Attachments use the existing private `PATIENT_FILES_DIRECTORY`; this directory must remain on persistent server storage. No public file URL is generated. Message content and file bytes use authenticated HTTP rather than LiveKit data messages or Redux request caches.
+Messages are associated with the appointment in PostgreSQL. Attachments use the shared patient-file storage adapter: private Supabase Storage when `STORAGE_PROVIDER=supabase`, or `PATIENT_FILES_DIRECTORY` in local mode. Local mode requires persistent server storage. No public file URL is generated. Message content and file bytes use authenticated HTTP rather than LiveKit data messages or Redux request caches. See [HOSTING.md](HOSTING.md) for cloud settings.
 
 Only the appointment's patient and treating dentist can read the conversation or download its files. Sending additionally requires current video eligibility and the login session associated with that role's joined room. Replacing a role's device prevents its older device from sending. Cancellation, completion or expiry closes writing while preserving the private history endpoint. Existing booking, payment and consultation time rules remain in force.
 

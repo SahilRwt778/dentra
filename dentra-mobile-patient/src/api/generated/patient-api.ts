@@ -253,6 +253,16 @@ const injectedRtkApi = api
         }),
         providesTags: ["Appointments"],
       }),
+      postAppointmentsByAppointmentIdPaymentRefresh: build.mutation<
+        PostAppointmentsByAppointmentIdPaymentRefreshApiResponse,
+        PostAppointmentsByAppointmentIdPaymentRefreshApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/appointments/${queryArg.appointmentId}/payment/refresh`,
+          method: "POST",
+        }),
+        invalidatesTags: ["Appointments"],
+      }),
       postAppointmentsByAppointmentIdCancel: build.mutation<
         PostAppointmentsByAppointmentIdCancelApiResponse,
         PostAppointmentsByAppointmentIdCancelApiArg
@@ -449,6 +459,11 @@ export type PostAppointmentsApiArg = {
 export type GetAppointmentsByAppointmentIdApiResponse =
   /** status 200 OK */ Appointment;
 export type GetAppointmentsByAppointmentIdApiArg = {
+  appointmentId: string;
+};
+export type PostAppointmentsByAppointmentIdPaymentRefreshApiResponse =
+  /** status 200 Fresh appointment with the server-verified payment status */ Appointment;
+export type PostAppointmentsByAppointmentIdPaymentRefreshApiArg = {
   appointmentId: string;
 };
 export type PostAppointmentsByAppointmentIdCancelApiResponse =
@@ -862,6 +877,7 @@ export const {
   usePostAppointmentsMutation,
   useGetAppointmentsByAppointmentIdQuery,
   useLazyGetAppointmentsByAppointmentIdQuery,
+  usePostAppointmentsByAppointmentIdPaymentRefreshMutation,
   usePostAppointmentsByAppointmentIdCancelMutation,
   usePostAppointmentsByAppointmentIdRescheduleMutation,
   useGetAppointmentsByAppointmentIdConsultationQuery,

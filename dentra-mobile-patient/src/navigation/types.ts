@@ -9,7 +9,11 @@ export type PatientStackParams = {
   Dentists: undefined;
   Dentist: { dentistId: string };
   Booking: { dentistId?: string; type?: 'video' | 'clinic' } | undefined;
-  Appointment: { appointmentId: string; justBooked?: boolean };
+  Appointment: {
+    appointmentId: string;
+    justBooked?: boolean;
+    paymentSubmitted?: boolean;
+  };
   Reschedule: { appointmentId: string };
   Visit: { appointmentId: string };
   Notifications: undefined;

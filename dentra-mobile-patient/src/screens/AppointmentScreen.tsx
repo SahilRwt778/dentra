@@ -8,6 +8,7 @@ import {
   useLoadAppointment,
   useCancelAppointmentMutation,
   useRescheduleAppointmentMutation,
+  useRefreshAppointmentPayment,
 } from '@/api/appointments';
 import { useDentistQuery } from '@/api/dentists';
 import { usePatientQuery } from '@/api/patients';
@@ -38,8 +39,8 @@ import { errorMessage } from '@/api/errors';
 import {
   CheckoutUnavailableError,
   checkoutUnavailableReason,
-  openCheckout,
 } from '@/lib/checkout';
+import { useCheckout } from '@/hooks/use-checkout';
 import type { PatientScreenProps } from '@/navigation/types';
 import { colors, ui } from '@/theme';
 import { useVideoCall } from '@/video/video-call-provider';
@@ -49,6 +50,9 @@ export function AppointmentScreen({
   navigation,
 }: PatientScreenProps<'Appointment'>) {
   const { appointmentId, justBooked } = route.params;
+  const [submittedPaymentId, setSubmittedPaymentId] = useState<
+    string | undefined
+  >(route.params.paymentSubmitted ? appointmentId : undefined);
   const videoCall = useVideoCall();
   const {
     data: a,
@@ -57,24 +61,30 @@ export function AppointmentScreen({
     error,
     refetch,
   } = useAppointmentQuery(appointmentId, {
-    pollingInterval: 15000,
+    pollingInterval: submittedPaymentId === appointmentId ? 3000 : 15000,
     refetchOnMountOrArgChange: true,
   });
   const { data: dentist } = useDentistQuery(a?.dentistId);
   const { data: me } = usePatientQuery();
   const loadAppointment = useLoadAppointment();
+  const checkout = useCheckout();
+  const refreshPayment = useRefreshAppointmentPayment();
   const [cancel, { isLoading: cancelling }] = useCancelAppointmentMutation();
   const [paying, setPaying] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const clinic = dentist?.clinics?.find(c => c.id === a?.clinicId);
   const active = a ? activeAppointment(a) : false;
   const pending = ['pending', 'failed'].includes(a?.payment?.status ?? '');
+  const checkingPayment = pending && submittedPaymentId === appointmentId;
   const checkoutProblem =
     a && active && pending ? checkoutUnavailableReason(a) : undefined;
   const canPay = active && pending && !checkoutProblem;
   useEffect(() => {
     setActionError(undefined);
   }, [appointmentId, a?.status, a?.payment?.status, a?.payment?.expiresAt]);
+  useEffect(() => {
+    if (a && !pending) setSubmittedPaymentId(undefined);
+  }, [a, pending]);
   function cancelAppointment() {
     Alert.alert(
       'Cancel this appointment?',
@@ -102,7 +112,8 @@ export function AppointmentScreen({
       // A capture, cancellation or expiry may have happened since the last poll.
       const latest = await loadAppointment(appointmentId);
       checkoutStarted = true;
-      await openCheckout(latest, me);
+      await checkout(latest, me);
+      setSubmittedPaymentId(appointmentId);
       void refetch();
     } catch (err) {
       setActionError(
@@ -114,6 +125,23 @@ export function AppointmentScreen({
                 ? 'Payment was not confirmed. You can retry, or contact support if your account was debited.'
                 : 'Could not refresh payment status. Please check your connection and try again.',
             ),
+      );
+    } finally {
+      setPaying(false);
+    }
+  }
+  async function checkPayment() {
+    setPaying(true);
+    setActionError(undefined);
+    try {
+      await refreshPayment(appointmentId);
+      void refetch();
+    } catch (err) {
+      setActionError(
+        errorMessage(
+          err,
+          'Could not check your payment. Please try checking again before paying.',
+        ),
       );
     } finally {
       setPaying(false);
@@ -139,6 +167,13 @@ export function AppointmentScreen({
             title="View visit summary"
             onPress={() => navigation.navigate('Visit', { appointmentId })}
           />
+        ) : checkingPayment ? (
+          <Button
+            title="Check payment status"
+            onPress={() => void checkPayment()}
+            loading={paying}
+            disabled={cancelling}
+          />
         ) : canPay ? (
           <Button
             title={`Pay ${rupees(a?.payment?.amountPaise)}`}
@@ -155,7 +190,7 @@ export function AppointmentScreen({
         <Loading />
       ) : (
         <>
-          {justBooked && active ? (
+          {checkingPayment || (justBooked && active) ? (
             <Card
               style={{
                 backgroundColor: pending ? colors.amberSoft : colors.greenSoft,
@@ -163,10 +198,16 @@ export function AppointmentScreen({
             >
               <Check color={pending ? colors.amber : colors.green} />
               <Text style={ui.heading}>
-                {pending ? 'Complete your payment' : 'Appointment confirmed'}
+                {checkingPayment
+                  ? 'Checking payment'
+                  : pending
+                  ? 'Complete your payment'
+                  : 'Appointment confirmed'}
               </Text>
               <Text style={ui.muted}>
-                {pending
+                {checkingPayment
+                  ? 'Your payment was submitted. We’re waiting for confirmation. Please don’t pay again.'
+                  : pending
                   ? 'Complete payment within 15 minutes of booking to confirm your slot.'
                   : 'Your dentist will see the details you shared before your visit.'}
               </Text>

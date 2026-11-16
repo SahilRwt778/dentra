@@ -8,8 +8,11 @@ import {
   Camera,
   CameraOff,
   Maximize2,
+  MessageCircle,
   Mic,
   MicOff,
+  MonitorOff,
+  MonitorUp,
   PhoneOff,
   RefreshCw,
 } from 'lucide-react-native';
@@ -97,6 +100,10 @@ export function LiveVideoStage({
         visible={chatOpen && !minimized && !systemPip}
         onClose={() => setChatOpen(false)}
         onUnread={setUnread}
+        callCamera={{
+          enabled: isCameraEnabled,
+          setEnabled: meeting.setCameraEnabled,
+        }}
       />
       <View style={styles.remote}>
         {(Platform.OS === 'ios' || displayTile != null) && (
@@ -222,6 +229,12 @@ export function LiveVideoStage({
                   accessibilityLabel={
                     sharing ? 'Stop sharing screen' : 'Share screen'
                   }
+                  accessibilityState={{ selected: sharing, disabled }}
+                  style={[
+                    styles.collaborationButton,
+                    sharing && styles.sharingButton,
+                    disabled && styles.collaborationDisabled,
+                  ]}
                   disabled={disabled}
                   onPress={() =>
                     controls.change(() =>
@@ -231,18 +244,27 @@ export function LiveVideoStage({
                     )
                   }
                 >
-                  <Text style={styles.link}>
-                    {sharing ? 'Stop sharing' : 'Share screen'}
-                  </Text>
+                  {sharing ? (
+                    <MonitorOff size={23} color="#FFFFFF" />
+                  ) : (
+                    <MonitorUp size={23} color="#FFFFFF" />
+                  )}
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Open call chat"
+                  accessibilityHint={
+                    unread ? `${unread} unread messages` : undefined
+                  }
+                  style={styles.collaborationButton}
                   onPress={() => setChatOpen(true)}
                 >
-                  <Text style={styles.link}>
-                    Chat{unread ? ` (${unread})` : ''}
-                  </Text>
+                  <MessageCircle size={23} color="#FFFFFF" />
+                  {unread > 0 && (
+                    <Text style={styles.unreadBadge}>
+                      {unread > 99 ? '99+' : unread}
+                    </Text>
+                  )}
                 </Pressable>
                 {meeting.remoteScreenTrack != null && (
                   <Text style={styles.status}>Patient’s screen</Text>

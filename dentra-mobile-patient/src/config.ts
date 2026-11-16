@@ -13,6 +13,7 @@ declare const process: {
 // covers the emulator workflow this app is being developed against).
 // iOS Simulator shares the host's network namespace, so plain
 // localhost works there unchanged.
+// Babel embeds the public .env settings; restart Metro after changing them.
 export const API_BASE_URL = (
   process.env.DENTRA_API_URL ||
   (Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000')

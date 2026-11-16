@@ -20,3 +20,5 @@ Copy the relevant `.env.example` to a local `.env`, fill in your environment's v
 Video consultations use LiveKit. See [LIVEKIT_SETUP.md](LIVEKIT_SETUP.md), [video architecture and verification](VIDEO_CONSULTATIONS.md), and [screen sharing and private chat](CALL_COLLABORATION.md).
 
 To publish this workspace, follow [GITHUB_SETUP.md](GITHUB_SETUP.md). It includes the one-time steps for preserving the existing mobile Git histories before creating a repository at this root.
+
+For hosted testing, follow [HOSTING.md](HOSTING.md): deploy the API with `render.yaml`, then the web portals with `render.web.yaml`. PostgreSQL and private files use Supabase; server credentials stay in the API environment.

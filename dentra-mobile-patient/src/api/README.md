@@ -42,6 +42,7 @@ Binary adapters use the same client: `files.ts` handles native URI/FormData uplo
 Use a feature hook directly for a simple request. Multi-step flows live in focused hooks:
 
 - `hooks/use-book-appointment.ts` keeps one idempotency key per booking attempt, prevents double submission and coordinates checkout. A client payment result never marks the booking as paid.
+- `hooks/use-checkout.ts` opens Razorpay and asks the backend to check the saved order immediately afterward. A delayed confirmation stays in the checking state; only a server-verified capture marks the booking paid.
 - `hooks/use-booking-attachments.ts` uploads selections with stable retry keys, retains partial successes and blocks confirmation until every selected file is ready or removed.
 - `hooks/use-notifications.ts` merges older pages and manages read actions.
 - `hooks/use-appointments.ts` loads the complete appointment history.

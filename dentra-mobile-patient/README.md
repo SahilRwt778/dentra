@@ -40,9 +40,11 @@ cd ..
 npm run ios
 ```
 
-The API defaults to `http://10.0.2.2:3000` on Android and `http://localhost:3000` on iOS. For a physical device, set `DENTRA_API_URL` in `.env` to a reachable LAN address; use an HTTPS API for release builds. `DENTRA_SUPPORT_EMAIL` is also configurable. These are public build-time values; never put API secrets in this app. Restart Metro with `npm start -- --reset-cache` after changing them.
+Set `DENTRA_API_URL` in `.env` to `https://dentra-api-gwo6.onrender.com` to use the hosted API on emulators or physical phones; `.env.example` includes this value. When the value is blank, the API defaults to `http://10.0.2.2:3000` on Android and `http://localhost:3000` on iOS. For local API testing on a physical device, use a reachable LAN address. `DENTRA_SUPPORT_EMAIL` is also configurable. These are public build-time values; never put API secrets in this app. Restart Metro with `npm start -- --reset-cache` after changing them, then reload the app. For hosted sign-in, find the generated four-digit `[otp:stub]` code in **Render → dentra-api → Logs** while real SMS remains deferred.
 
-Run `dentra-api` separately with its database and required environment configured. Online checkout requires the API version that returns `payment.gatewayOrderId` and `payment.gatewayKeyId`, plus working Razorpay webhook delivery to `/payments/webhook`. No Razorpay signing secret is included in the mobile app. No money or provider calls are involved in the automated mobile tests.
+Metro's transform cache includes the same allowlisted public settings embedded by Babel. Restarting Metro after changing `.env` selects a new cache key, preventing a previous build's API URL or push flags from surviving an environment change. Backend secrets are excluded from this snapshot.
+
+For local API development, run `dentra-api` separately with its database and required environment configured. Online checkout requires the API version that returns `payment.gatewayOrderId` and `payment.gatewayKeyId`, plus working Razorpay webhook delivery to `/payments/webhook`. No Razorpay signing secret is included in the mobile app. No money or provider calls are involved in the automated mobile tests.
 
 ## Verification
 

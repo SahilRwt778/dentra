@@ -5,6 +5,7 @@ import {
   useGetAppointmentsByAppointmentIdQuery,
   useLazyGetAppointmentsByAppointmentIdQuery,
   usePostAppointmentsMutation,
+  usePostAppointmentsByAppointmentIdPaymentRefreshMutation,
   usePostAppointmentsByAppointmentIdCancelMutation,
   usePostAppointmentsByAppointmentIdRescheduleMutation,
   useGetAppointmentsByAppointmentIdConsultationQuery,
@@ -43,6 +44,14 @@ export function useBookAppointmentMutation() {
     [send],
   );
   return [book, state] as const;
+}
+
+export function useRefreshAppointmentPayment() {
+  const [send] = usePostAppointmentsByAppointmentIdPaymentRefreshMutation();
+  return useCallback(
+    (appointmentId: string) => send({ appointmentId }).unwrap(),
+    [send],
+  );
 }
 
 export function useCancelAppointmentMutation() {

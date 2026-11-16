@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Roles } from '@common/decorators/roles.decorator';
 import { CurrentUser, type AuthenticatedUser } from '@common/decorators/current-user.decorator';
@@ -32,6 +32,17 @@ export class AppointmentsController {
   @Get(':appointmentId')
   get(@CurrentUser() user: AuthenticatedUser, @Param('appointmentId') appointmentId: string) {
     return this.appointments.get(user, appointmentId);
+  }
+
+  @Roles('patient')
+  @Post(':appointmentId/payment/refresh')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  refreshPayment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('appointmentId', ParseUUIDPipe) appointmentId: string,
+  ) {
+    return this.appointments.refreshPayment(user, appointmentId);
   }
 
   @Post(':appointmentId/cancel')

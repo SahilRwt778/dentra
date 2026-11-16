@@ -2,10 +2,11 @@ import { useRef, useState } from 'react';
 import uuid from 'react-native-uuid';
 import { useBookAppointmentMutation } from '@/api/appointments';
 import type { BookAppointment, Patient } from '@/api/types';
-import { openCheckout } from '@/lib/checkout';
+import { useCheckout } from './use-checkout';
 
 export function useBookAppointment() {
   const [book] = useBookAppointmentMutation();
+  const checkout = useCheckout();
   const [isBooking, setIsBooking] = useState(false);
   const submitting = useRef(false);
   const attempt = useRef<{ payload: string; key: string } | null>(null);
@@ -25,26 +26,30 @@ export function useBookAppointment() {
     }
 
     try {
-      const appointment = await book({
+      let appointment = await book({
         ...booking,
         idempotencyKey: attempt.current.key,
       });
       if (!appointment.id) throw new Error('Missing appointment reference.');
+      const appointmentId = appointment.id;
 
       let paymentCancelled = false;
+      let paymentSubmitted = false;
       if (
         booking.paymentMethod !== 'pay_at_clinic' &&
         appointment.payment?.status === 'pending'
       ) {
         try {
-          await openCheckout(appointment, patient);
+          appointment = await checkout(appointment, patient);
+          paymentSubmitted = true;
         } catch {
           paymentCancelled = true;
         }
       }
       return {
-        appointment: { ...appointment, id: appointment.id },
+        appointment: { ...appointment, id: appointmentId },
         paymentCancelled,
+        paymentSubmitted,
       };
     } finally {
       submitting.current = false;

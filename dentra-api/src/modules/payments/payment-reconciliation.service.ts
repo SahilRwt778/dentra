@@ -50,19 +50,24 @@ export class PaymentReconciliationService implements OnApplicationBootstrap, OnM
     );
     for (const row of rows) {
       try {
-        const payments = await this.gateway.fetchOrderPayments(row.gateway_ref);
-        for (const payment of payments) {
-          if (payment.order_id !== row.gateway_ref || payment.status !== 'captured') continue;
-          // Same amount/currency checks and locked transitions as a signed captured webhook.
-          await this.payments.handle({
-            event: 'payment.captured',
-            payload: { payment: { entity: payment } },
-          });
-        }
+        await this.reconcileOrder(row.gateway_ref);
       } catch {
         this.logger.warn('Could not reconcile a payment order; retrying later.');
       }
     }
     return rows.length;
+  }
+
+  /** Both checkout refresh and the worker read the provider; neither trusts a client success flag. */
+  async reconcileOrder(orderId: string) {
+    const payments = await this.gateway.fetchOrderPayments(orderId);
+    for (const payment of payments) {
+      if (payment.order_id !== orderId || payment.status !== 'captured') continue;
+      // Reuse webhook amount/currency checks and cancellation/refund locking.
+      await this.payments.handle({
+        event: 'payment.captured',
+        payload: { payment: { entity: payment } },
+      });
+    }
   }
 }

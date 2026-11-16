@@ -41,8 +41,15 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
-      # Enable after adding the corresponding Cloud credentials in Render.
+      # Server-only LiveKit Cloud settings; values are supplied in Render.
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
       - key: VIDEO_ENABLED
-        value: "false"
+        value: "true"
+      # Enable after adding Firebase server credentials in Render.
       - key: PUSH_ENABLED
         value: "false"

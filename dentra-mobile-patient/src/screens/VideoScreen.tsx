@@ -19,8 +19,11 @@ import {
   Camera,
   CameraOff,
   Maximize2,
+  MessageCircle,
   Mic,
   MicOff,
+  MonitorOff,
+  MonitorUp,
   PhoneOff,
   RefreshCw,
   Video,
@@ -286,6 +289,10 @@ function NativeCall({
         visible={chatOpen && !minimized && !systemPip}
         onClose={() => setChatOpen(false)}
         onUnread={setUnread}
+        callCamera={{
+          enabled: isCameraEnabled,
+          setEnabled: meeting.setCameraEnabled,
+        }}
       />
       <View style={s.remote}>
         {(Platform.OS === 'ios' || hasRemoteVideo) && (
@@ -316,14 +323,18 @@ function NativeCall({
           s.local,
           {
             right: Math.max(insets.right, 12),
-            bottom: Math.max(insets.bottom, 12) + (showControls ? 150 : 12),
+            bottom: Math.max(insets.bottom, 12) + (showControls ? 174 : 12),
           },
           minimized && s.miniLocal,
           systemPip && s.hidden,
         ]}
       >
         {localCameraTrack != null && isCameraEnabled ? (
-          <sdk.VideoView track={localCameraTrack} mirror={front} style={s.fill} />
+          <sdk.VideoView
+            track={localCameraTrack}
+            mirror={front}
+            style={s.fill}
+          />
         ) : (
           <Text style={s.copy}>
             {isCameraEnabled ? 'Starting camera…' : 'Camera off'}
@@ -396,6 +407,15 @@ function NativeCall({
                 accessibilityLabel={
                   meeting.screenSharing ? 'Stop sharing screen' : 'Share screen'
                 }
+                accessibilityState={{
+                  selected: !!meeting.screenSharing,
+                  disabled: busy,
+                }}
+                style={[
+                  s.collaborationButton,
+                  meeting.screenSharing && s.sharingButton,
+                  busy && s.disabled,
+                ]}
                 disabled={busy}
                 onPress={() =>
                   change(() =>
@@ -405,16 +425,27 @@ function NativeCall({
                   )
                 }
               >
-                <Text style={s.link}>
-                  {meeting.screenSharing ? 'Stop sharing' : 'Share screen'}
-                </Text>
+                {meeting.screenSharing ? (
+                  <MonitorOff size={23} color="#FFFFFF" />
+                ) : (
+                  <MonitorUp size={23} color="#FFFFFF" />
+                )}
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Open call chat"
+                accessibilityHint={
+                  unread ? `${unread} unread messages` : undefined
+                }
+                style={s.collaborationButton}
                 onPress={() => setChatOpen(true)}
               >
-                <Text style={s.link}>Chat{unread ? ` (${unread})` : ''}</Text>
+                <MessageCircle size={23} color="#FFFFFF" />
+                {unread > 0 && (
+                  <Text style={s.unreadBadge}>
+                    {unread > 99 ? '99+' : unread}
+                  </Text>
+                )}
               </Pressable>
               {meeting.remoteScreenTrack != null && (
                 <Text style={s.status}>Dentist’s screen</Text>
@@ -564,6 +595,32 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 24,
     paddingTop: 12,
+  },
+  collaborationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#27636B',
+    borderWidth: 1,
+    borderColor: '#42606A',
+  },
+  sharingButton: { backgroundColor: '#0D7870', borderColor: '#85D6CF' },
+  unreadBadge: {
+    position: 'absolute',
+    right: -5,
+    top: -5,
+    minWidth: 19,
+    height: 19,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: '#C53232',
+    color: '#FFFFFF',
+    fontSize: 10,
+    lineHeight: 19,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   controls: {
     flexDirection: 'row',

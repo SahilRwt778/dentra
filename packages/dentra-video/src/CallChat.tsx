@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,10 +20,13 @@ import {
   type ChatClient,
   type ChatFile,
 } from '@dentra/call-core';
+import { Paperclip } from 'lucide-react-native';
+import { ChatAttachmentMenu } from './ChatAttachmentMenu';
+import type { ChatAttachmentSource } from './pickChatFile';
 
 export type NativeChatClient = ChatClient & {
   requestId(): string;
-  pick(source: 'photos' | 'file'): Promise<ChatFile | undefined>;
+  pick(source: ChatAttachmentSource): Promise<ChatFile | undefined>;
   download(
     id: string,
     file: ChatAttachment,
@@ -41,12 +45,17 @@ export function CallChat({
   visible,
   onClose,
   onUnread,
+  callCamera,
 }: {
   appointmentId: string;
   client: NativeChatClient;
   visible: boolean;
   onClose(): void;
   onUnread(count: number): void;
+  callCamera?: {
+    enabled: boolean;
+    setEnabled(enabled: boolean): Promise<void>;
+  };
 }) {
   const chat = useCallChat(appointmentId, client, visible);
   const [text, setText] = useState('');
@@ -54,6 +63,7 @@ export function CallChat({
   const [requestId, setRequestId] = useState(() => client.requestId());
   const [notice, setNotice] = useState<string>();
   const [picking, setPicking] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [opening, setOpening] = useState<string>();
   const [photo, setPhoto] = useState<Photo>();
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -78,6 +88,7 @@ export function CallChat({
     if (!visible) {
       operation.current?.abort();
       setPhoto(undefined);
+      setAttachmentsOpen(false);
     }
   }, [visible]);
 
@@ -85,11 +96,14 @@ export function CallChat({
     setText(value);
     setRequestId(client.requestId());
   }
-  async function pick(source: 'photos' | 'file') {
+  async function pick(source: ChatAttachmentSource) {
     if (picking || chat.sending) return;
+    setAttachmentsOpen(false);
     setPicking(true);
     setNotice(undefined);
+    const restoreCamera = source === 'camera' && callCamera?.enabled;
     try {
+      if (restoreCamera) await callCamera.setEnabled(false);
       const selected = await client.pick(source);
       if (selected && live.current) {
         setFile(selected);
@@ -103,6 +117,13 @@ export function CallChat({
             : 'Could not choose the attachment.'
         );
     } finally {
+      if (restoreCamera && live.current) {
+        try {
+          await callCamera.setEnabled(true);
+        } catch {
+          setNotice('Turn your call camera back on using the call controls.');
+        }
+      }
       if (live.current) setPicking(false);
     }
   }
@@ -114,6 +135,7 @@ export function CallChat({
     }
   }
   async function open(attachment: ChatAttachment) {
+    setAttachmentsOpen(false);
     operation.current?.abort();
     const abort = new AbortController();
     operation.current = abort;
@@ -142,6 +164,7 @@ export function CallChat({
   }
   function close() {
     if (photo) setPhoto(undefined);
+    else if (attachmentsOpen) setAttachmentsOpen(false);
     else onClose();
   }
 
@@ -259,6 +282,12 @@ export function CallChat({
                 </Text>
               )}
               <View style={styles.composer}>
+                {attachmentsOpen && (
+                  <ChatAttachmentMenu
+                    onSelect={pick}
+                    onClose={() => setAttachmentsOpen(false)}
+                  />
+                )}
                 {file && (
                   <View style={styles.preview}>
                     {file.type.startsWith('image/') ? (
@@ -287,34 +316,35 @@ export function CallChat({
                     </Pressable>
                   </View>
                 )}
-                <TextInput
-                  accessibilityLabel="Chat message"
-                  placeholder="Write a message…"
-                  value={text}
-                  onChangeText={edit}
-                  editable={!chat.sending}
-                  multiline
-                  maxLength={4000}
-                  style={styles.input}
-                />
                 <View style={styles.actions}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Choose chat photo"
+                    accessibilityLabel="Add attachment"
+                    accessibilityState={{ expanded: attachmentsOpen }}
                     disabled={chat.sending || picking}
-                    onPress={() => pick('photos')}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setAttachmentsOpen((value) => !value);
+                    }}
+                    style={styles.attach}
                   >
-                    <Text style={styles.link}>Photos</Text>
+                    {picking ? (
+                      <ActivityIndicator color="#0D7870" />
+                    ) : (
+                      <Paperclip size={23} color="#0D7870" />
+                    )}
                   </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Choose chat PDF"
-                    disabled={chat.sending || picking}
-                    onPress={() => pick('file')}
-                  >
-                    <Text style={styles.link}>PDF</Text>
-                  </Pressable>
-                  <Text style={[styles.muted, styles.grow]}>Up to 10 MB</Text>
+                  <TextInput
+                    accessibilityLabel="Chat message"
+                    placeholder="Write a message…"
+                    value={text}
+                    onChangeText={edit}
+                    onFocus={() => setAttachmentsOpen(false)}
+                    editable={!chat.sending}
+                    multiline
+                    maxLength={4000}
+                    style={styles.input}
+                  />
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Send chat message"
@@ -363,6 +393,7 @@ const styles = StyleSheet.create({
   link: { color: '#0D7870', fontWeight: '700', fontSize: 15 },
   composer: { backgroundColor: '#FFFFFF', padding: 14, gap: 12 },
   input: {
+    flex: 1,
     borderWidth: 1,
     borderColor: '#CADADC',
     borderRadius: 12,
@@ -371,7 +402,13 @@ const styles = StyleSheet.create({
     minHeight: 48,
     maxHeight: 120,
   },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  actions: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  attach: {
+    width: 42,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   send: {
     backgroundColor: '#0D7870',
     paddingHorizontal: 18,

@@ -29,6 +29,7 @@ jest.mock('../src/api/generated/patient-api', () => {
       currentData: { slots: ['10:00'] },
     }),
     usePostAppointmentsMutation: () => [mockBook],
+    usePostAppointmentsByAppointmentIdPaymentRefreshMutation: () => [jest.fn()],
   };
 });
 jest.mock('../src/lib/checkout', () => ({

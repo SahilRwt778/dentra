@@ -39,6 +39,8 @@
 	<string></string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Dentra uses your microphone so you can speak with your patient during a consultation.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos to share privately with your patient during a consultation.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>RTCAppGroupIdentifier</key>

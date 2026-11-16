@@ -35,7 +35,7 @@ Schedule follows the same prototype with a compact header, Today/Tomorrow/date s
 
 ## Run locally
 
-Use Node **22.13+** (22.23.2 is available on this computer), and keep the existing API running on port 3000. Keep the API migrations up to date, including the treatment-plan migration described below.
+Use Node **22.13+** (22.23.2 is available on this computer). The app connects to `https://dentra-api-gwo6.onrender.com` by default. For local API development, keep the API running on port 3000 and change the origin in `src/common/config/api.ts`. Keep the API migrations up to date, including the treatment-plan migration described below.
 
 ```sh
 npm install --legacy-peer-deps
@@ -66,17 +66,17 @@ The native app must be rebuilt after adding modules. A JavaScript reload alone c
 
 If iOS reports `"dentraDentist" has not been registered`, check the bundle's Metro port. Loading the patient bundle from 8081 causes this error even though the dentist app is registered correctly. Rebuild the dentist app with the command above after changing its native Metro configuration. For a physical phone, set the computer's LAN address with port 8082 in the dev menu.
 
-`src/common/config/api.ts` is the single API URL setting:
+`src/common/config/api.ts` is the single API URL setting. The hosted HTTPS URL is used in both development and release builds. To test against a locally running API, replace it with the address for your device:
 
-| Device | Default development URL |
+| Device | Local API URL |
 | --- | --- |
 | Android emulator | `http://10.0.2.2:3000` |
 | iOS simulator | `http://localhost:3000` |
 | Physical phone | Set your computer's LAN IP; the phone and computer must share a network |
 
-Set the release API URL to your deployed HTTPS endpoint before distributing a release. Release requests are blocked while it is blank. Never put API secrets in mobile configuration.
+Restart Metro with `npm start -- --reset-cache` after changing the URL, then reload the app. Existing installed apps can pick up this JavaScript change from Metro; distributed builds need a new bundle. Never put API secrets in mobile configuration.
 
-Real SMS remains deferred. Use the current four-digit `[otp:stub]` code printed by your API terminal for the dentist purpose. The app does not accept a fixed test code.
+Real SMS remains deferred. For the hosted API, use the current four-digit `[otp:stub]` code in **Render → dentra-api → Logs** for the dentist purpose. Local API codes appear in its terminal. The app does not accept a fixed test code.
 
 ## Code organization
 

@@ -2,6 +2,12 @@
 
 Razorpay is the payment provider. The API creates the order; checkout's client result never marks a booking paid. A signed `payment.captured` webhook or an authenticated provider status read must confirm the exact INR amount.
 
+After successful native checkout, Patient Mobile calls `POST /appointments/{appointmentId}/payment/refresh`. The API verifies ownership, reads payments for the order stored on that appointment, and applies only a matching captured payment through the same locked transitions as webhooks. It accepts no client success flag or payment reference. Already settled and pay-at-clinic payments need no gateway read. A provider failure returns a safe 503 without changing the payment. A capture racing cancellation queues a refund instead of reopening the slot.
+
+Both initial booking and retry checkout use this immediate check. If capture or connectivity is delayed, the app shows **Checking payment**, polls the saved status every three seconds, and offers **Check payment status** instead of another checkout. Background reconciliation and signed webhooks remain active. This change needs an API redeploy and a patient JavaScript bundle update; it needs no database migration or native dependency change.
+
+Razorpay Test Mode may show a mock bank page with **Success** and **Failure** instead of an OTP. Choose **Success** for a successful test payment; this is expected provider behaviour and moves no real money. See [Razorpay's test card documentation](https://razorpay.com/docs/payments/payments/test-card-details/).
+
 ## Payments received at the clinic
 
 For a **pay-at-clinic** appointment, Dentist Mobile → **Appointment → Payment** and Dentist Web → **Appointment → Payment → Mark as paid** record the full booked consultation fee already received by cash, UPI, or card. Choose the method and confirm receipt. The fee comes from the original booking; changing the dentist's current fee does not change it. Partial collections and discounts are not supported by this action.
@@ -113,3 +119,26 @@ Admin Payments separates paid, processing-refund, failed-refund and completed-re
 6. For the consultation journey, use a separate paid video booking: check the dentist notification, join the call from dentist web and patient mobile, save clinical notes/chart, sign a prescription, complete the visit, and open the patient's visit summary and records.
 
 Automated tests use an isolated PostgreSQL schema and mocked outbound provider calls. They cover signatures, exact amounts, duplicate/out-of-order events, concurrent cancellation/capture, retries, expired leases, missing confirmations, checkout expiry, admin recovery/auditing and the clinical completion flow. They do not prove real Razorpay checkout or bank processing. Real SMS remains deferred.
+
+### Hosted Test Mode checklist
+
+Use synthetic patient details and a new disposable booking. Complete checkout within the booking's 15-minute payment window.
+
+1. Open `https://dentra-api-gwo6.onrender.com/health` and confirm HTTP 200 with `{"status":"ok"}` before booking. If it does not respond, check the API's Render status and logs first. On the free hosting plan, sleeping also pauses payment reconciliation, checkout expiry and refund delivery.
+2. In Admin Web → **Payments**, confirm the gateway reports **Test mode** and checkout/webhook configuration is present. These indicators confirm configured values, not successful provider authentication or webhook delivery.
+3. In the Razorpay **Test Mode** dashboard, open **Accounts & Settings → Webhooks**. Enable `https://dentra-api-gwo6.onrender.com/payments/webhook` with `payment.captured`, `payment.failed`, `refund.created`, `refund.processed` and `refund.failed`. Its secret must match Render's `RAZORPAY_WEBHOOK_SECRET`; do not put the secret in chat, mobile configuration or Git. Successful deliveries return HTTP **200** with `{"received":true}`.
+4. Book a new online appointment in Patient Mobile, choose **Card** in checkout and use these [Razorpay test details](https://razorpay.com/docs/payments/payments/test-card-details/):
+
+   | Field | Test value |
+   | --- | --- |
+   | Visa debit card | `4100 2800 0000 1007` |
+   | Expiry | Any future month/year |
+   | CVV | `123` |
+   | Mock payment OTP, if shown | `1234` |
+
+   Select **Success** if the mock bank page offers that option. Test keys simulate payments without moving real money. These are checkout test details, separate from Dentra's sign-in OTP.
+5. Confirm the Razorpay payment reaches **captured**, its `payment.captured` webhook delivery succeeds, and Patient Mobile and Admin Payments both show **Paid** for the same appointment and amount. A successful checkout screen alone is insufficient; an **authorized** payment has not yet been captured.
+6. Cancel this disposable paid booking from Patient Mobile. Confirm the appointment is cancelled, payment becomes **Refund processing**, and then **Refunded** after Razorpay confirms processing. The Razorpay dashboard must contain only one refund for that payment, including after repeated refreshes. Keep the API awake while observing its worker; a sleeping service cannot submit queued refunds until it resumes.
+7. Use another booking to test dismissing or failing checkout, then retrying within its payment window. Never reuse the cancelled booking for the consultation test.
+
+Record the appointment reference, Razorpay order/payment/refund references, webhook delivery results and final patient/admin statuses when testing. Keep those references in your private test notes. A locally signed webhook probe proves endpoint signature validation only; an actual Test Mode checkout and provider delivery are needed to verify the hosted flow.

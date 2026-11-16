@@ -128,6 +128,91 @@ describe('Payments: confirmation, cancellation and durable refunds (e2e)', () =>
     );
   }
 
+  const refresh = (f: Fixture, userId = f.patientId, role = 'patient') =>
+    request(app.getHttpServer())
+      .post(`/appointments/${f.appointmentId}/payment/refresh`)
+      .set('Authorization', `Bearer ${token(userId, role)}`);
+  const captured = (f: Fixture) => ({
+    id: f.paymentId, order_id: f.orderId, amount: 40050, currency: 'INR', status: 'captured',
+  });
+
+  it('checks capture immediately after checkout without waiting for a webhook or creating another order', async () => {
+    const f = await fixture();
+    (gateway.fetchOrderPayments as jest.Mock).mockResolvedValueOnce([captured(f)]);
+    const response = await refresh(f).expect(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body.payment.status).toBe('paid');
+    expect(gateway.fetchOrderPayments).toHaveBeenCalledWith(f.orderId);
+    expect(gateway.createOrder).not.toHaveBeenCalled();
+    expect(gateway.refund).not.toHaveBeenCalled();
+    await refresh(f).expect(200);
+    expect(gateway.fetchOrderPayments).toHaveBeenCalledTimes(1);
+    await payment(f).expect(200);
+    expect(await current(f)).toMatchObject({ status: 'paid', gateway_payment_ref: f.paymentId });
+  });
+
+  it('keeps authorized payments pending and ignores client-provided success and order references', async () => {
+    const f = await fixture();
+    (gateway.fetchOrderPayments as jest.Mock).mockResolvedValueOnce([{ ...captured(f), status: 'authorized' }]);
+    const response = await refresh(f).send({ status: 'paid', gatewayOrderId: 'order_unrelated' }).expect(200);
+    expect(response.body.payment.status).toBe('pending');
+    expect(gateway.fetchOrderPayments).toHaveBeenCalledWith(f.orderId);
+    expect((await current(f)).gateway_payment_ref).toBeNull();
+  });
+
+  it('restricts payment refresh to the owning patient before contacting the provider', async () => {
+    const f = await fixture();
+    const other = await fixture();
+    await refresh(f, other.patientId).expect(404);
+    await refresh(f, f.dentistId, 'dentist').expect(403);
+    await refresh({ ...f, appointmentId: randomUUID() }).expect(404);
+    await request(app.getHttpServer()).post('/appointments/invalid-id/payment/refresh')
+      .set('Authorization', `Bearer ${token(f.patientId)}`).expect(400);
+    await request(app.getHttpServer()).post(`/appointments/${f.appointmentId}/payment/refresh`).expect(401);
+    expect(gateway.fetchOrderPayments).not.toHaveBeenCalled();
+  });
+
+  it.each([{ amount: 1 }, { currency: 'USD' }])('does not confirm a provider capture with mismatched details %j', async extra => {
+    const f = await fixture();
+    (gateway.fetchOrderPayments as jest.Mock).mockResolvedValueOnce([{ ...captured(f), ...extra }]);
+    await refresh(f).expect(503);
+    expect(await current(f)).toMatchObject({ status: 'pending', gateway_payment_ref: null });
+  });
+
+  it('ignores a capture for another order', async () => {
+    const f = await fixture();
+    (gateway.fetchOrderPayments as jest.Mock).mockResolvedValueOnce([{ ...captured(f), order_id: 'order_unrelated' }]);
+    const response = await refresh(f).expect(200);
+    expect(response.body.payment.status).toBe('pending');
+  });
+
+  it('preserves a cancellation during provider lookup and queues the late capture for refund', async () => {
+    const f = await fixture();
+    (gateway.fetchOrderPayments as jest.Mock).mockImplementationOnce(async () => {
+      await cancel(f).expect(200);
+      return [captured(f)];
+    });
+    const response = await refresh(f).expect(200);
+    expect(response.body).toMatchObject({ status: 'cancelled', payment: { status: 'refund_pending' } });
+    expect(await job(f)).toMatchObject({ payment_ref: f.paymentId, status: 'pending' });
+  });
+
+  it('returns a safe retry response on gateway failure without changing the payment', async () => {
+    const f = await fixture();
+    (gateway.fetchOrderPayments as jest.Mock).mockRejectedValueOnce(new Error('Synthetic private provider response'));
+    const response = await refresh(f).expect(503);
+    expect(JSON.stringify(response.body)).not.toContain('Synthetic private');
+    expect(await current(f)).toMatchObject({ status: 'pending', gateway_payment_ref: null });
+  });
+
+  it('does not contact the gateway for a pay-at-clinic booking', async () => {
+    const f = await fixture();
+    await pool.query("update transactions set method = 'pay_at_clinic', status = 'due_at_clinic', gateway_ref = null where id = $1", [f.transactionId]);
+    const response = await refresh(f).expect(200);
+    expect(response.body.payment.status).toBe('due_at_clinic');
+    expect(gateway.fetchOrderPayments).not.toHaveBeenCalled();
+  });
+
   it('rejects bad signatures and malformed known events', async () => {
     await post({ event: 'payment.captured', payload: {} }, false).expect(400);
     await post({ event: 'payment.captured', payload: {} }).expect(400);

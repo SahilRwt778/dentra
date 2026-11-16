@@ -20,6 +20,6 @@ import { NotificationsModule } from '@modules/notifications/notifications.module
   imports: [NotificationsModule],
   controllers: [PaymentsWebhookController],
   providers: [RazorpayGatewayService, PaymentsWebhookService, RefundsService, RefundDeliveryService, PaymentExpiryService, PaymentReconciliationService],
-  exports: [RazorpayGatewayService, RefundsService],
+  exports: [RazorpayGatewayService, RefundsService, PaymentReconciliationService],
 })
 export class PaymentsModule {}

@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -14,6 +15,7 @@ import { slotHasPassed } from '@common/utils/slots.util';
 import { resolveHours } from '@common/utils/dentist-availability.util';
 import { RazorpayGatewayService } from '@modules/payments/razorpay-gateway.service';
 import { RefundsService } from '@modules/payments/refunds.service';
+import { PaymentReconciliationService } from '@modules/payments/payment-reconciliation.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import type { BookAppointmentDto } from './dto/book-appointment.dto';
 import type { RescheduleDto } from './dto/reschedule.dto';
@@ -91,6 +93,7 @@ export class AppointmentsService {
     private readonly refunds: RefundsService,
     private readonly files: PatientFilesService,
     private readonly availability: AvailabilityService,
+    private readonly paymentReconciliation: PaymentReconciliationService,
   ) {}
 
   async book(patientId: string, dto: BookAppointmentDto): Promise<AppointmentResponse> {
@@ -244,6 +247,21 @@ export class AppointmentsService {
     await this.assertOwned(user, appointmentId);
     const row = await this.fetchById(this.pool, appointmentId);
     return this.toResponse(row!);
+  }
+
+  async refreshPayment(user: AuthenticatedUser, appointmentId: string): Promise<AppointmentResponse> {
+    await this.assertOwned(user, appointmentId);
+    const row = await this.fetchById(this.pool, appointmentId);
+    if (row?.payment_gateway_ref && ['pending', 'failed', 'cancelled'].includes(row.payment_status)) {
+      try {
+        await this.paymentReconciliation.reconcileOrder(row.payment_gateway_ref);
+      } catch {
+        throw new ServiceUnavailableException(
+          'Payment confirmation is temporarily unavailable. Please check its status again before paying.',
+        );
+      }
+    }
+    return this.get(user, appointmentId);
   }
 
   async cancel(user: AuthenticatedUser, appointmentId: string): Promise<AppointmentResponse> {

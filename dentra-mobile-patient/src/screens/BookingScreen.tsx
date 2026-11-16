@@ -119,7 +119,7 @@ export function BookingScreen({
     try {
       const result = await book(payload, me);
       if (!result) return;
-      const { appointment, paymentCancelled } = result;
+      const { appointment, paymentCancelled, paymentSubmitted } = result;
       if (paymentCancelled) {
         Alert.alert(
           'Payment not confirmed',
@@ -129,6 +129,7 @@ export function BookingScreen({
       navigation.replace('Appointment', {
         appointmentId: appointment.id,
         justBooked: true,
+        ...(paymentSubmitted ? { paymentSubmitted: true } : {}),
       });
     } catch (err) {
       setError(

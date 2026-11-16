@@ -12,6 +12,8 @@ The additive migration `1792249200000_patient_files.sql` creates metadata only. 
 
 The API defaults to private local storage at `dentra-api/uploads/patients`. `PATIENT_FILES_DIRECTORY` can select another directory. The directory is ignored by Git and must not be exposed by a static web server. Requests for file content always require a bearer token and an ownership check; no public or token-in-query URLs are issued. Downloads use `private, no-store`, attachment disposition and `nosniff` headers.
 
+For hosted storage, select `STORAGE_PROVIDER=supabase` and set `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `SUPABASE_STORAGE_BUCKET=dentra-private` on the API only. The bucket must be private; startup rejects a public or inaccessible bucket. The same authenticated API routes serve file bytes. See [HOSTING.md](HOSTING.md) for setup and switching providers.
+
 New native packages require a mobile rebuild, rather than a JavaScript reload. Dependencies are in `package-lock.json`; iOS pods are in `ios/Podfile.lock`. Start the API/web/Metro yourself, then use the usual `npm run android` or `npm run ios`. A physical iPhone is needed for testing camera capture if the simulator has no camera. Android uses system pickers and URI grants without broad storage permissions.
 
 If the app reports missing `NativeDocumentPicker`, `launchCamera`, or `launchImageLibrary`, it is running a native build without the pickers. A Metro reload cannot add native modules. With Metro already running, run `npm run android -- --no-packager` from `dentra-mobile-patient` to build, install and reopen the Android app without starting another Metro process. `assembleDebug` alone only creates an APK; it does not install it. A normal reinstall/update preserves app data; uninstalling or clearing app storage is unnecessary.
@@ -24,7 +26,7 @@ If the app reports missing `NativeDocumentPicker`, `launchCamera`, or `launchIma
 - Removing an unused upload denies access immediately. Saved booking attachments are retained as part of that appointment's records; they cannot be removed through the draft-delete endpoint.
 - Mobile downloads live in the app's private cache, cleared at startup, logout and session loss. Results arriving after an account switch are discarded. Opening a file grants the selected native viewer access; the viewer controls any copy the user chooses to save.
 
-For a deployment, use a persistent, backed-up private volume shared by all API instances, and HTTPS. This implementation uses local disk rather than object storage. File signatures and size limits do not replace a malware scanner. A process crash between writing a file and committing its metadata can leave an unreferenced disk file; those require an operational reconciliation job. There is no general patient-record retention/erasure workflow in this feature.
+For a deployment, use Supabase private storage or a persistent, backed-up private volume shared by all API instances, and HTTPS. Changing providers requires migrating existing bytes; database references alone do not copy files. File signatures and size limits do not replace a malware scanner. A process crash between writing a file and committing its metadata can leave an unreferenced private object; those require an operational reconciliation job. There is no general patient-record retention/erasure workflow in this feature.
 
 ## Manual verification
 

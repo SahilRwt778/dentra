@@ -9,6 +9,7 @@ import {
   PhoneOff,
   Video,
   MonitorUp,
+  MonitorOff,
   MessageCircle,
 } from 'lucide-react';
 import { useVideoRoom, type VideoSource } from '@dentra/call-core';
@@ -96,6 +97,9 @@ export default function ConnectedVideoCall({
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         onUnread={setUnread}
+        cameraTrack={
+          callState.localCameraTrack?.publication.track?.mediaStreamTrack
+        }
       />
       {target &&
         createPortal(
@@ -176,9 +180,13 @@ export default function ConnectedVideoCall({
                 </button>
                 <button
                   type="button"
-                  className="btn"
+                  className={`btn btn-icon consult-icon-control${
+                    sharing ? ' is-sharing' : ''
+                  }`}
                   disabled={busy || !room || connection !== 'connected'}
                   aria-label={sharing ? 'Stop sharing screen' : 'Share screen'}
+                  aria-pressed={sharing}
+                  title={sharing ? 'Stop sharing screen' : 'Share screen'}
                   onClick={() =>
                     void change(async () => {
                       await room!.localParticipant.setScreenShareEnabled(
@@ -188,17 +196,24 @@ export default function ConnectedVideoCall({
                     })
                   }
                 >
-                  <MonitorUp size={18} />
-                  {sharing ? 'Stop sharing' : 'Share screen'}
+                  {sharing ? <MonitorOff size={21} /> : <MonitorUp size={21} />}
                 </button>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn-icon consult-icon-control"
                   aria-label="Open call chat"
+                  aria-description={
+                    unread ? `${unread} unread messages` : undefined
+                  }
+                  title={unread ? `Chat (${unread} unread)` : 'Chat'}
                   onClick={() => setChatOpen(true)}
                 >
-                  <MessageCircle size={18} />
-                  Chat{unread ? ` (${unread})` : ''}
+                  <MessageCircle size={21} />
+                  {unread > 0 && (
+                    <span className="consult-chat-badge" aria-hidden="true">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"

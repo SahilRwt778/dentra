@@ -1,148 +1,90 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetAppointmentsQuery } from '@/api/generated-api';
+import type { AppointmentStatus } from '@/api/generated-api';
 import { PageHead } from '@/components/page-head';
-import { addDaysIso, todayIso, formatDate, formatTime } from '@/lib/date';
-import { statusBadge } from '@/lib/status';
+import { todayIso, formatDate, formatTime } from '@/lib/date';
+import { statusBadge, STATUS_BADGE } from '@/lib/status';
 
-function DayRows({ date }: { date: string }) {
+// All possible statuses in display order
+const STATUS_OPTIONS: { value: AppointmentStatus | ''; label: string }[] = [
+  { value: '', label: 'All statuses' },
+  { value: 'booked', label: STATUS_BADGE.booked.label },
+  { value: 'waiting', label: STATUS_BADGE.waiting.label },
+  { value: 'in_consult', label: STATUS_BADGE.in_consult.label },
+  { value: 'completed', label: STATUS_BADGE.completed.label },
+  { value: 'cancelled', label: STATUS_BADGE.cancelled.label },
+];
+
+function AppointmentRows({
+  date,
+  status,
+  search,
+}: {
+  date: string;
+  status: AppointmentStatus | '';
+  search: string;
+}) {
   const [page, setPage] = useState(1);
+
   const { currentData: data, isFetching, error, refetch } = useGetAppointmentsQuery(
-    { date, page },
+    {
+      date,
+      status: status || undefined,
+      page,
+    },
     { refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true },
   );
-  // The API returns the latest appointments first, including across pages.
-  const items = data?.items ?? [];
-  const weekday = new Date(`${date}T12:00:00`).toLocaleDateString('en-IN', { weekday: 'long' });
+
+  // Client-side patient name filter
+  const allItems = data?.items ?? [];
+  const items = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return allItems;
+    return allItems.filter((a) =>
+      (a.patientName ?? '').toLowerCase().includes(q),
+    );
+  }, [allItems, search]);
+
   const hasPages = page > 1 || !!data?.nextPage;
 
-  return (
-    <tbody aria-label={`${weekday}, ${formatDate(date)}`} aria-busy={isFetching}>
-      <tr className={`schedule-day${date === todayIso() ? ' schedule-today' : ''}`}>
-        <th scope="rowgroup" colSpan={6}>
-          <div className="row wrap between">
-            <div className="row wrap">
-              <time dateTime={date}>{weekday}, {formatDate(date)}</time>
-              {date === todayIso() && <span className="badge teal">Today</span>}
-            </div>
-            {data && !error && (
-              <span className="small muted">
-                {items.length} {items.length === 1 ? 'appointment' : 'appointments'}
-                {hasPages ? ' on this page' : ''}
-              </span>
-            )}
-          </div>
-        </th>
-      </tr>
-      {error ? (
-        <tr>
-          <td colSpan={6}>
-            <div className="row wrap between" role="alert">
-              <span>Could not load appointments for this day.</span>
-              <button type="button" className="btn" disabled={isFetching} onClick={() => refetch()}>
-                {isFetching ? 'Retrying…' : 'Try again'}
-              </button>
-            </div>
-          </td>
-        </tr>
-      ) : !data ? (
-        <tr><td colSpan={6} className="muted" role="status">Loading appointments…</td></tr>
-      ) : items.length === 0 ? (
-        <tr><td colSpan={6} className="muted">No appointments for this day.</td></tr>
-      ) : items.map((appointment) => {
-        const badge = statusBadge(appointment.status);
-        return (
-          <tr key={appointment.id}>
-            <td className="schedule-time"><b>{formatTime(appointment.time)}</b></td>
-            <td>
-              {appointment.patientName || '—'}
-              <div className="tiny muted">
-                {[
-                  appointment.patientAge != null ? `${appointment.patientAge} y` : null,
-                  appointment.patientGender,
-                ].filter(Boolean).join(', ')}
-              </div>
-            </td>
-            <td>{appointment.type === 'video' ? 'Video' : 'In-clinic'}</td>
-            <td className="schedule-reason">
-              {appointment.concern || '—'}
-              {appointment.symptomArea && <div className="tiny muted">{appointment.symptomArea}</div>}
-            </td>
-            <td><span className={badge.className}>{badge.label}</span></td>
-            <td className="schedule-action">
-              {appointment.id && (
-                <Link
-                  className="btn"
-                  to={`/consult/${appointment.id}`}
-                  aria-label={`View appointment for ${appointment.patientName || 'patient'} at ${formatTime(appointment.time)} on ${formatDate(date)}`}
-                >
-                  View appointment
-                </Link>
-              )}
-            </td>
-          </tr>
-        );
-      })}
-      {hasPages && (
-        <tr>
-          <td colSpan={6}>
-            <nav className="row wrap between" aria-label={`Appointments on ${formatDate(date)}`}>
-              <span className="small muted">Page {page} · Latest times first</span>
-              <div className="row">
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={page === 1 || isFetching}
-                  onClick={() => setPage(page - 1)}
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!data?.nextPage || isFetching || !!error}
-                  onClick={() => setPage(data?.nextPage ?? page)}
-                >
-                  Next
-                </button>
-              </div>
-            </nav>
-          </td>
-        </tr>
-      )}
-    </tbody>
-  );
-}
+  if (error) {
+    return (
+      <div className="row wrap between" role="alert" style={{ padding: '16px 0' }}>
+        <span>Could not load appointments.</span>
+        <button type="button" className="btn" disabled={isFetching} onClick={() => refetch()}>
+          {isFetching ? 'Retrying…' : 'Try again'}
+        </button>
+      </div>
+    );
+  }
 
-export function SchedulePage() {
-  const days = Array.from({ length: 7 }, (_, n) => addDaysIso(n));
-  const [selectedDate, setSelectedDate] = useState(todayIso);
+  if (!data) {
+    return (
+      <div className="muted" role="status" style={{ padding: '16px 0' }}>
+        Loading appointments…
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="muted" style={{ padding: '16px 0' }}>
+        {search.trim()
+          ? `No appointments match "${search.trim()}".`
+          : 'No appointments found for the selected filters.'}
+      </div>
+    );
+  }
 
   return (
     <>
-      <PageHead title="Schedule" subtitle="Choose a day to view its appointments." />
-      <nav className="schedule-dates" aria-label="Choose appointment day">
-        {days.map((date, index) => {
-          const label = index === 0 ? 'Today' : index === 1 ? 'Tomorrow' :
-            new Date(`${date}T12:00:00`).toLocaleDateString('en-IN', { weekday: 'short' });
-          return (
-            <button
-              key={date}
-              type="button"
-              className="schedule-date"
-              aria-pressed={date === selectedDate}
-              aria-label={`${label}, ${formatDate(date)}`}
-              aria-controls="schedule-appointments"
-              onClick={() => setSelectedDate(date)}
-            >
-              <span>{label}</span>
-              <strong><time dateTime={date}>{formatDate(date).slice(0, 6)}</time></strong>
-            </button>
-          );
-        })}
-      </nav>
-      <div id="schedule-appointments" className="table-wrap">
-        <table className="schedule-table" aria-label={`Appointments on ${formatDate(selectedDate)}`}>
+      <div className="table-wrap">
+        <table
+          className="schedule-table"
+          aria-label={`Appointments on ${formatDate(date)}`}
+          aria-busy={isFetching}
+        >
           <thead>
             <tr>
               <th scope="col">Time</th>
@@ -150,11 +92,182 @@ export function SchedulePage() {
               <th scope="col">Visit</th>
               <th scope="col">Reason</th>
               <th scope="col">Status</th>
-              <th scope="col"><span className="schedule-action-label">Appointment details</span></th>
+              <th scope="col">
+                <span className="schedule-action-label">Appointment details</span>
+              </th>
             </tr>
           </thead>
-          <DayRows key={selectedDate} date={selectedDate} />
+          <tbody>
+            {items.map((appointment) => {
+              const badge = statusBadge(appointment.status);
+              return (
+                <tr key={appointment.id}>
+                  <td className="schedule-time">
+                    <b>{formatTime(appointment.time)}</b>
+                  </td>
+                  <td>
+                    {appointment.patientName || '—'}
+                    <div className="tiny muted">
+                      {[
+                        appointment.patientAge != null ? `${appointment.patientAge} y` : null,
+                        appointment.patientGender,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </div>
+                  </td>
+                  <td>{appointment.type === 'video' ? 'Video' : 'In-clinic'}</td>
+                  <td className="schedule-reason">
+                    {appointment.concern || '—'}
+                    {appointment.symptomArea && (
+                      <div className="tiny muted">{appointment.symptomArea}</div>
+                    )}
+                  </td>
+                  <td>
+                    <span className={badge.className}>{badge.label}</span>
+                  </td>
+                  <td className="schedule-action">
+                    {appointment.id && (
+                      <Link
+                        className="btn"
+                        to={`/consult/${appointment.id}`}
+                        aria-label={`View appointment for ${appointment.patientName || 'patient'} at ${formatTime(appointment.time)} on ${formatDate(date)}`}
+                      >
+                        View appointment
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
         </table>
+      </div>
+
+      {hasPages && (
+        <nav
+          className="row wrap between"
+          aria-label={`Appointments on ${formatDate(date)}`}
+          style={{ marginTop: 12 }}
+        >
+          <span className="small muted">Page {page} · Latest times first</span>
+          <div className="row">
+            <button
+              type="button"
+              className="btn"
+              disabled={page === 1 || isFetching}
+              onClick={() => setPage(page - 1)}
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={!data?.nextPage || isFetching || !!error}
+              onClick={() => setPage(data?.nextPage ?? page)}
+            >
+              Next
+            </button>
+          </div>
+        </nav>
+      )}
+    </>
+  );
+}
+
+export function SchedulePage() {
+  const [selectedDate, setSelectedDate] = useState(todayIso);
+  const [selectedStatus, setSelectedStatus] = useState<AppointmentStatus | ''>('');
+  const [search, setSearch] = useState('');
+
+  return (
+    <>
+      <PageHead title="Schedule" subtitle="Browse appointments by date, status, or patient name." />
+
+      {/* ── Filter bar ── */}
+      <div className="schedule-filters" role="search" aria-label="Appointment filters">
+        {/* Date picker */}
+        <div className="schedule-filter-group">
+          <label htmlFor="schedule-date-pick" className="schedule-filter-label">
+            Date
+          </label>
+          <input
+            id="schedule-date-pick"
+            type="date"
+            className="schedule-filter-input"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value || todayIso())}
+            aria-label="Select appointment date"
+          />
+        </div>
+
+        {/* Status filter */}
+        <div className="schedule-filter-group">
+          <label htmlFor="schedule-status-pick" className="schedule-filter-label">
+            Status
+          </label>
+          <select
+            id="schedule-status-pick"
+            className="schedule-filter-input"
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value as AppointmentStatus | '')}
+            aria-label="Filter by status"
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Patient name search */}
+        <div className="schedule-filter-group schedule-filter-search">
+          <label htmlFor="schedule-patient-search" className="schedule-filter-label">
+            Patient
+          </label>
+          <input
+            id="schedule-patient-search"
+            type="search"
+            className="schedule-filter-input"
+            placeholder="Search by patient name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search appointments by patient name"
+          />
+        </div>
+
+        {/* Active-date chip */}
+        <div className="schedule-filter-date-chip" aria-live="polite" aria-atomic="true">
+          <span className="small muted">
+            Showing:{' '}
+            <strong>
+              {selectedDate === todayIso()
+                ? `Today · ${formatDate(selectedDate)}`
+                : formatDate(selectedDate)}
+            </strong>
+          </span>
+          {selectedDate !== todayIso() && (
+            <button
+              type="button"
+              className="btn-link small"
+              onClick={() => setSelectedDate(todayIso())}
+              aria-label="Jump to today"
+            >
+              Jump to today
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Appointments ── */}
+      <div id="schedule-appointments">
+        <AppointmentRows
+          key={`${selectedDate}-${selectedStatus}`}
+          date={selectedDate}
+          status={selectedStatus}
+          search={search}
+        />
       </div>
     </>
   );

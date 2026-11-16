@@ -1812,6 +1812,28 @@ paths:
               schema: { $ref: "#/components/schemas/Appointment" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /appointments/{appointmentId}/payment/refresh:
+    parameters:
+      - { $ref: "#/components/parameters/AppointmentIdParam" }
+    post:
+      tags: [Appointments]
+      summary: Check an online payment directly with the gateway after checkout
+      description: Patient-only and restricted to the patient's own appointment. The server fetches payments for the saved gateway order and accepts only a captured INR payment for the exact booked amount. No client-provided success flag or payment reference is trusted. Already settled and pay-at-clinic payments return their current status. A late capture on a cancelled appointment queues its refund without reopening the slot. Authorized payments remain awaiting capture; webhooks and background reconciliation continue to update them.
+      responses:
+        "200":
+          description: Fresh appointment with the server-verified payment status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503":
+          description: Payment status could not be checked; retry before starting another checkout
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /appointments/{appointmentId}/cancel:
     parameters:
       - { $ref: "#/components/parameters/AppointmentIdParam" }

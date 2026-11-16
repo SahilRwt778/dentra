@@ -20,6 +20,8 @@ The key and secret stay on the API server. No LiveKit secret is placed in either
 4. In LiveKit Cloud, open **Settings → Webhooks** and add `https://YOUR-API/video/webhook`. Select the same signing API key configured above. Use your real API route prefix if deployment adds one. LiveKit must be able to reach this URL; `localhost` on your computer is not reachable from LiveKit Cloud. For local webhook testing, use a reachable development API URL or a temporary HTTPS tunnel to your API.
 5. Restart your API after changing its environment. Dentra verifies the webhook JWT and the exact raw-body checksum before accepting patient-arrival or room-finished events. Token generation alone does not mark a patient as arrived.
 
+The hosted API webhook is `https://dentra-api-gwo6.onrender.com/video/webhook`. In LiveKit's webhook Actions menu, send a `room_started` test event and confirm a successful HTTP 204 response. This verifies the signing key/secret and webhook delivery without changing an appointment; a real joined call is still needed to verify media and patient arrival. The Render Blueprint keeps video enabled and leaves all LiveKit credential values in Render's environment settings.
+
 Dentra creates rooms with two participant slots and enables camera, microphone and screen publishing. Each join gets a new opaque participant identity and a 60-second initial token. An established connection can reconnect using LiveKit's token-refresh behavior. Old identities are removed when a device/session is replaced. LiveKit Cloud additionally supports token revocation; self-hosted servers rely on short initial token lifetime, verified join events and backend cleanup for stale joins.
 
 ## Existing local server or self-hosting

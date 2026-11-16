@@ -10,10 +10,12 @@ import type { PatientScreenProps } from '../src/navigation/types';
 jest.mock('react-native-razorpay', () => ({ open: jest.fn() }));
 const mockLoad = jest.fn();
 const mockRefetch = jest.fn();
+const mockRefreshPayment = jest.fn();
 let mockAppointment: Appointment;
 jest.mock('../src/api/appointments', () => ({
   useAppointmentQuery: () => ({ data: mockAppointment, refetch: mockRefetch }),
   useLoadAppointment: () => mockLoad,
+  useRefreshAppointmentPayment: () => mockRefreshPayment,
   useCancelAppointmentMutation: () => [jest.fn(), {}],
   useRescheduleAppointmentMutation: () => [jest.fn(), {}],
 }));
@@ -63,6 +65,10 @@ beforeEach(() => {
     },
   };
   mockLoad.mockImplementation(async () => mockAppointment);
+  mockRefreshPayment.mockImplementation(async () => ({
+    ...mockAppointment,
+    payment: { ...mockAppointment.payment, status: 'paid' },
+  }));
   (RazorpayCheckout.open as jest.Mock).mockResolvedValue({
     razorpay_payment_id: 'pay_test',
   });
@@ -86,6 +92,33 @@ test('an in-consultation appointment with a failed payment can retry checkout af
     expect.objectContaining({ order_id: 'order_test', amount: 1000 }),
   );
   expect(mockRefetch).toHaveBeenCalled();
+  expect(mockRefreshPayment).toHaveBeenCalledWith('test-appointment');
+  expect(tree.root.findAllByType(ErrorState)).toHaveLength(0);
+});
+test('a successful checkout with delayed capture shows checking and rechecks without charging again', async () => {
+  mockRefreshPayment.mockResolvedValue(mockAppointment);
+  await mount();
+  await pay();
+  expect(RazorpayCheckout.open).toHaveBeenCalledTimes(1);
+  expect(payButton()).toBeUndefined();
+  const checkButton = tree.root
+    .findAllByType(Button)
+    .find(button => button.props.title === 'Check payment status');
+  expect(checkButton).toBeDefined();
+  await act(async () => checkButton!.props.onPress());
+  expect(mockRefreshPayment).toHaveBeenCalledTimes(2);
+  expect(RazorpayCheckout.open).toHaveBeenCalledTimes(1);
+});
+test('a confirmation network failure after successful checkout does not offer another charge', async () => {
+  mockRefreshPayment.mockRejectedValueOnce({ status: 'FETCH_ERROR' });
+  await mount();
+  await pay();
+  expect(payButton()).toBeUndefined();
+  expect(
+    tree.root
+      .findAllByType(Button)
+      .some(button => button.props.title === 'Check payment status'),
+  ).toBe(true);
   expect(tree.root.findAllByType(ErrorState)).toHaveLength(0);
 });
 test('a payment captured since the last poll does not open checkout again', async () => {

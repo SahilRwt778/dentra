@@ -1,8 +1,10 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
-import { FileText, MessageCircle, Paperclip, Send, X } from 'lucide-react';
+import { FileText, MessageCircle, Send, X } from 'lucide-react';
 import { useCallChat, type ChatAttachment } from '@dentra/call-core';
 import { callChat, downloadChatAttachment } from '@/api/call-chat';
+import { ChatAttachmentMenu } from './chat-attachment-menu';
+import { ChatCameraCapture } from './chat-camera-capture';
 
 export function CallChat({
   appointmentId,
@@ -10,12 +12,14 @@ export function CallChat({
   open,
   onClose,
   onUnread,
+  cameraTrack,
 }: {
   appointmentId: string;
   target: HTMLElement | null;
   open: boolean;
   onClose(): void;
   onUnread(count: number): void;
+  cameraTrack?: MediaStreamTrack;
 }) {
   const chat = useCallChat(appointmentId, callChat, open);
   const [text, setText] = useState('');
@@ -29,6 +33,7 @@ export function CallChat({
     mime: string;
   }>();
   const [opening, setOpening] = useState<string>();
+  const [cameraOpen, setCameraOpen] = useState(false);
   const files = useRef(new Set<string>());
   const previewUrl = useRef<string | undefined>(undefined);
   const request = useRef<AbortController | null>(null);
@@ -39,7 +44,22 @@ export function CallChat({
   }, [chat.unread, onUnread]);
   useEffect(() => {
     if (open) end.current?.scrollIntoView({ block: 'end' });
+    else setCameraOpen(false);
   }, [tail, open]);
+  function selectAttachment(selected: File) {
+    if (chat.sending) return;
+    if (
+      !['image/jpeg', 'image/png', 'application/pdf'].includes(selected.type) ||
+      selected.size > 10 * 1024 * 1024 ||
+      !selected.size
+    ) {
+      setNotice('Choose a JPEG/PNG photo or PDF no larger than 10 MB.');
+      return;
+    }
+    chooseFile(selected);
+    setKey(crypto.randomUUID());
+    setNotice(undefined);
+  }
   function chooseFile(selected?: File) {
     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     const url = selected?.type.startsWith('image/')
@@ -98,6 +118,7 @@ export function CallChat({
         <>
           <aside
             hidden={!open}
+            inert={cameraOpen || !!viewer}
             className="call-chat"
             aria-label="Consultation chat"
           >
@@ -221,36 +242,14 @@ export function CallChat({
                 }}
               />
               <div className="call-chat-actions">
-                <label className="btn">
-                  <Paperclip size={17} /> Photo / PDF
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,application/pdf"
-                    disabled={chat.sending}
-                    onChange={(event) => {
-                      const selected = event.target.files?.[0];
-                      event.target.value = '';
-                      if (!selected) return;
-                      if (
-                        ![
-                          'image/jpeg',
-                          'image/png',
-                          'application/pdf',
-                        ].includes(selected.type) ||
-                        selected.size > 10 * 1024 * 1024 ||
-                        !selected.size
-                      ) {
-                        setNotice(
-                          'Choose a JPEG/PNG photo or PDF no larger than 10 MB.'
-                        );
-                        return;
-                      }
-                      chooseFile(selected);
-                      setKey(crypto.randomUUID());
-                      setNotice(undefined);
-                    }}
-                  />
-                </label>
+                <ChatAttachmentMenu
+                  active={open && !chat.sending}
+                  onSelect={selectAttachment}
+                  onCamera={() => {
+                    setNotice(undefined);
+                    setCameraOpen(true);
+                  }}
+                />
                 <button
                   type="submit"
                   className="btn btn-primary"
@@ -262,6 +261,16 @@ export function CallChat({
               </div>
             </form>
           </aside>
+          {cameraOpen && open && (
+            <ChatCameraCapture
+              sourceTrack={cameraTrack}
+              onCapture={(file) => {
+                selectAttachment(file);
+                setCameraOpen(false);
+              }}
+              onClose={() => setCameraOpen(false)}
+            />
+          )}
           {viewer && (
             <div
               className="call-chat-viewer"

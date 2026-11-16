@@ -756,6 +756,7 @@ tr.flag td:first-child {
   flex-wrap: wrap;
 }
 
+/* Legacy day-button nav — kept for reference but no longer rendered */
 .schedule-dates {
   display: flex;
   gap: 10px;
@@ -794,6 +795,71 @@ tr.flag td:first-child {
   color: var(--accent-deep);
 }
 .schedule-date[aria-pressed='true'] span {
+  color: var(--accent-deep);
+}
+
+/* ── New filter bar ── */
+.schedule-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+.schedule-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+.schedule-filter-search {
+  flex: 1;
+  min-width: 200px;
+}
+.schedule-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.schedule-filter-input {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+}
+.schedule-filter-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.schedule-filter-date-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+.btn-link:hover {
   color: var(--accent-deep);
 }
 .schedule-table {
@@ -1046,6 +1112,9 @@ button.lg:hover {
 .consult-lobby .muted { color: #bdd1d8; }
 .consult-connection-status { color: #c7d8de; text-align: center; font-size: 13px; padding: 8px; }
 .consult-call-controls { justify-content: center; padding: 4px 14px 16px; flex-shrink: 0; }
+.consult-call-controls .consult-icon-control { position: relative; width: 44px; height: 44px; padding: 0; border-radius: 50%; flex-shrink: 0; }
+.consult-call-controls .consult-icon-control.is-sharing { background: #0d7870; border-color: #85d6cf; }
+.consult-chat-badge { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px; background: #c53232; color: white; font-size: 10px; font-weight: 700; line-height: 19px; text-align: center; }
 .consult-document-scroll > section:not([hidden]) + section:not([hidden]) { margin-top: 14px; }
 .consult-document-actions { padding-top: 16px; }
 .consult-workspace .complete-bar { flex-wrap: wrap; }
@@ -1122,8 +1191,24 @@ button.lg:hover {
 .call-chat-file small { display: block; margin-top: 4px; }
 .call-chat-composer { padding: 14px; background: white; display: grid; gap: 12px; }
 .call-chat-composer textarea { resize: vertical; min-height: 60px; max-height: 140px; }
-.call-chat-actions { justify-content: space-between; }
+.call-chat-actions { justify-content: space-between; position: relative; }
 .call-chat-actions input { display: none; }
+.chat-attachment-picker { position: static; }
+.chat-attach-button { color: #0d7870; min-width: 44px; min-height: 44px; }
+.chat-attachment-menu { position: absolute; left: 0; right: 0; bottom: calc(100% + 12px); max-width: min(280px, calc(100vw - 48px)); z-index: 2; padding: 18px; display: grid; gap: 16px; background: white; border: 1px solid #d8e4e5; border-radius: 16px; box-shadow: 0 8px 28px #102b3926; }
+.chat-attachment-menu strong { font-size: 13px; }
+.chat-attachment-menu > small { text-align: center; color: #5d707a; font-size: 11px; }
+.chat-attachment-options { display: flex; gap: 12px; }
+.chat-attachment-options button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; border: 0; background: transparent; color: #122b39; cursor: pointer; font-size: 13px; padding: 4px 0; }
+.chat-attachment-circle { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; color: white; }
+.chat-attachment-circle.is-gallery { background: #7954cf; }
+.chat-attachment-circle.is-camera { background: #ce4e78; }
+.chat-attachment-circle.is-file { background: #477bc4; }
+.call-chat-camera { position: absolute; inset: 0; z-index: 40; background: #102b39; color: white; display: flex; flex-direction: column; }
+.call-chat-camera header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; }
+.call-chat-camera header p { color: #c2d4db; font-size: 13px; margin: 6px 0 0; }
+.call-chat-camera video { flex: 1; width: 100%; min-height: 0; object-fit: contain; }
+.call-chat-camera footer { display: flex; gap: 12px; justify-content: center; padding: 16px; }
 .call-chat-preview img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
 .call-chat-preview span { flex: 1; overflow-wrap: anywhere; }
 .call-chat-remove { background: #c53232; border: 0; border-radius: 50%; color: white; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; flex-shrink: 0; }

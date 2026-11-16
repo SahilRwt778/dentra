@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import type { RequestOtpDto } from './dto/request-otp.dto';
 import type { VerifyOtpDto } from './dto/verify-otp.dto';
 import type { AdminLoginDto } from './dto/admin-login.dto';
@@ -15,6 +15,8 @@ const DUMMY_PASSWORD_HASH = '$2b$12$qjZtyjgknmeCO4Iuu0MKde5oqaqbElscDqSCmmO9lbls
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly otp: OtpService,
     private readonly users: UsersService,
@@ -29,8 +31,7 @@ export class AuthService {
 
     // TODO (Phase 6, pending SMS vendor): send `code` to `mobile` for real.
     // Logged instead of sent so the OTP flow is testable end to end now.
-    // eslint-disable-next-line no-console
-    console.log(`[otp:stub] ${mobile} (${purpose}) code=${code}`);
+    this.logger.warn(`[otp:stub] ${mobile} (${purpose}) code=${code}`);
 
     return {
       otpId,
