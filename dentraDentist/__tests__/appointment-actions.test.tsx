@@ -9,7 +9,7 @@ import { testPatientRecord } from '../test-utils/patient';
 import type { PatientRecord } from '../src/common/types/patient';
 import { dentraApi } from '../src/store/dentraApi';
 import type { Appointment } from '../src/common/types/api';
-import { addDays, dateKey } from '../src/common/utils/date';
+import { addDays, dateKey, formatDate } from '../src/common/utils/date';
 import { AppointmentScreen } from '../src/features/appointments/AppointmentScreen';
 import { RescheduleAppointmentScreen } from '../src/features/appointments/reschedule/RescheduleAppointmentScreen';
 import { Button } from '../src/components/ui/Button';
@@ -442,6 +442,40 @@ test('a pending action locks other appointment controls and ignores rapid duplic
   });
   expect(mockPreventRemove).toBe(false);
 });
+
+test.each(['clinic', 'video'] as const)(
+  'a future %s appointment can be rescheduled to an available slot today',
+  async type => {
+    appointment = {
+      ...appointment,
+      type,
+      clinicId: type === 'clinic' ? 'clinic-one' : null,
+    };
+    const original = { ...appointment };
+    const today = dateKey();
+    slots.set(today, ['15:00']);
+    await mount(true);
+    await press(`Today, ${formatDate(today)}`);
+    expect(slotRequests.at(-1)).toEqual({
+      date: today,
+      type,
+      ...(type === 'clinic' ? { clinicId: 'clinic-one' } : {}),
+    });
+    await press('New time 3:00 PM');
+    await press('Confirm new time');
+    expect(writes[0]).toEqual({
+      path: '/appointments/manage-visit/reschedule',
+      body: {
+        date: today,
+        time: '15:00',
+        expectedDate: original.date,
+        expectedTime: original.time,
+      },
+    });
+    expect(appointment.payment).toEqual(original.payment);
+    expect(text()).toContain('Appointment rescheduled');
+  },
+);
 
 test('rescheduling uses clinic availability, clears the old time when the day changes, and preserves payment', async () => {
   const original = { ...appointment };

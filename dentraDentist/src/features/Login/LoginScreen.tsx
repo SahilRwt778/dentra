@@ -12,6 +12,7 @@ import { Card } from '../../components/ui/Card';
 import { ErrorMessage } from '../../components/ui/Feedback';
 import { FormScreen } from '../../components/ui/Screen';
 import { Field } from '../../components/forms/Field';
+import { OtpInput } from '../../components/forms/OtpInput';
 
 type Challenge = OtpChallenge & { resendAt: number; expiresAt: number };
 export function LoginScreen() {
@@ -102,19 +103,11 @@ export function LoginScreen() {
       <Card>
         {challenge ? (
           <>
-            <Field
-              label="Verification code"
+            <OtpInput
               testID="otp-input"
               value={code}
-              onChangeText={value =>
-                setCode(value.replace(/\D/g, '').slice(0, 4))
-              }
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              autoComplete="sms-otp"
-              maxLength={4}
+              onChangeText={setCode}
               editable={!busy}
-              style={styles.otp}
               autoFocus
             />
             {expired && (
@@ -187,7 +180,6 @@ export function LoginScreen() {
   );
 }
 const styles = StyleSheet.create({
-  otp: { fontSize: 28, letterSpacing: 16, textAlign: 'center', minHeight: 66 },
   phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   prefix: {
     paddingBottom: 15,

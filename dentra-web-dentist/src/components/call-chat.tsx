@@ -1,9 +1,11 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
-import { FileText, MessageCircle, Send, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useCallChat, type ChatAttachment } from '@dentra/call-core';
 import { callChat, downloadChatAttachment } from '@/api/call-chat';
-import { ChatAttachmentMenu } from './chat-attachment-menu';
+import { ChatComposer } from './messages/chat-composer';
+import { ChatHeader } from './messages/chat-header';
+import { ChatTimeline } from './messages/chat-timeline';
 import { ChatCameraCapture } from './chat-camera-capture';
 
 export function CallChat({
@@ -15,13 +17,17 @@ export function CallChat({
   cameraTrack,
   title = 'Consultation chat',
   subtitle,
-  standalone = false,
+  embedded = false,
+  concern,
+  photoUrl,
 }: {
   title?: string;
   subtitle?: string;
-  standalone?: boolean;
+  embedded?: boolean;
+  concern?: string;
+  photoUrl?: string | null;
   appointmentId: string;
-  target: HTMLElement | null;
+  target?: HTMLElement | null;
   open: boolean;
   onClose(): void;
   onUnread(count: number): void;
@@ -51,15 +57,12 @@ export function CallChat({
   const files = useRef(new Set<string>());
   const previewUrl = useRef<string | undefined>(undefined);
   const request = useRef<AbortController | null>(null);
-  const end = useRef<HTMLDivElement>(null);
-  const tail = chat.items.at(-1)?.sequence;
   useEffect(() => {
     onUnread(chat.unread);
   }, [chat.unread, onUnread]);
   useEffect(() => {
-    if (open) end.current?.scrollIntoView({ block: 'end' });
-    else setCameraOpen(false);
-  }, [tail, open]);
+    if (!open) setCameraOpen(false);
+  }, [open]);
   function selectAttachment(selected: File) {
     if (chat.sending) return;
     if (
@@ -127,211 +130,108 @@ export function CallChat({
       if (!abort.signal.aborted) setOpening(undefined);
     }
   }
-  return target
-    ? createPortal(
-        <>
-          <aside
-            hidden={!open}
-            inert={cameraOpen || !!viewer}
-            className={`call-chat ${standalone ? 'call-chat-standalone' : ''}`}
-            aria-label="Consultation chat"
-          >
-            <header className="call-chat-header">
-              <strong>
-                <MessageCircle size={18} /> {title}
-              </strong>
-              <button
-                type="button"
-                className="btn btn-icon"
-                aria-label="Close chat"
-                onClick={onClose}
-              >
-                <X size={18} />
-              </button>
-            </header>
-            <p className="call-chat-subtitle">
-              {!chat.canSend
-                ? 'Messaging closed · History available'
-                : subtitle ?? 'Private consultation messages'}
-            </p>
-            <div className="call-chat-messages" aria-live="polite">
-              {chat.hasOlder && (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => void chat.older()}
-                >
-                  Earlier messages
-                </button>
-              )}
-              {chat.loading && <p>Loading messages…</p>}
-              {!chat.loading && !chat.items.length && (
-                <p className="muted">
-                  Messages, photos and PDF reports shared during your
-                  consultation appear here.
-                </p>
-              )}
-              {chat.items.map((item) => (
-                <article
-                  key={item.id}
-                  className={`call-chat-bubble ${item.own ? 'is-own' : ''}`}
-                >
-                  <small>
-                    {item.own
-                      ? 'You'
-                      : item.senderRole === 'dentist'
-                      ? 'Dentist'
-                      : 'Patient'}
-                  </small>
-                  {!!item.text && <p>{item.text}</p>}
-                  {item.attachment && (
-                    <button
-                      type="button"
-                      className="call-chat-file"
-                      onClick={() => void attachment(item.attachment!)}
-                      disabled={!!opening}
-                    >
-                      <FileText size={19} />
-                      <span>
-                        {opening === item.id
-                          ? 'Opening…'
-                          : item.attachment.name}
-                        <small>
-                          {Math.ceil(item.attachment.sizeBytes / 1024)} KB ·{' '}
-                          {item.attachment.mimeType.startsWith('image/')
-                            ? 'Photo'
-                            : 'PDF'}
-                        </small>
-                      </span>
-                    </button>
-                  )}
-                  <time>
-                    {new Date(item.createdAt).toLocaleTimeString(undefined, {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </time>
-                </article>
-              ))}
-              <div ref={end} />
-            </div>
-            {!!(chat.error || notice) && (
-              <p role="alert" className="call-chat-error">
-                {chat.error || notice}
-              </p>
-            )}
-            <form
-              className="call-chat-composer"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send();
+  const content = (
+    <div className={embedded ? 'embedded-chat' : 'call-chat-surface'}>
+      <aside
+        hidden={!open}
+        inert={cameraOpen || !!viewer}
+        className={`call-chat ${embedded ? 'is-embedded' : ''}`}
+        aria-label="Consultation chat"
+      >
+        <ChatHeader
+          title={title}
+          concern={concern}
+          photoUrl={photoUrl}
+          subtitle={subtitle}
+          embedded={embedded}
+          loading={chat.loading}
+          canSend={chat.canSend}
+          onBack={onClose}
+        />
+        <ChatTimeline
+          items={chat.items}
+          loading={chat.loading}
+          hasOlder={chat.hasOlder}
+          opening={opening}
+          visible={open}
+          embedded={embedded}
+          onOlder={() => void chat.older()}
+          onAttachment={(item) => void attachment(item)}
+        />
+        {!!(chat.error || notice) && (
+          <p role="alert" className="call-chat-error">
+            {chat.error || notice}
+          </p>
+        )}
+        <ChatComposer
+          text={text}
+          file={file}
+          preview={preview}
+          sending={chat.sending}
+          canSend={open && chat.canSend}
+          loading={chat.loading}
+          embedded={embedded}
+          onText={(value) => {
+            setText(value);
+            setKey(crypto.randomUUID());
+          }}
+          onSelect={selectAttachment}
+          onCamera={() => {
+            setNotice(undefined);
+            setCameraOpen(true);
+          }}
+          onRemove={() => {
+            chooseFile(undefined);
+            setKey(crypto.randomUUID());
+          }}
+          onSend={() => void send()}
+        />
+      </aside>
+      {cameraOpen && open && (
+        <ChatCameraCapture
+          sourceTrack={cameraTrack}
+          onCapture={(selected) => {
+            selectAttachment(selected);
+            setCameraOpen(false);
+          }}
+          onClose={() => setCameraOpen(false)}
+        />
+      )}
+      {viewer && open && (
+        <div
+          className={`call-chat-viewer ${
+            embedded ? 'chat-viewer-fullscreen' : ''
+          }`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chat attachment"
+        >
+          <header>
+            <span>{viewer.name}</span>
+            <a className="btn" href={viewer.url} download={viewer.name}>
+              Download
+            </a>
+            <button
+              type="button"
+              className="call-chat-remove"
+              aria-label="Close attachment"
+              onClick={() => {
+                URL.revokeObjectURL(viewer.url);
+                files.current.delete(viewer.url);
+                setViewer(undefined);
               }}
             >
-              {file && (
-                <div className="call-chat-preview">
-                  {preview ? (
-                    <img src={preview} alt="Attachment preview" />
-                  ) : (
-                    <FileText />
-                  )}
-                  <span>{file.name}</span>
-                  <button
-                    type="button"
-                    aria-label="Remove attachment"
-                    className="call-chat-remove"
-                    disabled={!chat.canSend || chat.sending}
-                    onClick={() => {
-                      chooseFile(undefined);
-                      setKey(crypto.randomUUID());
-                    }}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-              <textarea
-                aria-label="Chat message"
-                placeholder={
-                  chat.canSend
-                    ? 'Write a message…'
-                    : 'Messaging closed · History available'
-                }
-                maxLength={4000}
-                value={text}
-                disabled={!chat.canSend || chat.sending}
-                onChange={(event) => {
-                  setText(event.target.value);
-                  setKey(crypto.randomUUID());
-                }}
-              />
-              <div className="call-chat-actions">
-                <ChatAttachmentMenu
-                  active={open && chat.canSend && !chat.sending}
-                  onSelect={selectAttachment}
-                  onCamera={() => {
-                    setNotice(undefined);
-                    setCameraOpen(true);
-                  }}
-                />
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={
-                    !chat.canSend || chat.sending || (!text.trim() && !file)
-                  }
-                >
-                  <Send size={17} />
-                  {chat.sending ? 'Sending…' : 'Send'}
-                </button>
-              </div>
-            </form>
-          </aside>
-          {cameraOpen && open && (
-            <ChatCameraCapture
-              sourceTrack={cameraTrack}
-              onCapture={(file) => {
-                selectAttachment(file);
-                setCameraOpen(false);
-              }}
-              onClose={() => setCameraOpen(false)}
-            />
+              <X />
+            </button>
+          </header>
+          {viewer.mime.startsWith('image/') ? (
+            <img src={viewer.url} alt={viewer.name} />
+          ) : (
+            <iframe src={viewer.url} title={viewer.name} />
           )}
-          {viewer && (
-            <div
-              className={`call-chat-viewer ${
-                standalone ? 'call-chat-viewer-standalone' : ''
-              }`}
-              role="dialog"
-              aria-modal="true"
-              aria-label="Chat attachment"
-            >
-              <header>
-                <span>{viewer.name}</span>
-                <a className="btn" href={viewer.url} download={viewer.name}>
-                  Download
-                </a>
-                <button
-                  type="button"
-                  className="call-chat-remove"
-                  aria-label="Close attachment"
-                  onClick={() => {
-                    URL.revokeObjectURL(viewer.url);
-                    files.current.delete(viewer.url);
-                    setViewer(undefined);
-                  }}
-                >
-                  <X />
-                </button>
-              </header>
-              {viewer.mime.startsWith('image/') ? (
-                <img src={viewer.url} alt={viewer.name} />
-              ) : (
-                <iframe src={viewer.url} title={viewer.name} />
-              )}
-            </div>
-          )}
-        </>,
-        target,
-      )
-    : null;
+        </div>
+      )}
+    </div>
+  );
+  return embedded ? content : target ? createPortal(content, target) : null;
 }

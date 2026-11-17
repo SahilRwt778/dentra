@@ -2057,6 +2057,10 @@ export type ConsultationCase = ConsultationCaseBrief & {
   dentistId: string;
   patientName: string;
   dentistName: string;
+  /** Signed image path relative to the API origin */
+  patientProfilePhotoUrl?: string | null;
+  /** Signed image path relative to the API origin */
+  dentistProfilePhotoUrl?: string | null;
   concern: string;
   serverNow: string;
   canMessage: boolean;

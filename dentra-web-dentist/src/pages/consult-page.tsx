@@ -12,9 +12,7 @@ import {
   usePostAppointmentsByAppointmentIdPrescriptionSignMutation,
   usePostAppointmentsByAppointmentIdPrescriptionOtpMutation,
   usePostAppointmentsByAppointmentIdStartMutation,
-  usePostAppointmentsByAppointmentIdRescheduleMutation,
   useGetDentistsMePatientsByPatientIdQuery,
-  useGetDentistsByDentistIdSlotsQuery,
   useGetDentistsMeQuery,
   type PrescriptionItemInput,
 } from '@/api/generated-api';
@@ -23,6 +21,7 @@ import { AppointmentAttachments } from '@/components/appointment-attachments';
 import { CareDocumentDownloads } from '@/components/care-document-downloads';
 import { TreatmentProcedures } from '@/components/treatment-procedures';
 import { Modal } from '@/components/modal';
+import { RescheduleModal } from '@/components/reschedule-modal';
 import {
   DentalChart,
   ChartLegend,
@@ -32,8 +31,6 @@ import { statusBadge } from '@/lib/status';
 import {
   formatDate,
   formatTime,
-  dayLabel,
-  addDaysIso,
   todayIso,
 } from '@/lib/date';
 
@@ -109,125 +106,6 @@ function errorMessage(err: unknown, fallback: string): string {
     err as { data?: { message?: string | string[] } } | undefined
   )?.data?.message;
   return Array.isArray(message) ? message.join('. ') : message ?? fallback;
-}
-
-function RescheduleModal({
-  appointmentId,
-  dentistId,
-  clinicId,
-  type,
-  onClose,
-}: {
-  appointmentId: string;
-  dentistId: string;
-  clinicId?: string | null;
-  type: 'video' | 'clinic';
-  onClose: () => void;
-}) {
-  const [date, setDate] = useState(addDaysIso(1));
-  const [time, setTime] = useState('');
-  const { data: slotData } = useGetDentistsByDentistIdSlotsQuery({
-    dentistId,
-    date,
-    type,
-    clinicId: clinicId ?? undefined,
-  });
-  const [reschedule, { isLoading }] =
-    usePostAppointmentsByAppointmentIdRescheduleMutation();
-  const days = Array.from({ length: 14 }, (_, n) => addDaysIso(n + 1)).slice(
-    0,
-    5,
-  );
-
-  async function confirm() {
-    if (!time) return;
-    try {
-      await reschedule({ appointmentId, body: { date, time } }).unwrap();
-      toast.success(`Rescheduled to ${dayLabel(date)}, ${formatTime(time)}`);
-      onClose();
-    } catch (err) {
-      toast.error(errorMessage(err, 'Could not reschedule.'));
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose}>
-      <div className="row between" style={{ marginBottom: 14 }}>
-        <h2>Reschedule</h2>
-        <button
-          type="button"
-          className="btn"
-          aria-label="Close"
-          onClick={onClose}
-        >
-          <X size={16} />
-        </button>
-      </div>
-      <div style={{ marginTop: 14 }}>
-        <p className="q-label">New day</p>
-        <div
-          className="day-strip"
-          style={{ display: 'flex', gap: 8, overflowX: 'auto' }}
-        >
-          {days.map((d) => (
-            <button
-              key={d}
-              type="button"
-              className={`choice${date === d ? ' on' : ''}`}
-              onClick={() => {
-                setDate(d);
-                setTime('');
-              }}
-            >
-              {dayLabel(d)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{ marginTop: 14 }}>
-        <p className="q-label">New time</p>
-        <div
-          className="slot-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 8,
-          }}
-        >
-          {(slotData?.slots ?? []).map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`choice${time === t ? ' on' : ''}`}
-              onClick={() => setTime(t)}
-            >
-              {formatTime(t)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <p className="hint">
-        The patient's original payment carries over. They're notified of the new
-        time.
-      </p>
-      <div
-        className="row"
-        style={{ marginTop: 14, justifyContent: 'flex-end' }}
-      >
-        <button type="button" className="btn" onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={!time || isLoading}
-          onClick={confirm}
-        >
-          Confirm new time
-        </button>
-      </div>
-    </Modal>
-  );
 }
 
 export function ConsultPage() {

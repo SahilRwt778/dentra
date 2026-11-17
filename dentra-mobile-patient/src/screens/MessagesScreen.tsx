@@ -8,6 +8,7 @@ import { useConsultationCasesQuery } from '@/api/consultation-cases';
 import { errorMessage } from '@/api/errors';
 import type { PatientNavigation } from '@/navigation/types';
 import { colors, ui } from '@/theme';
+import { API_BASE_URL } from '@/config';
 
 export function MessagesScreen() {
   const [page, setPage] = useState(1);
@@ -30,6 +31,7 @@ export function MessagesScreen() {
       <ConsultationInbox
         items={query.currentData?.items ?? []}
         role="patient"
+        apiBaseUrl={API_BASE_URL}
         loading={query.isFetching}
         refreshing={query.isFetching && !!query.currentData}
         error={query.error ? errorMessage(query.error) : undefined}

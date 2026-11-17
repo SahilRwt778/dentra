@@ -1,3 +1,4 @@
+import { ProfilePhotosService } from '../../src/modules/identity/profile-photos/profile-photos.service';
 import { readFileSync } from 'node:fs';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -562,5 +563,60 @@ describe('72-hour consultation passes and messages', () => {
       .post(`/appointments/${child.body.id}/start`)
       .set('Authorization', `Bearer ${t.dentist.token}`)
       .expect(409);
+  });
+  it('returns signed profile photos for both participants without exposing storage references', async () => {
+    const t = await fixture();
+    const photos = app.get(ProfilePhotosService);
+    const patientPhoto = await photos.save('patient', t.patient.id, {
+      buffer: png,
+    });
+    const dentistPhoto = await photos.save('dentist', t.dentist.id, {
+      buffer: png,
+    });
+    await pool.query(
+      'update patients set profile_photo_url=$2 where user_id=$1',
+      [t.patient.id, patientPhoto],
+    );
+    await pool.query(
+      'update dentists set profile_photo_url=$2 where user_id=$1',
+      [t.dentist.id, dentistPhoto],
+    );
+    for (const actor of [t.patient, t.dentist]) {
+      const inbox = await request(app.getHttpServer())
+        .get('/consultation-cases')
+        .set('Authorization', `Bearer ${actor.token}`)
+        .expect(200);
+      const item = inbox.body.items.find(
+        (entry: { id: string }) => entry.id === t.caseId,
+      );
+      expect(item.patientProfilePhotoUrl).toContain(
+        `/profile-photos/patient/${t.patient.id}?`,
+      );
+      expect(item.dentistProfilePhotoUrl).toContain(
+        `/profile-photos/dentist/${t.dentist.id}?`,
+      );
+      expect(JSON.stringify(item)).not.toContain(patientPhoto);
+      expect(JSON.stringify(item)).not.toContain(dentistPhoto);
+      await request(app.getHttpServer())
+        .get(
+          actor.id === t.dentist.id
+            ? item.patientProfilePhotoUrl
+            : item.dentistProfilePhotoUrl,
+        )
+        .expect('Content-Type', /image\/png/)
+        .expect(200);
+    }
+    await pool.query(
+      'update patients set profile_photo_url=null where user_id=$1',
+      [t.patient.id],
+    );
+    const removed = await request(app.getHttpServer())
+      .get(`/consultation-cases/${t.caseId}`)
+      .set('Authorization', `Bearer ${t.dentist.token}`)
+      .expect(200);
+    expect(removed.body.patientProfilePhotoUrl).toBeNull();
+    expect(removed.body.dentistProfilePhotoUrl).toContain(
+      '/profile-photos/dentist/',
+    );
   });
 });

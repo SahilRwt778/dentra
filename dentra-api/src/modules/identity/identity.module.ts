@@ -31,6 +31,6 @@ import { NotificationsModule } from '@modules/notifications/notifications.module
   imports: [NotificationsModule],
   controllers: [ProfilePhotosController, AuthController, PatientsController, AvailabilityController, DentistsController, ApplicationsController],
   providers: [ProfilePhotosService, DentistDocumentsStorage, AuthService, OtpService, UsersService, TokensService, PatientsService, DentistsService, AvailabilityService],
-  exports: [UsersService, DentistsService, OtpService, AvailabilityService],
+  exports: [UsersService, DentistsService, OtpService, AvailabilityService, ProfilePhotosService],
 })
 export class IdentityModule {}

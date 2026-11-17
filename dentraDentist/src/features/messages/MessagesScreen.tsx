@@ -8,6 +8,7 @@ import { useForegroundRefresh } from '../../common/hooks/useForegroundRefresh';
 import type { StackParamList } from '../../navigation/types';
 import { Screen } from '../../components/ui/Screen';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { API_BASE_URL } from '../../common/config/api';
 
 export function MessagesScreen() {
   const [page, setPage] = useState(1);
@@ -20,6 +21,7 @@ export function MessagesScreen() {
       <ConsultationInbox
         items={query.currentData?.items ?? []}
         role="dentist"
+        apiBaseUrl={API_BASE_URL}
         loading={query.isFetching}
         refreshing={query.isFetching && !!query.currentData}
         error={query.error ? errorMessage(query.error) : undefined}

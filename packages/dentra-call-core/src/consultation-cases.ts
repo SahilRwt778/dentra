@@ -10,6 +10,8 @@ export type ConsultationCase = ConsultationCaseBrief & {
   dentistId: string;
   patientName: string;
   dentistName: string;
+  patientProfilePhotoUrl?: string | null;
+  dentistProfilePhotoUrl?: string | null;
   concern: string;
   serverNow: string;
   canMessage: boolean;

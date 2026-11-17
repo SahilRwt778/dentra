@@ -1221,9 +1221,7 @@ button.lg:hover {
 
 .video-consultation { position: relative; }
 
-/* The inbox uses the same conversation and attachment viewer as the call. */
-.call-chat-standalone { position: fixed; inset: 20px 20px 20px auto; width: min(640px, calc(100vw - 40px)); z-index: 90; border: 1px solid #cadadc; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 80px #102b3940; }
 .call-chat-subtitle { margin: 0; padding: 8px 16px; color: #617684; font-size: 12px; border-bottom: 1px solid #d8e4e5; }
-@media(max-width: 600px) { .call-chat-standalone { inset: 0; width: 100%; border-radius: 0; } }
 
-.call-chat-viewer-standalone, body > .call-chat-camera { position: fixed; z-index: 100; }
+.profile-avatar { overflow: hidden; flex-shrink: 0; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }

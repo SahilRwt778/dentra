@@ -56,7 +56,11 @@ export class ProfilePhotosService {
     } catch {
       return null;
     }
-    const expires = Math.floor(Date.now() / 1000) + 3600;
+    // Keep links stable during inbox polling so avatars can use the image cache.
+    // The signature still changes immediately when the stored photo changes.
+    const windowSeconds = 300;
+    const expires =
+      Math.floor(Date.now() / 1000 / windowSeconds) * windowSeconds + 3600;
     return `/profile-photos/${role}/${userId}?expires=${expires}&signature=${this.signature(
       reference,
       expires,

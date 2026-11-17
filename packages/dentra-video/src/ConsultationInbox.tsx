@@ -9,10 +9,12 @@ import {
 } from 'react-native';
 import { ChevronRight, MessageCircle } from 'lucide-react-native';
 import { consultationDeadline, type ConsultationCase } from '@dentra/call-core';
+import { ProfileAvatar } from './ProfileAvatar';
 
 export function ConsultationInbox({
   items,
   role,
+  apiBaseUrl,
   loading,
   refreshing,
   error,
@@ -23,6 +25,7 @@ export function ConsultationInbox({
 }: {
   items: ConsultationCase[];
   role: 'patient' | 'dentist';
+  apiBaseUrl: string;
   loading: boolean;
   refreshing: boolean;
   error?: string;
@@ -73,9 +76,15 @@ export function ConsultationInbox({
           onPress={() => onOpen(item)}
           style={styles.card}
         >
-          <View style={styles.icon}>
-            <MessageCircle size={23} color="#0D7870" />
-          </View>
+          <ProfileAvatar
+            name={role === 'patient' ? item.dentistName : item.patientName}
+            photoUrl={
+              role === 'patient'
+                ? item.dentistProfilePhotoUrl
+                : item.patientProfilePhotoUrl
+            }
+            apiBaseUrl={apiBaseUrl}
+          />
           <View style={styles.details}>
             <Text style={styles.title}>
               {role === 'patient' ? item.dentistName : item.patientName}
@@ -140,14 +149,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  icon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#DEF1ED',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   details: { flex: 1, gap: 4 },
   title: { color: '#143040', fontSize: 15, fontWeight: '600' },

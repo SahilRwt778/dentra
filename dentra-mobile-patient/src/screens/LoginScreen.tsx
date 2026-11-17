@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ShieldCheck } from 'lucide-react-native';
 import { Tooth } from '@/components/tooth-icon';
+import { OtpInput } from '@/components/otp-input';
 import { useAuth } from '@/auth/auth-context';
 import {
   Button,
@@ -94,15 +95,11 @@ export function LoginScreen() {
             <Text style={ui.muted}>
               Enter the 4-digit code for {normalizeMobile(mobile)}.
             </Text>
-            <Field
-              label="Verification code"
-              placeholder="4-digit code"
+            <OtpInput
               value={code}
-              onChangeText={v => setCode(v.replace(/\D/g, '').slice(0, 4))}
-              keyboardType="number-pad"
-              maxLength={4}
-              textContentType="oneTimeCode"
-              autoComplete="sms-otp"
+              onChangeText={setCode}
+              editable={!busy}
+              autoFocus
             />
           </>
         ) : (

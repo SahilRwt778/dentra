@@ -23,6 +23,7 @@ import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Empty, ErrorMessage, Loading } from '../../../components/ui/Feedback';
 import { Field } from '../../../components/forms/Field';
+import { OtpInput } from '../../../components/forms/OtpInput';
 import { Checkbox } from '../../../components/forms/Checkbox';
 import { consultationStyles as styles } from '../consultation.styles';
 import { PrescriptionSummary } from './PrescriptionSummary';
@@ -235,14 +236,12 @@ function PrescriptionPreview({
             />
             {signing.hasCode && (
               <>
-                <Field
+                <OtpInput
                   label="4-digit signing code"
                   value={signing.code}
-                  keyboardType="number-pad"
-                  textContentType="oneTimeCode"
-                  maxLength={4}
                   editable={!signing.busy}
                   onChangeText={signing.setCode}
+                  autoFocus
                 />
                 <Text accessibilityLiveRegion="polite" style={styles.body}>
                   {signing.expiresIn > 0

@@ -76,6 +76,11 @@ function text() {
     .flat()
     .join(' ');
 }
+function codeInput() {
+  return renderer.root
+    .findAllByType(TextInput)
+    .find(input => input.props.testID === 'otp-input')!;
+}
 function reply(config: InternalAxiosRequestConfig, data: unknown) {
   return { config, data, status: 200, statusText: 'OK', headers: {} };
 }
@@ -133,14 +138,17 @@ test('new sign-in validates mobile and submits a real four-digit dentist OTP', a
       .props.onChangeText('9999000001'),
   );
   await press('Send verification code');
-  await act(async () =>
+  expect(codeInput().props.textContentType).toBe('oneTimeCode');
+  expect(codeInput().props.autoComplete).toBe('sms-otp');
+  await act(async () => codeInput().props.onChangeText('1 2-ab345'));
+  expect(codeInput().props.value).toBe('1234');
+  await act(async () => codeInput().props.onChangeText('123'));
+  expect(
     renderer.root
-      .findByProps({ testID: 'otp-input' })
-      .props.onChangeText('12ab345'),
-  );
-  expect(renderer.root.findByProps({ testID: 'otp-input' }).props.value).toBe(
-    '1234',
-  );
+      .findAllByType(Button)
+      .find(node => node.props.title === 'Verify and continue')!.props.disabled,
+  ).toBe(true);
+  await act(async () => codeInput().props.onChangeText('1234'));
   await press('Verify and continue');
   expect(JSON.parse(calls[0].data)).toEqual({
     mobile: '+919999000001',

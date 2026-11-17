@@ -1,6 +1,6 @@
 import { profilePhotoUrl } from '@/lib/profile-photo';
 import { PortalLayout } from '@/components/portal-layout';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Toothbrush,
   WalletCards,
@@ -32,6 +32,9 @@ const NAV_ITEMS = [
 
 export function AppShell() {
   const { logout } = useAuth();
+  const { pathname } = useLocation();
+  const messagesPage =
+    pathname === '/messages' || pathname.startsWith('/messages/');
   const { data: conversations } = useGetConsultationCasesQuery(
     { page: 1 },
     { pollingInterval: 10000, skipPollingIfUnfocused: true },
@@ -45,7 +48,7 @@ export function AppShell() {
 
   return (
     <VideoCallProvider>
-      <div className="po">
+      <div className={`po ${messagesPage ? 'po-messages' : ''}`}>
         <aside className="po-side">
           <div className="row between portal-brand-row">
             <div className="brand">

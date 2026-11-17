@@ -2350,6 +2350,8 @@ components:
             dentistId: { type: string, format: uuid }
             patientName: { type: string }
             dentistName: { type: string }
+            patientProfilePhotoUrl: { type: string, nullable: true, description: Signed image path relative to the API origin }
+            dentistProfilePhotoUrl: { type: string, nullable: true, description: Signed image path relative to the API origin }
             concern: { type: string }
             serverNow: { type: string }
             canMessage: { type: boolean }

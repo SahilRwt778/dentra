@@ -2,6 +2,7 @@
 @import './styles/prototype.css';
 @import './styles/settings.css';
 @import './styles/payments.css';
+@import './styles/messages.css';
 
 .portal-brand-row {
   width: 100%;

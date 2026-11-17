@@ -1,4 +1,5 @@
 import React from 'react';
+import { TextInput } from 'react-native';
 import Renderer, { act } from 'react-test-renderer';
 import { LoginScreen } from '../src/screens/LoginScreen';
 import { Button, ErrorState, Field } from '../src/components/ui';
@@ -36,6 +37,12 @@ function verifyButton() {
     .find(button => button.props.title === 'Verify and continue')!;
 }
 
+function codeInput() {
+  return tree.root
+    .findAllByType(TextInput)
+    .find(input => input.props.accessibilityLabel === 'Verification code')!;
+}
+
 afterEach(async () => {
   await act(async () => tree?.unmount());
   jest.resetAllMocks();
@@ -44,21 +51,22 @@ afterEach(async () => {
 test('requires four digits, keeps a leading zero, and sends the code to backend verification', async () => {
   mockVerifyOtp.mockResolvedValue({});
   await requestCode();
-  expect(tree.root.findByType(Field).props.maxLength).toBe(4);
-  expect(tree.root.findByType(Field).props.placeholder).toBe('4-digit code');
+  expect(codeInput().props.textContentType).toBe('oneTimeCode');
+  expect(codeInput().props.autoComplete).toBe('sms-otp');
   expect(verifyButton().props.disabled).toBe(true);
-  await act(async () => tree.root.findByType(Field).props.onChangeText('012'));
+  await act(async () => codeInput().props.onChangeText('012'));
   expect(verifyButton().props.disabled).toBe(true);
   await act(async () => {
     await verifyButton().props.onPress();
   });
   expect(mockVerifyOtp).not.toHaveBeenCalled();
 
-  await act(async () =>
-    tree.root.findByType(Field).props.onChangeText('0a12356'),
-  );
-  expect(tree.root.findByType(Field).props.value).toBe('0123');
+  await act(async () => codeInput().props.onChangeText('0 1-2a356'));
+  expect(codeInput().props.value).toBe('0123');
   expect(verifyButton().props.disabled).toBe(false);
+  await act(async () => codeInput().props.onChangeText('012'));
+  expect(verifyButton().props.disabled).toBe(true);
+  await act(async () => codeInput().props.onChangeText('0123'));
   await act(async () => {
     await verifyButton().props.onPress();
   });
@@ -68,7 +76,7 @@ test('requires four digits, keeps a leading zero, and sends the code to backend 
 test('treats 1111 like any other code and displays a backend rejection', async () => {
   mockVerifyOtp.mockResolvedValue({ error: 'That code is incorrect.' });
   await requestCode();
-  await act(async () => tree.root.findByType(Field).props.onChangeText('1111'));
+  await act(async () => codeInput().props.onChangeText('1111'));
   await act(async () => {
     await verifyButton().props.onPress();
   });
@@ -76,4 +84,26 @@ test('treats 1111 like any other code and displays a backend rejection', async (
   expect(tree.root.findByType(ErrorState).props.message).toBe(
     'That code is incorrect.',
   );
+});
+
+test('keeps the code read-only while verification is in progress', async () => {
+  let finish!: (result: {}) => void;
+  mockVerifyOtp.mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  await requestCode();
+  await act(async () => codeInput().props.onChangeText('1234'));
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = verifyButton().props.onPress();
+  });
+  expect(codeInput().props.editable).toBe(false);
+  await act(async () => {
+    finish({});
+    await pending;
+  });
+  expect(codeInput().props.editable).toBe(true);
 });

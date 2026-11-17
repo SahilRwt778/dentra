@@ -7,10 +7,12 @@ import {
 import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '@database/database.module';
 import type { AuthenticatedUser } from '@common/decorators/current-user.decorator';
+import { ProfilePhotosService } from '@modules/identity/profile-photos/profile-photos.service';
 
 const CASE_COLUMNS = `c.*, a.concern_summary, a.concerns, a.scheduled_date, a.scheduled_time,
   a.status as original_status, t.status as payment_status, t.amount_paise,
   p.full_name as patient_name, d.full_name as dentist_name,
+  p.profile_photo_url as patient_photo, d.profile_photo_url as dentist_photo,
   (pu.status='active' and du.status='active' and d.status='verified') as participants_active,
   clock_timestamp() as server_now`;
 const CASE_JOINS = `from consultation_cases c join appointments a on a.id=c.original_appointment_id
@@ -26,6 +28,8 @@ type ConsultationCaseRow = {
   dentist_id: string;
   patient_name: string;
   dentist_name: string;
+  patient_photo: string | null;
+  dentist_photo: string | null;
   concern_summary: string;
   concerns: string[];
   activated_at: Date | null;
@@ -47,6 +51,8 @@ export type ConsultationCaseResponse = {
   dentistId: string;
   patientName: string;
   dentistName: string;
+  patientProfilePhotoUrl: string | null;
+  dentistProfilePhotoUrl: string | null;
   concern: string;
   activatedAt: string | null;
   expiresAt: string | null;
@@ -60,7 +66,10 @@ export type ConsultationCaseResponse = {
 
 @Injectable()
 export class ConsultationCasesService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly photos: ProfilePhotosService,
+  ) {}
 
   async owned(
     user: Pick<AuthenticatedUser, 'userId' | 'role'>,
@@ -161,6 +170,16 @@ export class ConsultationCasesService {
       dentistId: row.dentist_id,
       patientName: row.patient_name,
       dentistName: row.dentist_name,
+      patientProfilePhotoUrl: this.photos.url(
+        'patient',
+        row.patient_id,
+        row.patient_photo,
+      ),
+      dentistProfilePhotoUrl: this.photos.url(
+        'dentist',
+        row.dentist_id,
+        row.dentist_photo,
+      ),
       concern: row.concern_summary,
       activatedAt: row.activated_at?.toISOString() ?? null,
       expiresAt: row.expires_at?.toISOString() ?? null,

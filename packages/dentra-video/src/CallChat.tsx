@@ -21,7 +21,7 @@ import {
   type ChatClient,
   type ChatFile,
 } from '@dentra/call-core';
-import { Paperclip } from 'lucide-react-native';
+import { ArrowLeft, Paperclip } from 'lucide-react-native';
 import { ChatAttachmentMenu } from './ChatAttachmentMenu';
 import type { ChatAttachmentSource } from './pickChatFile';
 
@@ -184,6 +184,16 @@ export function CallChat({
       <SafeAreaProvider>
         <SafeAreaView style={[styles.screen, photo && styles.photoScreen]}>
           <View style={styles.header}>
+            {!photo && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                onPress={close}
+                style={styles.back}
+              >
+                <ArrowLeft size={24} color="#122B39" />
+              </Pressable>
+            )}
             <View style={styles.grow}>
               <Text
                 numberOfLines={1}
@@ -199,14 +209,16 @@ export function CallChat({
                 </Text>
               )}
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={photo ? 'Close photo' : 'Close chat'}
-              onPress={close}
-              style={styles.close}
-            >
-              <Text style={styles.white}>×</Text>
-            </Pressable>
+            {photo && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close photo"
+                onPress={close}
+                style={styles.close}
+              >
+                <Text style={styles.white}>×</Text>
+              </Pressable>
+            )}
           </View>
           {photo ? (
             <Image
@@ -385,6 +397,12 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   title: { fontSize: 21, fontWeight: '700', color: '#122B39' },
   muted: { color: '#5D707A', fontSize: 12 },
+  back: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   close: {
     backgroundColor: '#C53232',
     width: 36,
