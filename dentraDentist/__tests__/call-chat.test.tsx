@@ -1,7 +1,15 @@
 import React from 'react';
 import Renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { AppState, Image, TextInput, StyleSheet } from 'react-native';
+import {
+  AppState,
+  BackHandler,
+  Image,
+  Modal,
+  TextInput,
+  StyleSheet,
+} from 'react-native';
 import { CallChat, type NativeChatClient } from '@dentra/video/src/CallChat';
+import type { ChatPage } from '@dentra/call-core';
 
 const photo = {
   uri: 'file:///private/photo.jpg',
@@ -32,6 +40,8 @@ async function press(label: string) {
 beforeEach(async () => {
   jest.useFakeTimers();
   jest.clearAllMocks();
+  // Restoring a spy on the preset's mock also clears its subscription implementation.
+  jest.mocked(AppState.addEventListener).mockReturnValue({ remove: jest.fn() });
   await act(async () => {
     tree = Renderer.create(
       <CallChat
@@ -289,6 +299,153 @@ test('messages arriving while the phone is in the background stay unread until t
       '11',
       expect.any(AbortSignal),
     );
+  } finally {
+    listener.mockRestore();
+  }
+});
+
+test('in-call chat keeps its modal presentation', () => {
+  expect(tree.root.findAllByType(Modal)).toHaveLength(1);
+  expect(tree.root.findByType(Modal).props.animationType).toBe('slide');
+});
+
+test('a standalone conversation renders inline and its back icon returns to navigation', async () => {
+  const onClose = jest.fn();
+  await act(async () =>
+    tree.update(
+      <CallChat
+        appointmentId="visit"
+        client={client}
+        visible
+        presentation="screen"
+        title="Patient"
+        onClose={onClose}
+        onUnread={jest.fn()}
+      />,
+    ),
+  );
+  expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+  await press('Back');
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+test('loading conversation history never briefly labels an open conversation closed', async () => {
+  let finish!: (page: ChatPage) => void;
+  const pending: NativeChatClient = {
+    ...client,
+    list: jest.fn(
+      () =>
+        new Promise<ChatPage>(resolve => {
+          finish = resolve;
+        }),
+    ),
+  };
+  await act(async () =>
+    tree.update(
+      <CallChat
+        key="loading"
+        appointmentId="loading"
+        client={pending}
+        visible
+        presentation="screen"
+        subtitle="Open for follow-up"
+        onClose={jest.fn()}
+        onUnread={jest.fn()}
+      />,
+    ),
+  );
+  expect(JSON.stringify(tree.toJSON())).toContain('Loading messages');
+  expect(JSON.stringify(tree.toJSON())).not.toContain('Messaging closed');
+  expect(tree.root.findByType(TextInput).props.editable).toBe(false);
+  await act(async () => {
+    finish({ items: [], hasMore: false, canSend: true });
+  });
+  expect(JSON.stringify(tree.toJSON())).toContain('Open for follow-up');
+  expect(tree.root.findByType(TextInput).props.editable).toBe(true);
+});
+
+test('Android Back closes an inline attachment menu or photo before leaving the conversation', async () => {
+  let hardwareBack!: Parameters<typeof BackHandler.addEventListener>[1];
+  const listener = jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, callback) => {
+      hardwareBack = callback;
+      return { remove: jest.fn() };
+    });
+  const onClose = jest.fn();
+  const photos: NativeChatClient = {
+    ...client,
+    list: jest.fn(
+      async (): Promise<ChatPage> => ({
+        canSend: true,
+        hasMore: false,
+        items: [
+          {
+            id: 'photo-message',
+            sequence: '1',
+            requestId: 'photo-message',
+            text: '',
+            own: false,
+            senderRole: 'patient',
+            createdAt: '2026-11-17T10:00:00Z',
+            attachment: {
+              id: 'photo',
+              name: 'Photo.jpg',
+              mimeType: 'image/jpeg',
+              sizeBytes: 1024,
+            },
+          },
+        ],
+      }),
+    ),
+    download: jest.fn(async () => '/private/photo.jpg'),
+  };
+  try {
+    await act(async () =>
+      tree.update(
+        <CallChat
+          key="photo-screen"
+          appointmentId="photos"
+          client={photos}
+          visible
+          presentation="screen"
+          onClose={onClose}
+          onUnread={jest.fn()}
+        />,
+      ),
+    );
+    await press('Add attachment');
+    await act(async () => {
+      expect(
+        hardwareBack({ type: 'hardwareBackPress', timeStamp: Date.now() }),
+      ).toBe(true);
+    });
+    expect(
+      tree.root.findAllByProps({ testID: 'chat-attachment-options' }),
+    ).toHaveLength(0);
+    expect(JSON.stringify(tree.toJSON())).toContain('View photo');
+    const photoButton = tree.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        typeof node.props.onPress === 'function' &&
+        node.findAll(child => child.props.children === 'View photo').length > 0,
+    )[0];
+    await act(async () => {
+      await photoButton.props.onPress();
+    });
+    expect(tree.root.findByType(Image).props.source.uri).toBe(
+      'file:///private/photo.jpg',
+    );
+    await act(async () => {
+      expect(
+        hardwareBack({ type: 'hardwareBackPress', timeStamp: Date.now() }),
+      ).toBe(true);
+    });
+    expect(tree.root.findAllByType(Image)).toHaveLength(0);
+    expect(tree.root.findByType(TextInput)).toBeDefined();
+    expect(onClose).not.toHaveBeenCalled();
+    await press('Back');
+    expect(onClose).toHaveBeenCalledTimes(1);
   } finally {
     listener.mockRestore();
   }

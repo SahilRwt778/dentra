@@ -1,6 +1,19 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { GripHorizontal, Maximize2, Minimize2, PanelRightClose, X } from 'lucide-react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import {
+  GripHorizontal,
+  Maximize2,
+  Minimize2,
+  PanelRightClose,
+  X,
+} from 'lucide-react';
 import { useMovableCallWindow } from './use-movable-call-window';
+import { useCallOverlays } from './use-call-overlays';
 
 export type ConsultationPanel = {
   id: string;
@@ -35,16 +48,20 @@ export function ConsultationWorkspace({
   const workspace = useRef<HTMLElement>(null);
   const mediaWindow = useRef<HTMLDivElement>(null);
   const expanded = active && !minimized;
+  const overlays = useCallOverlays(expanded, mediaWindow);
   const floatingCall = useMovableCallWindow(mediaWindow, active && minimized);
   useEffect(() => {
     if (!expanded) return;
     const previous = document.body.style.overflow;
     const previousFocus = document.activeElement;
     document.body.style.overflow = 'hidden';
-    workspace.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    workspace.current
+      ?.querySelector<HTMLButtonElement>('[data-call-overlay-toggle]')
+      ?.focus();
     return () => {
       document.body.style.overflow = previous;
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
+        previousFocus.focus();
     };
   }, [expanded]);
   useEffect(() => {
@@ -55,7 +72,12 @@ export function ConsultationWorkspace({
   function resize(clientX: number) {
     const bounds = body.current?.getBoundingClientRect();
     if (bounds?.width)
-      setPanelWidth(Math.max(28, Math.min(65, ((bounds.right - clientX) / bounds.width) * 100)));
+      setPanelWidth(
+        Math.max(
+          28,
+          Math.min(65, ((bounds.right - clientX) / bounds.width) * 100),
+        ),
+      );
   }
   return (
     <section
@@ -72,7 +94,12 @@ export function ConsultationWorkspace({
       }
       onKeyDown={(event) => {
         // Signing dialogs sit above the workspace and retain their own keyboard navigation.
-        if (!expanded || event.key !== 'Tab' || document.querySelector('.modal-back')) return;
+        if (
+          !expanded ||
+          event.key !== 'Tab' ||
+          document.querySelector('.modal-back')
+        )
+          return;
         const controls = Array.from(
           event.currentTarget.querySelectorAll<HTMLElement>(
             'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]',
@@ -90,8 +117,24 @@ export function ConsultationWorkspace({
       }}
     >
       <div className="consult-workspace-body" ref={body}>
-        <div className="consult-media-window" ref={mediaWindow} style={floatingCall.style}>
-          <header className="consult-media-header">
+        <div
+          className="consult-media-window"
+          ref={mediaWindow}
+          style={floatingCall.style}
+          data-controls-visible={overlays.visible}
+        >
+          {expanded && (
+            <button
+              type="button"
+              className="consult-video-touch-target"
+              data-call-overlay-toggle
+              aria-label={
+                overlays.visible ? 'Hide call controls' : 'Show call controls'
+              }
+              onClick={overlays.toggle}
+            />
+          )}
+          <header className="consult-media-header" data-call-controls>
             {active && minimized ? (
               <button
                 type="button"
@@ -114,8 +157,12 @@ export function ConsultationWorkspace({
               <button
                 type="button"
                 className="btn consult-icon-button"
-                aria-label={minimized ? 'Restore full-screen call' : 'Minimize call'}
-                onClick={() => (floating ? onExpand?.() : setMinimized((value) => !value))}
+                aria-label={
+                  minimized ? 'Restore full-screen call' : 'Minimize call'
+                }
+                onClick={() =>
+                  floating ? onExpand?.() : setMinimized((value) => !value)
+                }
               >
                 {minimized ? <Maximize2 size={20} /> : <Minimize2 size={20} />}
                 <span>{minimized ? 'Expand' : 'Minimize'}</span>
@@ -152,7 +199,10 @@ export function ConsultationWorkspace({
               if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                 event.preventDefault();
                 setPanelWidth((value) =>
-                  Math.max(28, Math.min(65, value + (event.key === 'ArrowLeft' ? 2 : -2))),
+                  Math.max(
+                    28,
+                    Math.min(65, value + (event.key === 'ArrowLeft' ? 2 : -2)),
+                  ),
                 );
               }
             }}
@@ -161,7 +211,8 @@ export function ConsultationWorkspace({
               resize(event.clientX);
             }}
             onPointerMove={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) resize(event.clientX);
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                resize(event.clientX);
             }}
             onPointerUp={(event) => {
               if (event.currentTarget.hasPointerCapture(event.pointerId))
@@ -194,7 +245,9 @@ export function ConsultationWorkspace({
                 {panel.content}
               </section>
             ))}
-            {(!expanded || panelId) && <div className="consult-document-actions">{actions}</div>}
+            {(!expanded || panelId) && (
+              <div className="consult-document-actions">{actions}</div>
+            )}
           </div>
         </div>
       </div>
@@ -208,7 +261,11 @@ export function ConsultationWorkspace({
               className={`btn${panelId === panel.id ? ' btn-primary' : ''}`}
               aria-expanded={panelId === panel.id}
               aria-controls={`consult-panel-${panel.id}`}
-              onClick={() => setPanelId((current) => (current === panel.id ? null : panel.id))}
+              onClick={() =>
+                setPanelId((current) =>
+                  current === panel.id ? null : panel.id,
+                )
+              }
             >
               {panel.label}
             </button>

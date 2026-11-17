@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
+import { isFutureSlot, useAvailableSlots } from '@dentra/call-core';
 import { ScrollView, Text, View } from 'react-native';
 import { useDentistSlotsQuery } from '@/api/dentists';
 import { Button, Choice, ErrorState, Loading } from '@/components/ui';
@@ -28,16 +29,7 @@ export function SlotPicker({
     { dentistId, date, type, clinicId },
     { pollingInterval: 30000, refetchOnMountOrArgChange: true },
   );
-  const slots = useMemo(
-    () =>
-      currentData?.slots?.filter(
-        slot =>
-          !expiresAt ||
-          new Date(`${date}T${slot}:00+05:30`).getTime() <
-            new Date(expiresAt).getTime(),
-      ),
-    [currentData, expiresAt, date],
-  );
+  const slots = useAvailableSlots(date, currentData?.slots, expiresAt);
   useEffect(() => {
     if (currentData && time && !slots?.includes(time)) onTime('');
   }, [currentData, time, onTime, slots]);
@@ -82,7 +74,7 @@ export function SlotPicker({
               key={slot}
               title={formatTime(slot)}
               selected={time === slot}
-              onPress={() => onTime(slot)}
+              onPress={() => onTime(isFutureSlot(date, slot) ? slot : '')}
             />
           ))}
         </View>

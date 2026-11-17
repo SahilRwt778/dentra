@@ -611,10 +611,31 @@ test('cancellation or rescheduling closes a connected minimized call', async () 
   expect(text()).toContain('no longer available');
 });
 
-test('full-screen controls hide after four seconds and tapping the video reveals them', async () => {
+test('full-screen controls hide after four seconds and video taps toggle both overlays without reconnecting', async () => {
   jest.useFakeTimers({ doNotFake: ['setImmediate'] });
   await mount();
   await join();
+  const room = rooms()[0];
+  async function tapVideo() {
+    await act(async () => {
+      tree.root
+        .findAll(
+          node =>
+            node.props.testID === 'video-touch-target' &&
+            typeof node.props.onPress === 'function',
+        )[0]
+        .props.onPress();
+      await flush();
+    });
+  }
+  await tapVideo();
+  expect(
+    tree.root.findAllByProps({ testID: 'video-call-controls' }),
+  ).toHaveLength(0);
+  expect(
+    tree.root.findAllByProps({ testID: 'video-top-overlay' }),
+  ).toHaveLength(0);
+  await tapVideo();
   expect(
     tree.root.findAllByProps({ testID: 'video-call-controls' }).length,
   ).toBeGreaterThan(0);
@@ -638,6 +659,26 @@ test('full-screen controls hide after four seconds and tapping the video reveals
   expect(
     tree.root.findAllByProps({ testID: 'video-call-controls' }).length,
   ).toBeGreaterThan(0);
+  expect(rooms()[0]).toBe(room);
+  expect(mockRoomUnmount).not.toHaveBeenCalled();
+});
+
+test('remote and self-preview videos show the entire camera frame without cropping', async () => {
+  mockTracks = [
+    {
+      participant: { identity: 'dentist', isLocal: true },
+      publication: { isMuted: false },
+    },
+    {
+      participant: { identity: 'patient', isLocal: false },
+      publication: { isMuted: false },
+    },
+  ];
+  await mount();
+  await join();
+  const videos = tree.root.findAllByType(MockVideo);
+  expect(videos).toHaveLength(2);
+  expect(videos.every(frame => frame.props.contain)).toBe(true);
 });
 
 test('controls stay visible for screen readers', async () => {

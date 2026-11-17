@@ -844,6 +844,8 @@ export type PatientRegistration = {
   guardianConsent?: boolean;
 };
 export type PatientUpdate = {
+  /** Remove the current photo when saving; omit to keep it. Cannot be combined with a profilePhoto upload. */
+  removeProfilePhoto?: boolean;
   fullName?: string;
   email?: string;
   city?: string;

@@ -28,8 +28,9 @@ export class PatientsController {
   }
 
   @Patch('me')
-  update(@CurrentUser() user: AuthenticatedUser, @Body() dto: PatientUpdateDto) {
-    return this.patients.update(user.userId, dto);
+  @UseInterceptors(FileInterceptor('profilePhoto', { limits: { fileSize: MAX_PROFILE_PHOTO_BYTES, files: 1, fields: 1 } }), ProfilePhotoFormInterceptor)
+  update(@CurrentUser() user: AuthenticatedUser, @Body() dto: PatientUpdateDto, @UploadedFile() photo?: Express.Multer.File) {
+    return this.patients.update(user.userId, dto, photo);
   }
 
   @Get('me/chart')

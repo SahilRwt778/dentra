@@ -246,6 +246,7 @@ afterEach(async () => {
   state.cleanup();
   await session.clear();
   jest.restoreAllMocks();
+  jest.useRealTimers();
 });
 
 test("arrival is limited to today's booked clinic visit and updates the appointment through Axios/Redux", async () => {
@@ -446,6 +447,8 @@ test('a pending action locks other appointment controls and ignores rapid duplic
 test.each(['clinic', 'video'] as const)(
   'a future %s appointment can be rescheduled to an available slot today',
   async type => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'queueMicrotask'] });
+    jest.setSystemTime(new Date(`${dateKey()}T09:00:00+05:30`));
     appointment = {
       ...appointment,
       type,
@@ -455,6 +458,7 @@ test.each(['clinic', 'video'] as const)(
     const today = dateKey();
     slots.set(today, ['15:00']);
     await mount(true);
+    expect(text()).toContain('New time');
     await press(`Today, ${formatDate(today)}`);
     expect(slotRequests.at(-1)).toEqual({
       date: today,
@@ -476,6 +480,33 @@ test.each(['clinic', 'video'] as const)(
     expect(text()).toContain('Appointment rescheduled');
   },
 );
+
+test('elapsed cached slots disappear and a selected time expires without another availability response', async () => {
+  const today = dateKey();
+  jest.useFakeTimers({ doNotFake: ['setImmediate', 'queueMicrotask'] });
+  jest.setSystemTime(new Date(`${today}T14:59:59+05:30`));
+  slots.set(today, ['14:50', '15:00', '15:10']);
+  await mount(true);
+  expect(text()).toContain('New time');
+  await selectDate(today);
+  expect(
+    tree.root.findAllByProps({ accessibilityLabel: 'New time 2:50 PM' }),
+  ).toHaveLength(0);
+  await press('New time 3:00 PM');
+  const confirm = button('Confirm new time')!.props.onPress;
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  expect(
+    tree.root.findAllByProps({ accessibilityLabel: 'New time 3:00 PM' }),
+  ).toHaveLength(0);
+  expect(button('Confirm new time')!.props.disabled).toBe(true);
+  await act(async () => {
+    await confirm();
+  });
+  expect(writes).toHaveLength(0);
+  expect(text()).toContain('That time has passed.');
+});
 
 test('rescheduling uses clinic availability, clears the old time when the day changes, and preserves payment', async () => {
   const original = { ...appointment };

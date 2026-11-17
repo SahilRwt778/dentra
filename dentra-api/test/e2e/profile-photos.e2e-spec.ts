@@ -115,6 +115,113 @@ describe('Registration profile photos (e2e)', () => {
     expect(result.body.profilePhotoUrl).toBeNull();
   });
 
+  it('lets a registered patient add, replace and remove their own photo without losing profile details', async () => {
+    const owner = await account();
+    await request(app.getHttpServer())
+      .post('/patients/register')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send(patientDetails)
+      .expect(201);
+    const first = await request(app.getHttpServer())
+      .patch('/patients/me')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .field('details', JSON.stringify({ city: 'Updated City' }))
+      .attach('profilePhoto', png, 'profile.png')
+      .expect(200);
+    expect(first.body.city).toBe('Updated City');
+    expect(first.body.fullName).toBe(patientDetails.fullName);
+    await request(app.getHttpServer())
+      .get(first.body.profilePhotoUrl)
+      .expect(200);
+
+    const second = await request(app.getHttpServer())
+      .patch('/patients/me')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .field('details', '{}')
+      .attach('profilePhoto', png, 'replacement.png')
+      .expect(200);
+    await request(app.getHttpServer())
+      .get(first.body.profilePhotoUrl)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(second.body.profilePhotoUrl)
+      .expect(200);
+
+    const ordinary = await request(app.getHttpServer())
+      .patch('/patients/me')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ allergies: 'None' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get(ordinary.body.profilePhotoUrl)
+      .expect(200);
+    const removed = await request(app.getHttpServer())
+      .patch('/patients/me')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ removeProfilePhoto: true })
+      .expect(200);
+    expect(removed.body.profilePhotoUrl).toBeNull();
+    expect(removed.body.allergies).toBe('None');
+    expect(removed.body.city).toBe('Updated City');
+    await request(app.getHttpServer())
+      .get(second.body.profilePhotoUrl)
+      .expect(404);
+  });
+
+  it('preserves the patient photo and details on invalid uploads and enforces account ownership', async () => {
+    const owner = await account();
+    const created = await register(owner.token).expect(201);
+    const patch = () =>
+      request(app.getHttpServer())
+        .patch('/patients/me')
+        .set('Authorization', `Bearer ${owner.token}`);
+    await patch()
+      .field('details', JSON.stringify({ fullName: 'Should not save' }))
+      .attach(
+        'profilePhoto',
+        Buffer.from('%PDF-1.4\nnot an avatar'),
+        'report.pdf',
+      )
+      .expect(400);
+    await patch()
+      .field('details', '{}')
+      .attach('profilePhoto', Buffer.alloc(5 * 1024 * 1024 + 1), 'large.png')
+      .expect(413);
+    await patch()
+      .field('details', '{bad json')
+      .attach('profilePhoto', png, 'profile.png')
+      .expect(400);
+    await patch()
+      .field('details', JSON.stringify({ removeProfilePhoto: true }))
+      .attach('profilePhoto', png, 'profile.png')
+      .expect(400);
+    const unchanged = await request(app.getHttpServer())
+      .get('/patients/me')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .expect(200);
+    expect(unchanged.body.fullName).toBe(patientDetails.fullName);
+    await request(app.getHttpServer())
+      .get(created.body.profilePhotoUrl)
+      .expect(200);
+
+    const other = await account();
+    await register(other.token).expect(201);
+    await request(app.getHttpServer())
+      .patch('/patients/me')
+      .set('Authorization', `Bearer ${other.token}`)
+      .send({ removeProfilePhoto: true, userId: owner.id })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get(created.body.profilePhotoUrl)
+      .expect(200);
+    const dentist = await account('dentist');
+    await request(app.getHttpServer())
+      .patch('/patients/me')
+      .set('Authorization', `Bearer ${dentist.token}`)
+      .send({ removeProfilePhoto: true })
+      .expect(403);
+  });
+
   it('rejects invalid images, oversized files and malformed details before creating a profile', async () => {
     const owner = await account();
     await register(owner.token, Buffer.from('<svg>not a photo</svg>')).expect(

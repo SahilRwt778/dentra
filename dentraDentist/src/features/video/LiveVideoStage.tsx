@@ -59,7 +59,7 @@ export function LiveVideoStage({
   const displayTile = meeting.remoteScreenTrack ?? remoteCameraTrack;
   const sharing = !!meeting.screenSharing;
   const [frontCamera, setFrontCamera] = useState(true);
-  const controls = useCallControls(minimized, report);
+  const controls = useCallControls(minimized, report, chatOpen || systemPip);
   const heading =
     connection === 'reconnecting'
       ? 'Reconnecting…'
@@ -114,7 +114,7 @@ export function LiveVideoStage({
         {(Platform.OS === 'ios' || displayTile != null) && (
           <sdk.VideoView
             track={displayTile}
-            contain={meeting.remoteScreenTrack != null}
+            contain
             pipEnabled
             style={styles.fill}
           />
@@ -157,6 +157,7 @@ export function LiveVideoStage({
           <sdk.VideoView
             track={localCameraTrack}
             mirror={frontCamera}
+            contain
             style={styles.fill}
           />
         ) : (
@@ -167,18 +168,24 @@ export function LiveVideoStage({
         <Text style={styles.you}>You</Text>
       </View>
       <Pressable
-        disabled={systemPip}
+        disabled={systemPip || (!minimized && controls.screenReader)}
+        accessible={minimized || !controls.screenReader}
         testID="video-touch-target"
         style={styles.tapTarget}
         accessibilityRole="button"
         accessibilityLabel={
-          minimized ? 'Restore full-screen call' : 'Show call controls'
+          minimized
+            ? 'Restore full-screen call'
+            : controls.visible
+            ? 'Hide call controls'
+            : 'Show call controls'
         }
-        onPress={minimized ? expand : controls.reveal}
+        onPress={minimized ? expand : controls.toggle}
       />
       {controls.visible && !minimized && !systemPip && (
         <>
           <View
+            pointerEvents="box-none"
             testID="video-top-overlay"
             style={[
               styles.topOverlay,
@@ -238,6 +245,7 @@ export function LiveVideoStage({
             )}
           </View>
           <View
+            pointerEvents="box-none"
             testID="video-call-controls"
             onLayout={event => {
               if (!minimized) setFooterHeight(event.nativeEvent.layout.height);
@@ -252,7 +260,10 @@ export function LiveVideoStage({
               minimized && styles.miniFooter,
             ]}
           >
-            <View style={[styles.controls, minimized && styles.miniControls]}>
+            <View
+              pointerEvents="box-none"
+              style={[styles.controls, minimized && styles.miniControls]}
+            >
               <CallControl
                 compact={minimized}
                 label={

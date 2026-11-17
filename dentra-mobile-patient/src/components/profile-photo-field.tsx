@@ -18,20 +18,23 @@ export type ProfilePhoto = {
   size?: number;
 };
 
-/** Selection stays local until the registration form is submitted. */
+/** Selection and removal stay local until the parent form is saved. */
 export function ProfilePhotoField({
   value,
   onChange,
   disabled = false,
   existingUrl,
+  onRemoveExisting,
 }: {
   value: ProfilePhoto | null;
   onChange: (photo: ProfilePhoto | null) => void;
   disabled?: boolean;
   existingUrl?: string | null;
+  onRemoveExisting?: () => void;
 }) {
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string>();
+  const [failedUri, setFailedUri] = useState<string>();
   const lock = useRef(false);
   async function choose(source: 'camera' | 'gallery') {
     if (disabled || lock.current) return;
@@ -110,22 +113,26 @@ export function ProfilePhotoField({
       <Text style={styles.label}>Profile photo (optional)</Text>
       <View style={styles.row}>
         <View style={styles.preview}>
-          {uri ? (
+          {uri && uri !== failedUri ? (
             <Image
               source={{ uri }}
               style={styles.image}
               accessibilityLabel="Profile photo preview"
+              onError={() => setFailedUri(uri)}
             />
           ) : (
             <UserRound size={36} color="#0D7870" />
           )}
-          {value && (
+          {(value || (existingUrl && onRemoveExisting)) && (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Remove selected profile photo"
+              accessibilityLabel={
+                value ? 'Remove selected profile photo' : 'Remove profile photo'
+              }
               disabled={disabled || picking}
               onPress={() => {
-                onChange(null);
+                if (value) onChange(null);
+                else onRemoveExisting?.();
                 setError(undefined);
               }}
               style={styles.remove}

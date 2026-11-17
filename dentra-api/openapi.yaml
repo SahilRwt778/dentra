@@ -635,12 +635,24 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
     patch:
       tags: [Patients]
-      summary: Update my profile or medical history
+      summary: Update my profile, photo, or medical history
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/PatientUpdate" }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [details]
+              properties:
+                details:
+                  type: string
+                  description: JSON-encoded PatientUpdate object; do not combine removeProfilePhoto with a new image.
+                profilePhoto:
+                  type: string
+                  format: binary
+                  description: JPEG/PNG profile photo, up to 5 MB. Existing photo is kept until the update commits.
       responses:
         "200":
           description: Updated
@@ -2605,6 +2617,9 @@ components:
     PatientUpdate:
       type: object
       properties:
+        removeProfilePhoto:
+          type: boolean
+          description: Remove the current photo when saving; omit to keep it. Cannot be combined with a profilePhoto upload.
         fullName: { type: string }
         email: { type: string, format: email }
         city: { type: string }

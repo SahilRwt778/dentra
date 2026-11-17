@@ -2,6 +2,7 @@ import { useAppActive } from './useAppActive';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -49,6 +50,7 @@ export function CallChat({
   callCamera,
   title = 'Consultation chat',
   subtitle,
+  presentation = 'modal',
 }: {
   appointmentId: string;
   client: NativeChatClient;
@@ -57,6 +59,7 @@ export function CallChat({
   onUnread(count: number): void;
   title?: string;
   subtitle?: string;
+  presentation?: 'modal' | 'screen';
   callCamera?: {
     enabled: boolean;
     setEnabled(enabled: boolean): Promise<void>;
@@ -97,6 +100,19 @@ export function CallChat({
       setAttachmentsOpen(false);
     }
   }, [visible]);
+  useEffect(() => {
+    if (presentation !== 'screen' || !visible || (!photo && !attachmentsOpen))
+      return;
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        setPhoto(undefined);
+        setAttachmentsOpen(false);
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [presentation, visible, photo, attachmentsOpen]);
 
   function edit(value: string) {
     setText(value);
@@ -174,6 +190,210 @@ export function CallChat({
     else onClose();
   }
 
+  const content = (
+    <SafeAreaView style={[styles.screen, photo && styles.photoScreen]}>
+      <View style={styles.header}>
+        {!photo && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={close}
+            style={styles.back}
+          >
+            <ArrowLeft size={24} color="#122B39" />
+          </Pressable>
+        )}
+        <View style={styles.grow}>
+          <Text numberOfLines={1} style={[styles.title, photo && styles.white]}>
+            {photo?.name ?? title}
+          </Text>
+          {!photo && (
+            <Text style={styles.muted}>
+              {chat.loading
+                ? 'Loading messages…'
+                : !chat.canSend
+                ? 'Messaging closed · History available'
+                : subtitle ?? 'Private consultation messages'}
+            </Text>
+          )}
+        </View>
+        {photo && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close photo"
+            onPress={close}
+            style={styles.close}
+          >
+            <Text style={styles.white}>×</Text>
+          </Pressable>
+        )}
+      </View>
+      {photo ? (
+        <Image
+          source={{ uri: fileUri(photo.path) }}
+          resizeMode="contain"
+          style={styles.photo}
+        />
+      ) : (
+        <KeyboardAvoidingView
+          style={styles.grow}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView
+            ref={scroll}
+            contentContainerStyle={styles.messages}
+            keyboardShouldPersistTaps="handled"
+          >
+            {chat.hasOlder && (
+              <Pressable onPress={chat.older} accessibilityRole="button">
+                <Text style={styles.link}>Earlier messages</Text>
+              </Pressable>
+            )}
+            {chat.loading && <ActivityIndicator color="#0D7870" />}
+            {!chat.loading && !chat.items.length && (
+              <Text style={styles.muted}>
+                Messages, photos and PDF reports shared for this consultation
+                appear here.
+              </Text>
+            )}
+            {chat.items.map((item) => (
+              <View
+                key={item.id}
+                style={[styles.bubble, item.own ? styles.own : styles.other]}
+              >
+                <Text style={styles.sender}>
+                  {item.own
+                    ? 'You'
+                    : item.senderRole === 'dentist'
+                    ? 'Dentist'
+                    : 'Patient'}
+                </Text>
+                {!!item.text && (
+                  <Text selectable style={styles.body}>
+                    {item.text}
+                  </Text>
+                )}
+                {item.attachment && (
+                  <Pressable
+                    onPress={() => open(item.attachment!)}
+                    disabled={!!opening}
+                    accessibilityRole="button"
+                    style={styles.file}
+                  >
+                    <Text style={styles.link}>
+                      {opening === item.id
+                        ? 'Opening…'
+                        : item.attachment.mimeType.startsWith('image/')
+                        ? 'View photo'
+                        : 'Open PDF'}
+                    </Text>
+                    <Text numberOfLines={2} style={styles.muted}>
+                      {item.attachment.name} ·{' '}
+                      {Math.ceil(item.attachment.sizeBytes / 1024)} KB
+                    </Text>
+                  </Pressable>
+                )}
+                <Text style={styles.time}>
+                  {new Date(item.createdAt).toLocaleTimeString(undefined, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+          {!!(notice || chat.error) && (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {notice || chat.error}
+            </Text>
+          )}
+          <View style={styles.composer}>
+            {attachmentsOpen && (
+              <ChatAttachmentMenu
+                onSelect={pick}
+                onClose={() => setAttachmentsOpen(false)}
+              />
+            )}
+            {file && (
+              <View style={styles.preview}>
+                {file.type.startsWith('image/') ? (
+                  <Image
+                    source={{ uri: file.uri }}
+                    resizeMode="cover"
+                    style={styles.thumbnail}
+                  />
+                ) : (
+                  <Text style={styles.link}>PDF</Text>
+                )}
+                <Text numberOfLines={2} style={styles.grow}>
+                  {file.name}
+                </Text>
+                <Pressable
+                  accessibilityLabel="Remove attachment"
+                  accessibilityRole="button"
+                  disabled={chat.sending}
+                  onPress={() => {
+                    setFile(undefined);
+                    setRequestId(client.requestId());
+                  }}
+                  style={styles.close}
+                >
+                  <Text style={styles.white}>×</Text>
+                </Pressable>
+              </View>
+            )}
+            <View style={styles.actions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add attachment"
+                accessibilityState={{ expanded: attachmentsOpen }}
+                disabled={!chat.canSend || chat.sending || picking}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setAttachmentsOpen((value) => !value);
+                }}
+                style={styles.attach}
+              >
+                {picking ? (
+                  <ActivityIndicator color="#0D7870" />
+                ) : (
+                  <Paperclip size={23} color="#0D7870" />
+                )}
+              </Pressable>
+              <TextInput
+                accessibilityLabel="Chat message"
+                placeholder="Write a message…"
+                value={text}
+                onChangeText={edit}
+                onFocus={() => setAttachmentsOpen(false)}
+                editable={chat.canSend && !chat.sending}
+                multiline
+                maxLength={4000}
+                style={styles.input}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Send chat message"
+                disabled={
+                  !chat.canSend ||
+                  chat.sending ||
+                  picking ||
+                  (!text.trim() && !file)
+                }
+                onPress={send}
+                style={styles.send}
+              >
+                <Text style={styles.white}>
+                  {chat.sending ? 'Sending…' : 'Send'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      )}
+    </SafeAreaView>
+  );
+  if (presentation === 'screen') return content;
   return (
     <Modal
       visible={visible}
@@ -181,213 +401,7 @@ export function CallChat({
       onRequestClose={close}
       presentationStyle="fullScreen"
     >
-      <SafeAreaProvider>
-        <SafeAreaView style={[styles.screen, photo && styles.photoScreen]}>
-          <View style={styles.header}>
-            {!photo && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Back"
-                onPress={close}
-                style={styles.back}
-              >
-                <ArrowLeft size={24} color="#122B39" />
-              </Pressable>
-            )}
-            <View style={styles.grow}>
-              <Text
-                numberOfLines={1}
-                style={[styles.title, photo && styles.white]}
-              >
-                {photo?.name ?? title}
-              </Text>
-              {!photo && (
-                <Text style={styles.muted}>
-                  {!chat.canSend
-                    ? 'Messaging closed · History available'
-                    : subtitle ?? 'Private consultation messages'}
-                </Text>
-              )}
-            </View>
-            {photo && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close photo"
-                onPress={close}
-                style={styles.close}
-              >
-                <Text style={styles.white}>×</Text>
-              </Pressable>
-            )}
-          </View>
-          {photo ? (
-            <Image
-              source={{ uri: fileUri(photo.path) }}
-              resizeMode="contain"
-              style={styles.photo}
-            />
-          ) : (
-            <KeyboardAvoidingView
-              style={styles.grow}
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-              <ScrollView
-                ref={scroll}
-                contentContainerStyle={styles.messages}
-                keyboardShouldPersistTaps="handled"
-              >
-                {chat.hasOlder && (
-                  <Pressable onPress={chat.older} accessibilityRole="button">
-                    <Text style={styles.link}>Earlier messages</Text>
-                  </Pressable>
-                )}
-                {chat.loading && <ActivityIndicator color="#0D7870" />}
-                {!chat.loading && !chat.items.length && (
-                  <Text style={styles.muted}>
-                    Messages, photos and PDF reports shared for this
-                    consultation appear here.
-                  </Text>
-                )}
-                {chat.items.map((item) => (
-                  <View
-                    key={item.id}
-                    style={[
-                      styles.bubble,
-                      item.own ? styles.own : styles.other,
-                    ]}
-                  >
-                    <Text style={styles.sender}>
-                      {item.own
-                        ? 'You'
-                        : item.senderRole === 'dentist'
-                        ? 'Dentist'
-                        : 'Patient'}
-                    </Text>
-                    {!!item.text && (
-                      <Text selectable style={styles.body}>
-                        {item.text}
-                      </Text>
-                    )}
-                    {item.attachment && (
-                      <Pressable
-                        onPress={() => open(item.attachment!)}
-                        disabled={!!opening}
-                        accessibilityRole="button"
-                        style={styles.file}
-                      >
-                        <Text style={styles.link}>
-                          {opening === item.id
-                            ? 'Opening…'
-                            : item.attachment.mimeType.startsWith('image/')
-                            ? 'View photo'
-                            : 'Open PDF'}
-                        </Text>
-                        <Text numberOfLines={2} style={styles.muted}>
-                          {item.attachment.name} ·{' '}
-                          {Math.ceil(item.attachment.sizeBytes / 1024)} KB
-                        </Text>
-                      </Pressable>
-                    )}
-                    <Text style={styles.time}>
-                      {new Date(item.createdAt).toLocaleTimeString(undefined, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-              {!!(notice || chat.error) && (
-                <Text accessibilityRole="alert" style={styles.error}>
-                  {notice || chat.error}
-                </Text>
-              )}
-              <View style={styles.composer}>
-                {attachmentsOpen && (
-                  <ChatAttachmentMenu
-                    onSelect={pick}
-                    onClose={() => setAttachmentsOpen(false)}
-                  />
-                )}
-                {file && (
-                  <View style={styles.preview}>
-                    {file.type.startsWith('image/') ? (
-                      <Image
-                        source={{ uri: file.uri }}
-                        resizeMode="cover"
-                        style={styles.thumbnail}
-                      />
-                    ) : (
-                      <Text style={styles.link}>PDF</Text>
-                    )}
-                    <Text numberOfLines={2} style={styles.grow}>
-                      {file.name}
-                    </Text>
-                    <Pressable
-                      accessibilityLabel="Remove attachment"
-                      accessibilityRole="button"
-                      disabled={chat.sending}
-                      onPress={() => {
-                        setFile(undefined);
-                        setRequestId(client.requestId());
-                      }}
-                      style={styles.close}
-                    >
-                      <Text style={styles.white}>×</Text>
-                    </Pressable>
-                  </View>
-                )}
-                <View style={styles.actions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Add attachment"
-                    accessibilityState={{ expanded: attachmentsOpen }}
-                    disabled={!chat.canSend || chat.sending || picking}
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setAttachmentsOpen((value) => !value);
-                    }}
-                    style={styles.attach}
-                  >
-                    {picking ? (
-                      <ActivityIndicator color="#0D7870" />
-                    ) : (
-                      <Paperclip size={23} color="#0D7870" />
-                    )}
-                  </Pressable>
-                  <TextInput
-                    accessibilityLabel="Chat message"
-                    placeholder="Write a message…"
-                    value={text}
-                    onChangeText={edit}
-                    onFocus={() => setAttachmentsOpen(false)}
-                    editable={chat.canSend && !chat.sending}
-                    multiline
-                    maxLength={4000}
-                    style={styles.input}
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Send chat message"
-                    disabled={
-                      !chat.canSend ||
-                      chat.sending ||
-                      picking ||
-                      (!text.trim() && !file)
-                    }
-                    onPress={send}
-                    style={styles.send}
-                  >
-                    <Text style={styles.white}>
-                      {chat.sending ? 'Sending…' : 'Send'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            </KeyboardAvoidingView>
-          )}
-        </SafeAreaView>
-      </SafeAreaProvider>
+      <SafeAreaProvider>{content}</SafeAreaProvider>
     </Modal>
   );
 }

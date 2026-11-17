@@ -246,12 +246,33 @@ function NativeCall({
   const showControls =
     !systemPip && !minimized && (controlsVisible || screenReader);
   useEffect(() => {
-    if (minimized || !controlsVisible || screenReader || busy) return;
+    if (
+      minimized ||
+      systemPip ||
+      chatOpen ||
+      !controlsVisible ||
+      screenReader ||
+      busy
+    )
+      return;
     const timer = setTimeout(() => setControlsVisible(false), 4000);
     return () => clearTimeout(timer);
-  }, [minimized, controlsVisible, screenReader, busy, activity]);
+  }, [
+    minimized,
+    systemPip,
+    chatOpen,
+    controlsVisible,
+    screenReader,
+    busy,
+    activity,
+  ]);
   function revealControls() {
     setControlsVisible(true);
+    setActivity(value => value + 1);
+  }
+  function toggleControls() {
+    if (screenReader) return;
+    setControlsVisible(value => !value);
     setActivity(value => value + 1);
   }
   function change(...args: Parameters<typeof media.change>) {
@@ -292,7 +313,7 @@ function NativeCall({
         {(Platform.OS === 'ios' || hasRemoteVideo) && (
           <sdk.VideoView
             track={displayTile}
-            contain={meeting.remoteScreenTrack != null}
+            contain
             pipEnabled
             style={s.fill}
           />
@@ -331,6 +352,7 @@ function NativeCall({
           <sdk.VideoView
             track={localCameraTrack}
             mirror={front}
+            contain
             style={s.fill}
           />
         ) : (
@@ -342,13 +364,18 @@ function NativeCall({
       </View>
       <Pressable
         testID="call-video-touch-target"
-        disabled={systemPip}
+        disabled={systemPip || (!minimized && screenReader)}
+        accessible={minimized || !screenReader}
         style={s.tapTarget}
         accessibilityRole="button"
         accessibilityLabel={
-          minimized ? 'Restore full-screen call' : 'Show call controls'
+          minimized
+            ? 'Restore full-screen call'
+            : showControls
+            ? 'Hide call controls'
+            : 'Show call controls'
         }
-        onPress={minimized ? expand : revealControls}
+        onPress={minimized ? expand : toggleControls}
       />
       {showControls && (
         <View
@@ -400,6 +427,7 @@ function NativeCall({
       )}
       {showControls && (
         <View
+          pointerEvents="box-none"
           testID="call-controls"
           onLayout={event => {
             if (!minimized) setFooterHeight(event.nativeEvent.layout.height);
@@ -414,7 +442,10 @@ function NativeCall({
             minimized && s.miniCallFooter,
           ]}
         >
-          <View style={[s.controls, minimized && s.miniControls]}>
+          <View
+            pointerEvents="box-none"
+            style={[s.controls, minimized && s.miniControls]}
+          >
             <Control
               compact={minimized}
               label={

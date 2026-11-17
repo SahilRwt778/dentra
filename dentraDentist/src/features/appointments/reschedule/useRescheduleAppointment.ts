@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { isFutureSlot, useAvailableSlots } from '@dentra/call-core';
 import { Alert } from 'react-native';
 import { useIsFocused, usePreventRemove } from '@react-navigation/native';
 import type { Appointment } from '../../../common/types/api';
@@ -54,6 +55,7 @@ export function useRescheduleAppointment(
     },
     { skip: !ready || !booked || !!saved },
   );
+  const availableTimes = useAvailableSlots(date, slots.currentData?.slots);
   useForegroundRefresh(
     slots.refetch,
     focused && ready && booked && !saved,
@@ -68,18 +70,18 @@ export function useRescheduleAppointment(
 
   useEffect(() => {
     if (busy || saved || !time || !slots.currentData || slots.error) return;
-    if (!slots.currentData.slots.includes(time)) {
+    if (!availableTimes?.includes(time)) {
       setTime('');
       setError(
         'The selected time is no longer available. Choose another time.',
       );
     }
-  }, [busy, saved, time, slots.currentData, slots.error]);
+  }, [busy, saved, time, availableTimes, slots.currentData, slots.error]);
 
   const validTime =
     !!time &&
     slots.currentData?.date === date &&
-    slots.currentData.slots.includes(time);
+    availableTimes?.includes(time);
   const canSave =
     booked &&
     ready &&
@@ -102,7 +104,8 @@ export function useRescheduleAppointment(
       slots.isFetching ||
       slots.error ||
       saved ||
-      !slots.currentData?.slots.includes(value)
+      !availableTimes?.includes(value) ||
+      !isFutureSlot(date, value)
     )
       return;
     setTime(value);
@@ -124,6 +127,11 @@ export function useRescheduleAppointment(
   }
   async function confirm() {
     if (lock.current || !canSave) return;
+    if (!isFutureSlot(date, time)) {
+      setTime('');
+      setError('That time has passed. Choose another time.');
+      return;
+    }
     lock.current = true;
     setBusy(true);
     setError(null);
@@ -178,7 +186,10 @@ export function useRescheduleAppointment(
     ready,
     booked,
     canSave,
-    slots: slots.currentData,
+    slots: slots.currentData && {
+      ...slots.currentData,
+      slots: availableTimes ?? [],
+    },
     loadingSlots: slots.isFetching,
     slotsError: slots.error ? errorMessage(slots.error) : null,
     reloadSlots: slots.refetch,

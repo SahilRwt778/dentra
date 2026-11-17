@@ -1,0 +1,68 @@
+/* Controls overlay the media so hiding them never resizes the video frame. */
+.is-expanded .consult-media-window {
+  position: relative;
+  min-height: 0;
+}
+
+.consult-video-touch-target {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.consult-video-touch-target:focus-visible {
+  outline: 2px solid #85d6cf;
+  outline-offset: -4px;
+}
+
+.is-expanded .consult-media-header {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 3;
+  background: linear-gradient(#102b39ed, #102b3980);
+  pointer-events: none;
+}
+
+.is-expanded .consult-call {
+  position: relative;
+}
+
+.is-expanded .consult-call-bottom {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  padding-top: 16px;
+  background: linear-gradient(transparent, #102b39ed);
+  pointer-events: none;
+}
+
+.is-expanded .consult-media-header button,
+.is-expanded .consult-call-bottom button {
+  pointer-events: auto;
+}
+
+.is-expanded .consult-call-self {
+  bottom: calc(var(--consult-controls-height, 120px) + 12px);
+  pointer-events: none;
+}
+
+.is-expanded
+  .consult-media-window[data-controls-visible="false"]
+  .consult-media-header,
+.is-expanded
+  .consult-media-window[data-controls-visible="false"]
+  .consult-call-bottom {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.is-expanded
+  .consult-media-window[data-controls-visible="false"]
+  .consult-call-self {
+  bottom: 12px;
+}

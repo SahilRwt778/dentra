@@ -48,7 +48,7 @@ export function OtpInput({
             </View>
           ))}
         </View>
-        {/* One native input keeps paste, SMS autofill and deletion together. */}
+        {/* Hide the input layer itself; only the four digit labels are visible. */}
         <TextInput
           testID={testID}
           accessibilityLabel={label}
@@ -68,6 +68,7 @@ export function OtpInput({
           selection={{ start: value.length, end: value.length }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          selectionColor="transparent"
           underlineColorAndroid="transparent"
           style={styles.input}
         />
@@ -77,13 +78,14 @@ export function OtpInput({
 }
 
 const styles = StyleSheet.create({
-  row: { maxWidth: 292, width: '100%' },
+  row: { width: '100%' },
   boxes: { flexDirection: 'row', gap: 12 },
   box: {
     flex: 1,
+    minWidth: 0,
     minHeight: 64,
     paddingVertical: 8,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.line,
     borderRadius: 13,
     backgroundColor: colors.surface,
@@ -91,13 +93,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   active: {
-    borderWidth: 2,
     borderColor: colors.accent,
     backgroundColor: colors.accentSoft,
   },
-  digit: { fontSize: 28, fontWeight: '600', color: colors.ink },
+  digit: {
+    fontSize: 28,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    color: colors.ink,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
   input: {
     ...StyleSheet.absoluteFill,
+    opacity: 0,
     color: 'transparent',
     backgroundColor: 'transparent',
     fontSize: 28,

@@ -23,6 +23,7 @@ export function ChatScreen({ route, navigation }: PatientScreenProps<'Chat'>) {
   return (
     <CallChat
       key={item.id}
+      presentation="screen"
       appointmentId={item.originalAppointmentId}
       client={callChat}
       visible={focused}

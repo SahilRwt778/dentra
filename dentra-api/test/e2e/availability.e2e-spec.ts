@@ -104,6 +104,54 @@ describe('Weekly availability and time off (e2e)', () => {
     idempotencyKey: randomUUID(),
   });
 
+  it('filters passed India-time slots on a UTC server and rejects booking or rescheduling into them', async () => {
+    const dentist = await actor('dentist');
+    const patient = await actor('patient');
+    await pool.query(
+      "update dentists set video_hours_from='00:00',video_hours_to='23:59' where user_id=$1",
+      [dentist.id],
+    );
+    await pool.query(
+      "update dentist_clinics set hours_from='00:00',hours_to='23:59' where id=$1",
+      [dentist.clinicId],
+    );
+    const indiaNow = new Date(Date.now() + 330 * 60000);
+    const today = indiaNow.toISOString().slice(0, 10);
+    const past = `${String(indiaNow.getUTCHours()).padStart(2, '0')}:${String(
+      Math.floor(indiaNow.getUTCMinutes() / 10) * 10,
+    ).padStart(2, '0')}`;
+    for (const type of ['clinic', 'video']) {
+      const checkedAt = Date.now();
+      const result = await slots(dentist, type, today).expect(200);
+      expect(result.body.slots).not.toContain(past);
+      expect(
+        result.body.slots.every(
+          (time: string) => Date.parse(`${today}T${time}:00+05:30`) > checkedAt,
+        ),
+      ).toBe(true);
+    }
+    const rejected = await post(
+      patient,
+      '/appointments',
+      booking(dentist, today, past),
+    ).expect(400);
+    expect(rejected.body.message).toContain('already passed');
+    const tomorrow = new Date(indiaNow.getTime() + 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const visit = await post(
+      patient,
+      '/appointments',
+      booking(dentist, tomorrow),
+    ).expect(201);
+    const moved = await post(
+      dentist,
+      `/appointments/${visit.body.id}/reschedule`,
+      { date: today, time: past },
+    ).expect(400);
+    expect(moved.body.message).toContain('already passed');
+  });
+
   it('keeps every day by default, separates clinic/video weekdays, and preserves omitted days on edits', async () => {
     const dentist = await actor('dentist');
     const me = await get(dentist, '/dentists/me').expect(200);

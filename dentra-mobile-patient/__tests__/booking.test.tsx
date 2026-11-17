@@ -100,9 +100,14 @@ async function fillBooking(withPhoto = false) {
   await act(async () => tree.root.findByType(Checkbox).props.onChange(true));
 }
 
+beforeEach(() => {
+  jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+  jest.setSystemTime(new Date('2026-11-17T09:00:00+05:30'));
+});
 afterEach(async () => {
   await act(async () => tree?.unmount());
   jest.clearAllMocks();
+  jest.useRealTimers();
 });
 
 test('booking requires concerns, details, a slot and consent, then submits the selected clinic', async () => {

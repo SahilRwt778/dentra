@@ -146,7 +146,7 @@ export function VideoView({
   track,
   pipEnabled = false,
   mirror = false,
-  contain = false,
+  contain = true,
   style,
 }: ViewProps & {
   track: VideoSource | null;

@@ -108,7 +108,13 @@ export class PatientsService {
     return this.toResponse(rows[0], await this.mobileFor(userId));
   }
 
-  async update(userId: string, dto: PatientUpdateDto): Promise<PatientResponse> {
+  async update(
+    userId: string,
+    dto: PatientUpdateDto,
+    photo?: ProfilePhotoUpload,
+  ): Promise<PatientResponse> {
+    if (photo && dto.removeProfilePhoto)
+      throw new BadRequestException('Choose a new profile photo or remove the current one, not both.');
     const fields: Record<string, unknown> = {
       full_name: dto.fullName,
       email: dto.email,
@@ -119,6 +125,7 @@ export class PatientsService {
       medications: dto.medications,
       emergency_contact: dto.emergencyContact,
     };
+    if (photo || dto.removeProfilePhoto) return this.updateProfilePhoto(userId, fields, photo);
     const set = Object.entries(fields).filter(([, v]) => v !== undefined);
     if (set.length === 0) return this.findMe(userId);
 
@@ -130,6 +137,50 @@ export class PatientsService {
     );
     if (!rows[0]) throw new NotFoundException('Not registered yet — call POST /patients/register first.');
     return this.toResponse(rows[0], await this.mobileFor(userId));
+  }
+
+  /** Keep the previous photo until the profile change commits successfully. */
+  private async updateProfilePhoto(
+    userId: string,
+    fields: Record<string, unknown>,
+    photo?: ProfilePhotoUpload,
+  ): Promise<PatientResponse> {
+    const client = await this.pool.connect();
+    let reference: string | undefined;
+    let committing = false;
+    try {
+      await client.query('BEGIN');
+      const { rows: current } = await client.query(
+        `select p.profile_photo_url from patients p join users u on u.id = p.user_id
+         where p.user_id = $1 and u.status = 'active' for update of p`,
+        [userId],
+      );
+      if (!current[0]) throw new NotFoundException('No patient profile on file.');
+      if (photo) reference = await this.photos.save('patient', userId, photo);
+      const changes = Object.entries({
+        ...fields,
+        profile_photo_url: reference ?? null,
+      }).filter(([, value]) => value !== undefined);
+      const assignments = changes
+        .map(([column], index) => `${column} = $${index + 2}`)
+        .join(', ');
+      const { rows } = await client.query(
+        `update patients set ${assignments}, updated_at = now() where user_id = $1 returning *`,
+        [userId, ...changes.map(([, value]) => value)],
+      );
+      committing = true;
+      await client.query('COMMIT');
+      await this.photos.removeUnused('patient', userId, current[0].profile_photo_url);
+      return this.toResponse(rows[0], await this.mobileFor(userId));
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      // A lost COMMIT response may still have saved the new profile photo.
+      if (reference && !committing)
+        await this.photos.removeUnused('patient', userId, reference);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getChart(userId: string) {

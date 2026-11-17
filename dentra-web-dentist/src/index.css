@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './styles/prototype.css';
+@import './styles/video-call.css';
 @import './styles/settings.css';
 @import './styles/payments.css';
 @import './styles/messages.css';

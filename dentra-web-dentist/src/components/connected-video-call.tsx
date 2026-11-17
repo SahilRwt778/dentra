@@ -1,5 +1,5 @@
 import { CallChat } from './call-chat';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Camera,
@@ -30,20 +30,31 @@ export default function ConnectedVideoCall({
 }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [footerHeight, setFooterHeight] = useState(120);
+  const footer = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = footer.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() =>
+      setFooterHeight(element.getBoundingClientRect().height),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [target]);
   const callState = useVideoRoom(call.session, call.microphone, call.camera, {
     onDisconnected: () =>
       end(
         call,
-        'The call disconnected. Rejoin while the consultation is available.'
+        'The call disconnected. Rejoin while the consultation is available.',
       ),
     onError: () =>
       end(
         call,
-        'Could not connect to the video meeting. Check your connection and try again.'
+        'Could not connect to the video meeting. Check your connection and try again.',
       ),
     onMediaDeviceFailure: () =>
       report(
-        'Your camera or microphone is unavailable. Check browser permissions or continue with it off.'
+        'Your camera or microphone is unavailable. Check browser permissions or continue with it off.',
       ),
   });
   const {
@@ -64,7 +75,7 @@ export default function ConnectedVideoCall({
       await action();
     } catch {
       report(
-        'Could not update call controls. Check browser permissions and try again.'
+        'Could not update call controls. Check browser permissions and try again.',
       );
     } finally {
       lock.current = false;
@@ -104,7 +115,14 @@ export default function ConnectedVideoCall({
       {target &&
         createPortal(
           <div className="consult-live-room">
-            <div className="consult-call">
+            <div
+              className="consult-call"
+              style={
+                {
+                  '--consult-controls-height': `${footerHeight}px`,
+                } as CSSProperties
+              }
+            >
               <div className="consult-call-stage">
                 {stageTile ? (
                   <LiveVideo
@@ -137,109 +155,123 @@ export default function ConnectedVideoCall({
                   <b>You</b>
                 </div>
               </div>
-              <p className="consult-connection-status" aria-live="polite">
-                {sharing
-                  ? 'Sharing your screen · '
-                  : contentTile
-                  ? 'Patient is sharing their screen · '
-                  : ''}
-                {status}
-              </p>
-              <div className="row video-options consult-call-controls">
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy || connection !== 'connected'}
-                  aria-label={
-                    microphone ? 'Mute microphone' : 'Unmute microphone'
-                  }
-                  onClick={() =>
-                    void change(async () => {
-                      await room!.localParticipant.setMicrophoneEnabled(
-                        !microphone
-                      );
-                    })
-                  }
-                >
-                  {microphone ? <Mic size={18} /> : <MicOff size={18} />}
-                  {microphone ? 'Mute' : 'Unmute'}
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy || connection !== 'connected'}
-                  aria-label={camera ? 'Turn camera off' : 'Turn camera on'}
-                  onClick={() =>
-                    void change(async () => {
-                      await room!.localParticipant.setCameraEnabled(!camera);
-                    })
-                  }
-                >
-                  {camera ? <Camera size={18} /> : <CameraOff size={18} />}
-                  Camera {camera ? 'on' : 'off'}
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-icon consult-icon-control${
-                    sharing ? ' is-sharing' : ''
-                  }`}
-                  disabled={busy || !room || connection !== 'connected'}
-                  aria-label={sharing ? 'Stop sharing screen' : 'Share screen'}
-                  aria-pressed={sharing}
-                  title={sharing ? 'Stop sharing screen' : 'Share screen'}
-                  onClick={() =>
-                    void change(async () => {
-                      await room!.localParticipant.setScreenShareEnabled(
-                        !sharing,
-                        { audio: false }
-                      );
-                    })
-                  }
-                >
-                  {sharing ? <MonitorOff size={21} /> : <MonitorUp size={21} />}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-icon consult-icon-control"
-                  aria-label="Open call chat"
-                  aria-description={
-                    unread ? `${unread} unread messages` : undefined
-                  }
-                  title={unread ? `Chat (${unread} unread)` : 'Chat'}
-                  onClick={() => setChatOpen(true)}
-                >
-                  <MessageCircle size={21} />
-                  {unread > 0 && (
-                    <span className="consult-chat-badge" aria-hidden="true">
-                      {unread > 99 ? '99+' : unread}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() => end(call)}
-                >
-                  <PhoneOff size={18} />
-                  Leave call
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    void room
-                      ?.startAudio()
-                      .catch(() =>
-                        report('Use your browser controls to allow call audio.')
-                      );
-                  }}
-                >
-                  Enable call audio
-                </button>
+              <div
+                className="consult-call-bottom"
+                data-call-controls
+                ref={footer}
+              >
+                <p className="consult-connection-status" aria-live="polite">
+                  {sharing
+                    ? 'Sharing your screen · '
+                    : contentTile
+                    ? 'Patient is sharing their screen · '
+                    : ''}
+                  {status}
+                </p>
+                <div className="row video-options consult-call-controls">
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy || connection !== 'connected'}
+                    aria-label={
+                      microphone ? 'Mute microphone' : 'Unmute microphone'
+                    }
+                    onClick={() =>
+                      void change(async () => {
+                        await room!.localParticipant.setMicrophoneEnabled(
+                          !microphone,
+                        );
+                      })
+                    }
+                  >
+                    {microphone ? <Mic size={18} /> : <MicOff size={18} />}
+                    {microphone ? 'Mute' : 'Unmute'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy || connection !== 'connected'}
+                    aria-label={camera ? 'Turn camera off' : 'Turn camera on'}
+                    onClick={() =>
+                      void change(async () => {
+                        await room!.localParticipant.setCameraEnabled(!camera);
+                      })
+                    }
+                  >
+                    {camera ? <Camera size={18} /> : <CameraOff size={18} />}
+                    Camera {camera ? 'on' : 'off'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-icon consult-icon-control${
+                      sharing ? ' is-sharing' : ''
+                    }`}
+                    disabled={busy || !room || connection !== 'connected'}
+                    aria-label={
+                      sharing ? 'Stop sharing screen' : 'Share screen'
+                    }
+                    aria-pressed={sharing}
+                    title={sharing ? 'Stop sharing screen' : 'Share screen'}
+                    onClick={() =>
+                      void change(async () => {
+                        await room!.localParticipant.setScreenShareEnabled(
+                          !sharing,
+                          { audio: false },
+                        );
+                      })
+                    }
+                  >
+                    {sharing ? (
+                      <MonitorOff size={21} />
+                    ) : (
+                      <MonitorUp size={21} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-icon consult-icon-control"
+                    aria-label="Open call chat"
+                    aria-description={
+                      unread ? `${unread} unread messages` : undefined
+                    }
+                    title={unread ? `Chat (${unread} unread)` : 'Chat'}
+                    onClick={() => setChatOpen(true)}
+                  >
+                    <MessageCircle size={21} />
+                    {unread > 0 && (
+                      <span className="consult-chat-badge" aria-hidden="true">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={() => end(call)}
+                  >
+                    <PhoneOff size={18} />
+                    Leave call
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      void room
+                        ?.startAudio()
+                        .catch(() =>
+                          report(
+                            'Use your browser controls to allow call audio.',
+                          ),
+                        );
+                    }}
+                  >
+                    Enable call audio
+                  </button>
+                </div>
               </div>
             </div>
           </div>,
-          target
+          target,
         )}
     </>
   );

@@ -5,6 +5,7 @@ import { useMediaControls } from '@dentra/video/src/useMediaControls';
 export function useCallControls(
   minimized: boolean,
   report: (message: string) => void,
+  paused = false,
 ) {
   const [visible, setVisible] = useState(true);
   const [activity, setActivity] = useState(0);
@@ -32,12 +33,17 @@ export function useCallControls(
     setVisible(true);
   }, [minimized]);
   useEffect(() => {
-    if (minimized || !visible || screenReader || busy) return;
+    if (minimized || paused || !visible || screenReader || busy) return;
     const timer = setTimeout(() => setVisible(false), 4000);
     return () => clearTimeout(timer);
-  }, [activity, busy, minimized, screenReader, visible]);
+  }, [activity, busy, minimized, paused, screenReader, visible]);
   function reveal() {
     setVisible(true);
+    setActivity(value => value + 1);
+  }
+  function toggle() {
+    if (screenReader) return;
+    setVisible(value => !value);
     setActivity(value => value + 1);
   }
   function change(...args: Parameters<typeof media.change>) {
@@ -45,10 +51,12 @@ export function useCallControls(
     return media.change(...args);
   }
   return {
-    visible: minimized || visible || screenReader || busy,
+    visible: minimized || visible || screenReader,
+    screenReader,
     busy,
     isBusy: media.isBusy,
     reveal,
+    toggle,
     change,
   };
 }

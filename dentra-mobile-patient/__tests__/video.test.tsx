@@ -454,6 +454,9 @@ test('video fills the call area with overlaid controls and no minimize button', 
   ).toHaveLength(0);
   expect(tree.root.findAllByType(MockVideo)).toHaveLength(2);
   expect(
+    tree.root.findAllByType(MockVideo).every(view => view.props.contain),
+  ).toBe(true);
+  expect(
     tree.root
       .findAllByType(MockVideo)
       .every(track => track.props.track === 1 || track.props.track === 2),
@@ -479,11 +482,17 @@ test('video fills the call area with overlaid controls and no minimize button', 
     ).position,
   ).toBe('absolute');
 });
-test('controls hide after four seconds; a video tap reveals them without reconnecting the room', async () => {
+test('controls hide after four seconds and video taps toggle both overlays without reconnecting', async () => {
   jest.useFakeTimers({ doNotFake: ['setImmediate'] });
   await render();
   await join();
   const room = tree.root.findByType(MockRoom);
+  await tap('Hide call controls');
+  expect(tree.root.findAllByProps({ testID: 'call-controls' })).toHaveLength(0);
+  expect(tree.root.findAllByProps({ testID: 'call-top-overlay' })).toHaveLength(
+    0,
+  );
+  await tap('Show call controls');
   await act(async () => {
     jest.advanceTimersByTime(4000);
   });
@@ -495,6 +504,8 @@ test('controls hide after four seconds; a video tap reveals them without reconne
   expect(
     tree.root.findAllByProps({ testID: 'call-controls' }).length,
   ).toBeGreaterThan(0);
+  await tap('Hide call controls');
+  await tap('Show call controls');
   expect(tree.root.findByType(MockRoom)).toBe(room);
   expect(mockGetToken).toHaveBeenCalledTimes(1);
   expect(mockAudioStop).not.toHaveBeenCalled();

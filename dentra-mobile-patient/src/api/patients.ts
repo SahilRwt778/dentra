@@ -45,7 +45,20 @@ export function useRegisterPatientMutation() {
 export function useUpdatePatientMutation() {
   const [send, state] = usePatchPatientsMeMutation();
   const update = useCallback(
-    (patient: PatientUpdate) => send({ patientUpdate: patient }).unwrap(),
+    (patient: PatientUpdate, photo?: ProfilePhoto | null) => {
+      if (!photo) return send({ patientUpdate: patient }).unwrap();
+      const body = new FormData();
+      body.append('details', JSON.stringify(patient));
+      body.append('profilePhoto', {
+        uri: photo.uri,
+        name: photo.name,
+        type: photo.type,
+      } as unknown as Blob);
+      // The endpoint accepts JSON details or multipart details plus a native file.
+      return send({
+        patientUpdate: body as unknown as PatientUpdate,
+      }).unwrap();
+    },
     [send],
   );
   return [update, state] as const;

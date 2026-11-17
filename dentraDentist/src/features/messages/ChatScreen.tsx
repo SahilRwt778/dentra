@@ -32,6 +32,7 @@ export function ChatScreen({
   return (
     <CallChat
       key={item.id}
+      presentation="screen"
       appointmentId={item.originalAppointmentId}
       client={callChat}
       visible={focused}

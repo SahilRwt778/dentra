@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { X } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from 'react';
+import { isFutureSlot, useAvailableSlots } from '@dentra/call-core';
+import { X } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   useGetDentistsByDentistIdSlotsQuery,
   usePostAppointmentsByAppointmentIdRescheduleMutation,
-} from "@/api/generated-api";
-import { Modal } from "@/components/modal";
-import { apiErrorMessage } from "@/lib/api-error";
-import { addDaysIso, dayLabel, formatTime, todayIso } from "@/lib/date";
+} from '@/api/generated-api';
+import { Modal } from '@/components/modal';
+import { apiErrorMessage } from '@/lib/api-error';
+import { addDaysIso, dayLabel, formatTime, todayIso } from '@/lib/date';
 
 export function RescheduleModal({
   appointmentId,
@@ -19,32 +20,38 @@ export function RescheduleModal({
   appointmentId: string;
   dentistId: string;
   clinicId?: string | null;
-  type: "video" | "clinic";
+  type: 'video' | 'clinic';
   onClose: () => void;
 }) {
   const [date, setDate] = useState(todayIso);
-  const [time, setTime] = useState("");
+  const [time, setTime] = useState('');
   const { currentData, isFetching, error, refetch } =
     useGetDentistsByDentistIdSlotsQuery(
       { dentistId, date, type, clinicId: clinicId ?? undefined },
-      { pollingInterval: 30000, refetchOnMountOrArgChange: true }
+      { pollingInterval: 30000, refetchOnMountOrArgChange: true },
     );
   const [reschedule, { isLoading }] =
     usePostAppointmentsByAppointmentIdRescheduleMutation();
   const days = Array.from({ length: 5 }, (_, index) => addDaysIso(index));
-  const slots = currentData?.date === date ? currentData.slots ?? [] : [];
+  const availableTimes = useAvailableSlots(date, currentData?.slots);
+  const slots = currentData?.date === date ? availableTimes ?? [] : [];
   const canConfirm =
     !!time && slots.includes(time) && !isFetching && !error && !isLoading;
 
   async function confirm() {
     if (!canConfirm) return;
+    if (!isFutureSlot(date, time)) {
+      setTime('');
+      toast.error('That time has passed. Choose another time.');
+      return;
+    }
     try {
       await reschedule({ appointmentId, body: { date, time } }).unwrap();
       toast.success(`Rescheduled to ${dayLabel(date)}, ${formatTime(time)}`);
       onClose();
     } catch (failure) {
-      setTime("");
-      toast.error(apiErrorMessage(failure, "Could not reschedule."));
+      setTime('');
+      toast.error(apiErrorMessage(failure, 'Could not reschedule.'));
     }
   }
 
@@ -65,18 +72,18 @@ export function RescheduleModal({
         <p className="q-label">New day</p>
         <div
           className="day-strip"
-          style={{ display: "flex", gap: 8, overflowX: "auto" }}
+          style={{ display: 'flex', gap: 8, overflowX: 'auto' }}
         >
           {days.map((day) => (
             <button
               key={day}
               type="button"
-              className={`choice${date === day ? " on" : ""}`}
+              className={`choice${date === day ? ' on' : ''}`}
               aria-pressed={date === day}
               disabled={isLoading}
               onClick={() => {
                 setDate(day);
-                setTime("");
+                setTime('');
               }}
             >
               {dayLabel(day)}
@@ -89,7 +96,7 @@ export function RescheduleModal({
         {error ? (
           <>
             <p role="alert">
-              {apiErrorMessage(error, "Could not load available times.")}
+              {apiErrorMessage(error, 'Could not load available times.')}
             </p>
             <button type="button" className="btn" onClick={() => refetch()}>
               Retry availability
@@ -105,8 +112,8 @@ export function RescheduleModal({
           <div
             className="slot-grid"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 8,
             }}
           >
@@ -114,10 +121,10 @@ export function RescheduleModal({
               <button
                 key={slot}
                 type="button"
-                className={`choice${time === slot ? " on" : ""}`}
+                className={`choice${time === slot ? ' on' : ''}`}
                 aria-pressed={time === slot}
                 disabled={isLoading}
-                onClick={() => setTime(slot)}
+                onClick={() => setTime(isFutureSlot(date, slot) ? slot : '')}
               >
                 {formatTime(slot)}
               </button>
@@ -131,7 +138,7 @@ export function RescheduleModal({
       </p>
       <div
         className="row"
-        style={{ marginTop: 14, justifyContent: "flex-end" }}
+        style={{ marginTop: 14, justifyContent: 'flex-end' }}
       >
         <button type="button" className="btn" onClick={onClose}>
           Cancel

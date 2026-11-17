@@ -1,6 +1,10 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class PatientUpdateDto {
+  @IsOptional()
+  @IsBoolean()
+  removeProfilePhoto?: boolean;
+
   @IsOptional()
   @IsString()
   fullName?: string;

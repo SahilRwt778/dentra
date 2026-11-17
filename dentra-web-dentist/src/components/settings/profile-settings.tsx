@@ -2,17 +2,18 @@ import { profilePhotoUrl } from '@/lib/profile-photo';
 import { useState, type FormEvent } from 'react';
 import { Pencil, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  useGetDentistsMeQuery,
-  usePatchDentistsMeMutation,
-} from '@/api/generated-api';
+import { useGetDentistsMeQuery } from '@/api/generated-api';
+import { useUpdateDentistProfileMutation } from '@/api/profile';
+import { ProfilePhotoField } from '../profile-photo-field';
 import { apiErrorMessage } from '@/lib/api-error';
 import { SettingsDetail, SettingsSection } from './settings-section';
 
 export function ProfileSettings() {
   const { data: me, error, isLoading, refetch } = useGetDentistsMeQuery();
-  const [update, { isLoading: isSaving }] = usePatchDentistsMeMutation();
+  const [update, { isLoading: isSaving }] = useUpdateDentistProfileMutation();
   const [editing, setEditing] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [form, setForm] = useState({
     qualification: '',
     specialization: '',
@@ -22,6 +23,8 @@ export function ProfileSettings() {
   });
 
   function startEdit() {
+    setPhoto(null);
+    setRemovePhoto(false);
     setForm({
       qualification: me?.qualification ?? '',
       specialization: me?.specialization ?? '',
@@ -35,8 +38,8 @@ export function ProfileSettings() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     try {
-      await update({
-        dentistSelfUpdate: {
+      await update(
+        {
           qualification: form.qualification,
           specialization: form.specialization,
           councilRegNo: form.councilRegNo,
@@ -45,8 +48,10 @@ export function ProfileSettings() {
             .map((language) => language.trim())
             .filter(Boolean),
           email: form.email || undefined,
+          ...(removePhoto ? { removeProfilePhoto: true } : {}),
         },
-      }).unwrap();
+        photo,
+      );
       toast.success('Profile saved');
       setEditing(false);
     } catch (error) {
@@ -58,7 +63,7 @@ export function ProfileSettings() {
     <SettingsSection
       id="profile"
       title="Professional profile"
-      description="Your qualifications and contact information."
+      description="Your profile photo, qualifications and contact information."
       icon={UserRound}
       busy={isLoading}
       action={
@@ -86,6 +91,36 @@ export function ProfileSettings() {
       ) : editing ? (
         <form onSubmit={save}>
           <fieldset disabled={isSaving} className="settings-form-grid">
+            <div className="settings-field-wide stack">
+              <ProfilePhotoField
+                value={photo}
+                existingUrl={!removePhoto ? me?.profilePhotoUrl : null}
+                disabled={isSaving}
+                onChange={(selection) => {
+                  setPhoto(selection);
+                  if (selection) setRemovePhoto(false);
+                }}
+                onRemoveExisting={() => setRemovePhoto(!!me?.profilePhotoUrl)}
+              />
+              {removePhoto && (
+                <p className="hint">
+                  Your photo will be removed when you save changes.
+                </p>
+              )}
+              {(photo || removePhoto) && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={isSaving}
+                  onClick={() => {
+                    setPhoto(null);
+                    setRemovePhoto(false);
+                  }}
+                >
+                  Undo photo change
+                </button>
+              )}
+            </div>
             <label className="field">
               <span>Qualification</span>
               <input

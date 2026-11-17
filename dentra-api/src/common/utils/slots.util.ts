@@ -21,10 +21,8 @@ export function generateSlots(from: string, to: string): string[] {
   return slots;
 }
 
-/** True if `date` (YYYY-MM-DD) + `time` (HH:MM) has already passed, in server local time. */
+/** Appointments use India time, independently of the API server's timezone. */
 export function slotHasPassed(date: string, time: string, now = new Date()): boolean {
-  const [y, m, d] = date.split('-').map(Number);
-  const [h, mins] = time.split(':').map(Number);
-  const slotStart = new Date(y, m - 1, d, h, mins);
+  const slotStart = new Date(`${date}T${time}:00+05:30`);
   return slotStart.getTime() <= now.getTime();
 }

@@ -6,10 +6,14 @@ export function ProfilePhotoField({
   value,
   onChange,
   existingUrl,
+  onRemoveExisting,
+  disabled = false,
 }: {
   value: File | null;
   onChange: (photo: File | null) => void;
   existingUrl?: string | null;
+  onRemoveExisting?: () => void;
+  disabled?: boolean;
 }) {
   const [preview, setPreview] = useState<string>();
   const [error, setError] = useState<string>();
@@ -33,13 +37,17 @@ export function ProfilePhotoField({
           ) : (
             <UserRound size={36} />
           )}
-          {value && (
+          {(value || (existingUrl && onRemoveExisting)) && (
             <button
               type="button"
               className="profile-photo-remove"
-              aria-label="Remove selected profile photo"
+              aria-label={
+                value ? 'Remove selected profile photo' : 'Remove profile photo'
+              }
+              disabled={disabled}
               onClick={() => {
-                onChange(null);
+                if (value) onChange(null);
+                else onRemoveExisting?.();
                 setPreview(undefined);
                 setError(undefined);
                 if (input.current) input.current.value = '';
@@ -53,6 +61,7 @@ export function ProfilePhotoField({
           <button
             type="button"
             className="btn"
+            disabled={disabled}
             onClick={() => input.current?.click()}
           >
             <Camera size={17} /> Choose photo
@@ -62,6 +71,7 @@ export function ProfilePhotoField({
             type="file"
             accept="image/jpeg,image/png"
             aria-label="Choose profile photo"
+            disabled={disabled}
             style={{ display: 'none' }}
             onChange={(event) => {
               const file = event.target.files?.[0];

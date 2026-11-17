@@ -22,6 +22,7 @@ import {
 import { formatDate, LANGUAGES } from '@/lib/patient';
 import { errorMessage } from '@/api/errors';
 import { ui } from '@/theme';
+import { ProfilePhotoEditor } from '@/components/profile-photo-editor';
 
 export function ProfileScreen() {
   const { data: me, isLoading, error, refetch } = usePatientQuery();
@@ -132,6 +133,7 @@ export function ProfileScreen() {
                 <Text style={ui.muted}>{me.mobile}</Text>
               </View>
             </View>
+            <ProfilePhotoEditor photoUrl={me.profilePhotoUrl} />
           </Card>
           {notice ? (
             <Card>
