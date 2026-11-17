@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from 'react';
+import { AppImage } from '@dentra/video/src/AppImage';
 import { API_BASE_URL } from '@/config';
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -300,7 +300,7 @@ export function Avatar({
   return (
     <View style={[s.avatar, large && s.largeAvatar]}>
       {uri && failedUrl !== uri ? (
-        <Image
+        <AppImage
           source={{ uri }}
           style={[StyleSheet.absoluteFill, s.avatarImage]}
           accessibilityLabel={`${name || 'User'} profile photo`}

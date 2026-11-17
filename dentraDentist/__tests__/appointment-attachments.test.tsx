@@ -1,7 +1,8 @@
+import FastImage from 'react-native-fast-image';
 import { createStoreHarness } from '../test-utils/store';
 import { testPatientRecord } from '../test-utils/patient';
 import React from 'react';
-import { Image, Modal, Text } from 'react-native';
+import { Modal, Text } from 'react-native';
 import ReactTestRenderer, {
   act,
   type ReactTestRenderer as Renderer,
@@ -113,11 +114,12 @@ test('lists only the selected appointment attachments and opens a full photo fro
     photo,
     expect.any(AbortSignal),
   );
-  const image = renderer.root.findByType(Image);
+  const image = renderer.root.findByType(FastImage);
   expect(image.props.source).toEqual({
+    cache: 'web',
     uri: 'file:///private/cache/photo.jpg',
   });
-  expect(image.props.resizeMode).toBe('contain');
+  expect(image.props.objectFit).toBe('contain');
   expect(renderer.root.findByType(Modal).props.visible).toBe(true);
   await act(async () =>
     renderer.root
@@ -190,7 +192,7 @@ test('attachment failures show a retry action instead of claiming there are no f
 test('a photo that cannot decode closes the viewer and removes its private file', async () => {
   await mount();
   await press('View photo');
-  await act(async () => renderer.root.findByType(Image).props.onError());
+  await act(async () => renderer.root.findByType(FastImage).props.onError());
   expect(renderer.root.findByType(Modal).props.visible).toBe(false);
   expect(removePrivateFile).toHaveBeenCalledWith('/private/cache/photo.jpg');
   expect(text()).toContain('Could not display this photo. Please try again.');
@@ -199,7 +201,7 @@ test('a photo that cannot decode closes the viewer and removes its private file'
 test('a delayed error from a closed photo cannot close the next preview', async () => {
   await mount();
   await press('View photo');
-  const oldError = renderer.root.findByType(Image).props.onError;
+  const oldError = renderer.root.findByType(FastImage).props.onError;
   await act(async () => renderer.root.findByType(Modal).props.onRequestClose());
   jest
     .mocked(patientFilesApi.download)
@@ -207,7 +209,7 @@ test('a delayed error from a closed photo cannot close the next preview', async 
   await press('View photo');
   await act(async () => oldError());
   expect(renderer.root.findByType(Modal).props.visible).toBe(true);
-  expect(renderer.root.findByType(Image).props.source.uri).toBe(
+  expect(renderer.root.findByType(FastImage).props.source.uri).toBe(
     'file:///private/cache/new-photo.jpg',
   );
   expect(removePrivateFile).not.toHaveBeenCalledWith(

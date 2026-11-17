@@ -9,14 +9,16 @@ import { errorMessage } from '@/api/errors';
 import type { PatientNavigation } from '@/navigation/types';
 import { colors, ui } from '@/theme';
 import { API_BASE_URL } from '@/config';
+import type { ConversationFilter } from '@dentra/call-core';
 
 export function MessagesScreen() {
   const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState<ConversationFilter>('all');
   const focused = useIsFocused();
   const active = useAppActive();
   const navigation = useNavigation<PatientNavigation>();
   const query = useConsultationCasesQuery(
-    { page },
+    { page, filter },
     {
       skip: !focused || !active,
       pollingInterval: focused && active ? 10000 : 0,
@@ -29,6 +31,11 @@ export function MessagesScreen() {
         <Text style={ui.heading}>Messages</Text>
       </View>
       <ConsultationInbox
+        filter={filter}
+        onFilter={value => {
+          setFilter(value);
+          setPage(1);
+        }}
         items={query.currentData?.items ?? []}
         role="patient"
         apiBaseUrl={API_BASE_URL}

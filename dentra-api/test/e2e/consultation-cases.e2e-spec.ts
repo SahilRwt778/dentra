@@ -153,6 +153,61 @@ describe('72-hour consultation passes and messages', () => {
     await followUp(unpaid).expect(409);
     await send(unpaid.patient.token, unpaid.appointment.id).expect(409);
   });
+  it('filters open and closed conversations before pagination for patients and dentists', async () => {
+    const t = await fixture();
+    await pool.query(
+      `with visits as (
+      insert into appointments(patient_id,dentist_id,type,scheduled_date,scheduled_time,status,concern_summary)
+      select $1,$2,'video',current_date-day,'09:00','completed','Expired consultation'
+      from generate_series(1,21) as day returning id,patient_id,dentist_id
+    ), paid as (
+      insert into transactions(appointment_id,idempotency_key,amount_paise,method,status)
+      select id,id::text,1000,'card','paid' from visits returning appointment_id
+    ) insert into consultation_cases(original_appointment_id,patient_id,dentist_id,activated_at,expires_at)
+      select v.id,v.patient_id,v.dentist_id,now()-interval '96 hours',now()-interval '24 hours'
+      from visits v join paid p on p.appointment_id=v.id`,
+      [t.patient.id, t.dentist.id],
+    );
+    for (const user of [t.patient, t.dentist]) {
+      const inbox = (query: string) =>
+        request(app.getHttpServer())
+          .get(`/consultation-cases${query}`)
+          .set('Authorization', `Bearer ${user.token}`);
+      const open = await inbox('?filter=open').expect(200);
+      expect(open.body.items.map((item: { id: string }) => item.id)).toEqual([
+        t.caseId,
+      ]);
+      expect(open.body.nextPage).toBeNull();
+      const closed = await inbox('?filter=closed').expect(200);
+      expect(closed.body.items).toHaveLength(20);
+      expect(
+        closed.body.items.every(
+          (item: { status: string }) => item.status === 'expired',
+        ),
+      ).toBe(true);
+      expect(closed.body.nextPage).toBe(2);
+      const more = await inbox('?filter=closed&page=2').expect(200);
+      expect(more.body.items).toHaveLength(1);
+      expect(more.body.nextPage).toBeNull();
+      const firstAll = await inbox('').expect(200),
+        secondAll = await inbox('?filter=all&page=2').expect(200);
+      expect(firstAll.body.items.length + secondAll.body.items.length).toBe(22);
+      await inbox('?filter=invalid').expect(400);
+      await inbox('?page=0').expect(400);
+    }
+    await pool.query(
+      "update transactions set status='refunded' where appointment_id=$1",
+      [t.appointment.id],
+    );
+    const revoked = await request(app.getHttpServer())
+      .get('/consultation-cases?filter=closed')
+      .set('Authorization', `Bearer ${t.patient.token}`)
+      .expect(200);
+    expect(
+      revoked.body.items.find((item: { id: string }) => item.id === t.caseId)
+        .status,
+    ).toBe('revoked');
+  });
   it('books an idempotent free follow-up without a gateway order, transaction, or new validity window', async () => {
     const t = await fixture(),
       key = randomUUID();

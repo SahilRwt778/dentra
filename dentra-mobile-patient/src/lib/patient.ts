@@ -73,7 +73,7 @@ export function registrationError(value: PatientRegistration): string | null {
     age < 18 &&
     (!value.guardianName?.trim() ||
       !value.guardianRelationship?.trim() ||
-      !/^\+[1-9]\d{7,14}$/.test(value.guardianMobile ?? '') ||
+      !/^\+91\d{10}$/.test(value.guardianMobile ?? '') ||
       !value.guardianConsent)
   )
     return 'Add your guardian’s name, relationship, mobile number, and consent.';

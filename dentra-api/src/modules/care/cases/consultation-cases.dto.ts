@@ -1,16 +1,26 @@
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsDateString,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
   MaxLength,
   MinLength,
+  Min,
+  Max,
 } from 'class-validator';
+
+export type ConversationFilter = 'all' | 'open' | 'closed';
+export class ConsultationCasesQueryDto {
+  @Type(() => Number) @IsInt() @Min(1) @Max(100000) page = 1;
+  @IsOptional() @IsIn(['all', 'open', 'closed']) filter?: ConversationFilter;
+}
 
 export class FollowUpBookingDto {
   @IsIn(['video', 'clinic']) type!: 'video' | 'clinic';

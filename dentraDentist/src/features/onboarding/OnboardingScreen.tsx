@@ -4,7 +4,8 @@ import {
 } from '../../components/forms/ProfilePhotoField';
 import { API_BASE_URL } from '../../common/config/api';
 import React, { useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { AppImage } from '@dentra/video/src/AppImage';
 import { Check, FileText, Upload } from 'lucide-react-native';
 import { dentistsApi } from '../../api/dentists.api';
 import type {
@@ -226,7 +227,9 @@ export function OnboardingScreen({
         <Field
           label="Years of experience"
           value={form.yearsExperience}
-          onChangeText={value => update('yearsExperience', value)}
+          onChangeText={value =>
+            update('yearsExperience', value.replace(/\D/g, '').slice(0, 3))
+          }
           keyboardType="number-pad"
           maxLength={3}
           editable={!busy}
@@ -299,11 +302,11 @@ export function OnboardingScreen({
                 )}
               </View>
               {file?.type.startsWith('image/') && (
-                <Image
+                <AppImage
                   accessibilityLabel={`Selected ${doc.label}`}
                   source={{ uri: file.uri }}
                   style={styles.preview}
-                  resizeMode="contain"
+                  objectFit="contain"
                 />
               )}
               {file && (

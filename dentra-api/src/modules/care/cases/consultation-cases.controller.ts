@@ -4,12 +4,9 @@ import {
   Get,
   Header,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Post,
   Query,
-  DefaultValuePipe,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   CurrentUser,
@@ -18,7 +15,10 @@ import {
 import { Roles } from '@common/decorators/roles.decorator';
 import { ConsultationCasesService } from './consultation-cases.service';
 import { AppointmentsService } from '../appointments/appointments.service';
-import { FollowUpBookingDto } from './consultation-cases.dto';
+import {
+  ConsultationCasesQueryDto,
+  FollowUpBookingDto,
+} from './consultation-cases.dto';
 
 @Controller('consultation-cases')
 @Roles('patient', 'dentist')
@@ -31,11 +31,9 @@ export class ConsultationCasesController {
   @Header('Cache-Control', 'private, no-store')
   list(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query() query: ConsultationCasesQueryDto,
   ) {
-    if (page < 1 || page > 100000)
-      throw new BadRequestException('Invalid page.');
-    return this.cases.list(user, page);
+    return this.cases.list(user, query.page, query.filter);
   }
   @Get(':caseId')
   @Header('Cache-Control', 'private, no-store')

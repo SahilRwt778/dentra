@@ -1,6 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { useGetAdminMeQuery, usePatchAdminMeMutation, type AdminProfile } from '@/api/generated-api';
+import {
+  useGetAdminMeQuery,
+  usePatchAdminMeMutation,
+  type AdminProfile,
+} from '@/api/generated-api';
+import { isCompleteMobile, mobileInput } from '@/utils/mobile-input';
 
 function failureMessage(error: unknown) {
   const message = (error as { data?: { message?: unknown } })?.data?.message;
@@ -20,7 +25,9 @@ export function AdminProfileCard() {
   const [draft, setDraft] = useState<AdminProfile | null>(null);
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const emailChanged = !!draft && draft.email.trim().toLowerCase() !== profile?.email.toLowerCase();
+  const emailChanged =
+    !!draft &&
+    draft.email.trim().toLowerCase() !== profile?.email.toLowerCase();
 
   function cancel() {
     setDraft(null);
@@ -30,20 +37,26 @@ export function AdminProfileCard() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft || saving) return;
+    if (draft.phone && !isCompleteMobile(draft.phone)) {
+      setMessage('Enter a 10-digit mobile number.');
+      return;
+    }
     setMessage('');
     try {
       await updateProfile({
         adminProfileUpdate: {
           name: draft.name,
           email: draft.email,
-          phone: draft.phone,
+          phone: draft.phone ? `+91${draft.phone}` : null,
           version: draft.version,
           ...(emailChanged ? { currentPassword: password } : {}),
         },
       }).unwrap();
       cancel();
       toast.success(
-        emailChanged ? 'Profile saved. Use your new email next time you sign in.' : 'Profile saved.',
+        emailChanged
+          ? 'Profile saved. Use your new email next time you sign in.'
+          : 'Profile saved.',
       );
     } catch (err) {
       setMessage(failureMessage(err));
@@ -59,7 +72,7 @@ export function AdminProfileCard() {
             type="button"
             className="btn-link btn small"
             onClick={() => {
-              setDraft({ ...profile });
+              setDraft({ ...profile, phone: mobileInput(profile.phone ?? '') });
               setMessage('');
             }}
           >
@@ -83,7 +96,9 @@ export function AdminProfileCard() {
                 required
                 maxLength={100}
                 value={draft.name}
-                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, name: event.target.value })
+                }
               />
             </label>
             <label className="field">
@@ -95,20 +110,29 @@ export function AdminProfileCard() {
                 required
                 maxLength={254}
                 value={draft.email}
-                onChange={(event) => setDraft({ ...draft, email: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, email: event.target.value })
+                }
               />
-              <span className="tiny muted">This email is used to sign in to Admin Web.</span>
+              <span className="tiny muted">
+                This email is used to sign in to Admin Web.
+              </span>
             </label>
             <label className="field">
-              <span>Mobile number (optional)</span>
+              <span>Mobile number (+91, optional)</span>
               <input
                 className="input"
                 type="tel"
-                autoComplete="tel"
-                maxLength={30}
-                placeholder="+91 98100 23456"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                maxLength={10}
+                minLength={10}
+                pattern="[0-9]{10}"
+                placeholder="9810023456"
                 value={draft.phone ?? ''}
-                onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, phone: mobileInput(event.target.value) })
+                }
               />
             </label>
             {emailChanged && (
@@ -123,7 +147,9 @@ export function AdminProfileCard() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />
-                <span className="tiny muted">Confirm your password to change the login email.</span>
+                <span className="tiny muted">
+                  Confirm your password to change the login email.
+                </span>
               </label>
             )}
           </fieldset>
@@ -136,7 +162,12 @@ export function AdminProfileCard() {
             <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" className="btn" disabled={saving} onClick={cancel}>
+            <button
+              type="button"
+              className="btn"
+              disabled={saving}
+              onClick={cancel}
+            >
               Cancel
             </button>
           </div>

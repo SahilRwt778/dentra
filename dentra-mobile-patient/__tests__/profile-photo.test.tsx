@@ -1,5 +1,6 @@
+import FastImage from 'react-native-fast-image';
 import React, { useState } from 'react';
-import { Image, PermissionsAndroid, TurboModuleRegistry } from 'react-native';
+import { PermissionsAndroid, TurboModuleRegistry } from 'react-native';
 import ReactTestRenderer, {
   act,
   type ReactTestRenderer as Renderer,
@@ -57,15 +58,19 @@ afterEach(async () => {
 });
 
 test('previews locally and removes only the selected photo', async () => {
-  expect(renderer.root.findByType(Image).props.source.uri).toBe(initial.uri);
+  expect(renderer.root.findByType(FastImage).props.source.uri).toBe(
+    initial.uri,
+  );
   await tap('Remove selected profile photo');
   expect(selected).toHaveBeenCalledWith(null);
-  expect(renderer.root.findAllByType(Image)).toHaveLength(0);
+  expect(renderer.root.findAllByType(FastImage)).toHaveLength(0);
 });
 test('gallery cancellation preserves the previous selection', async () => {
   await tap('Choose profile photo from gallery');
   expect(selected).not.toHaveBeenCalled();
-  expect(renderer.root.findByType(Image).props.source.uri).toBe(initial.uri);
+  expect(renderer.root.findByType(FastImage).props.source.uri).toBe(
+    initial.uri,
+  );
 });
 test('rejects unsupported/oversized images and permits choosing another photo', async () => {
   jest.mocked(launchImageLibrary).mockResolvedValueOnce({

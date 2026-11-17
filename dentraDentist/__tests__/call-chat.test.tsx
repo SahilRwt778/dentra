@@ -1,15 +1,16 @@
+import FastImage from 'react-native-fast-image';
 import React from 'react';
 import Renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import {
   AppState,
   BackHandler,
-  Image,
   Modal,
   TextInput,
   StyleSheet,
 } from 'react-native';
 import { CallChat, type NativeChatClient } from '@dentra/video/src/CallChat';
 import type { ChatPage } from '@dentra/call-core';
+import { ChatPhotoViewer } from '@dentra/video/src/ChatPhotoViewer';
 
 const photo = {
   uri: 'file:///private/photo.jpg',
@@ -63,7 +64,7 @@ afterEach(async () => {
 test('a chosen photo has a compact preview and can be removed before anything is sent', async () => {
   await press('Add attachment');
   await press('Gallery');
-  const image = tree.root.findByType(Image);
+  const image = tree.root.findByType(FastImage);
   expect(image.props.source.uri).toBe(photo.uri);
   expect(StyleSheet.flatten(image.props.style)).toMatchObject({
     width: 64,
@@ -71,7 +72,7 @@ test('a chosen photo has a compact preview and can be removed before anything is
   });
   expect(client.send).not.toHaveBeenCalled();
   await press('Remove attachment');
-  expect(tree.root.findAllByType(Image)).toHaveLength(0);
+  expect(tree.root.findAllByType(FastImage)).toHaveLength(0);
   expect(
     tree.root.findAll(
       node =>
@@ -79,6 +80,122 @@ test('a chosen photo has a compact preview and can be removed before anything is
         typeof node.props.onPress === 'function',
     )[0].props.disabled,
   ).toBe(true);
+});
+
+test('a received photo is visible inline and opens with zoom and a system viewer without a second download', async () => {
+  const mediaClient: NativeChatClient = {
+    ...client,
+    download: jest.fn(async () => '/private/photo.jpg'),
+    openFile: jest.fn(async () => undefined),
+    list: jest.fn(
+      async (): Promise<ChatPage> => ({
+        hasMore: false,
+        canSend: true,
+        items: [
+          {
+            id: 'message',
+            sequence: '1',
+            requestId: 'message',
+            text: 'Photo caption',
+            own: false,
+            senderRole: 'patient',
+            createdAt: new Date().toISOString(),
+            attachment: {
+              id: 'photo',
+              name: 'Photo.jpg',
+              mimeType: 'image/jpeg',
+              sizeBytes: 1024,
+            },
+          },
+        ],
+      }),
+    ),
+  };
+  await act(async () =>
+    tree.update(
+      <CallChat
+        appointmentId="images"
+        client={mediaClient}
+        visible
+        presentation="screen"
+        onClose={jest.fn()}
+        onUnread={jest.fn()}
+      />,
+    ),
+  );
+  expect(tree.root.findByType(FastImage).props).toMatchObject({
+    source: { uri: 'file:///private/photo.jpg' },
+    objectFit: 'contain',
+  });
+  expect(JSON.stringify(tree.toJSON())).toContain('Photo caption');
+  await press('View photo: Photo.jpg');
+  expect(tree.root.findAllByType(ChatPhotoViewer)).toHaveLength(1);
+  await press('Zoom in');
+  expect(
+    tree.root.findAllByProps({ accessibilityLabel: 'Zoom percentage' })[0].props
+      .children,
+  ).toEqual([150, '%']);
+  await press('Reset zoom');
+  await press('Open photo in another app');
+  expect(mediaClient.openFile).toHaveBeenCalledWith(
+    '/private/photo.jpg',
+    'image/jpeg',
+  );
+  await press('Close photo');
+  expect(tree.root.findAllByType(ChatPhotoViewer)).toHaveLength(0);
+  expect(mediaClient.download).toHaveBeenCalledTimes(1);
+  expect(tree.root.findAllByType(FastImage)).toHaveLength(1);
+});
+
+test('PDFs are downloaded on demand and open using their document MIME type', async () => {
+  const pdfClient: NativeChatClient = {
+    ...client,
+    download: jest.fn(async () => '/private/report.pdf'),
+    openFile: jest.fn(async () => undefined),
+    list: jest.fn(
+      async (): Promise<ChatPage> => ({
+        hasMore: false,
+        canSend: false,
+        items: [
+          {
+            id: 'pdf-message',
+            sequence: '1',
+            requestId: 'pdf-message',
+            text: '',
+            own: false,
+            senderRole: 'patient',
+            createdAt: new Date().toISOString(),
+            attachment: {
+              id: 'pdf',
+              name: 'Report.pdf',
+              mimeType: 'application/pdf',
+              sizeBytes: 1024 * 1200,
+            },
+          },
+        ],
+      }),
+    ),
+  };
+  await act(async () =>
+    tree.update(
+      <CallChat
+        appointmentId="pdfs"
+        client={pdfClient}
+        visible
+        presentation="screen"
+        onClose={jest.fn()}
+        onUnread={jest.fn()}
+      />,
+    ),
+  );
+  expect(pdfClient.download).not.toHaveBeenCalled();
+  expect(JSON.stringify(tree.toJSON())).toContain('1.2 MB');
+  await press('Open PDF: Report.pdf');
+  expect(pdfClient.openFile).toHaveBeenCalledWith(
+    '/private/report.pdf',
+    'application/pdf',
+  );
+  expect(tree.root.findAllByType(ChatPhotoViewer)).toHaveLength(0);
 });
 
 test('one attachment button reveals Gallery, Camera and File without changing the draft', async () => {
@@ -117,7 +234,7 @@ test('taking a photo pauses and restores the call camera and previews it before 
   await press('Camera');
   expect(setEnabled.mock.calls).toEqual([[false], [true]]);
   expect(client.pick).toHaveBeenCalledWith('camera');
-  expect(tree.root.findByType(Image).props.source.uri).toBe(photo.uri);
+  expect(tree.root.findByType(FastImage).props.source.uri).toBe(photo.uri);
   expect(client.send).not.toHaveBeenCalled();
 });
 
@@ -131,7 +248,7 @@ test('cancelling the file picker keeps an already selected photo and caption', a
   await press('Add attachment');
   await press('File');
   expect(client.pick).toHaveBeenLastCalledWith('file');
-  expect(tree.root.findByType(Image).props.source.uri).toBe(photo.uri);
+  expect(tree.root.findByType(FastImage).props.source.uri).toBe(photo.uri);
   expect(tree.root.findByType(TextInput).props.value).toBe('My photo');
   expect(client.send).not.toHaveBeenCalled();
 });
@@ -424,16 +541,8 @@ test('Android Back closes an inline attachment menu or photo before leaving the 
       tree.root.findAllByProps({ testID: 'chat-attachment-options' }),
     ).toHaveLength(0);
     expect(JSON.stringify(tree.toJSON())).toContain('View photo');
-    const photoButton = tree.root.findAll(
-      node =>
-        node.props.accessibilityRole === 'button' &&
-        typeof node.props.onPress === 'function' &&
-        node.findAll(child => child.props.children === 'View photo').length > 0,
-    )[0];
-    await act(async () => {
-      await photoButton.props.onPress();
-    });
-    expect(tree.root.findByType(Image).props.source.uri).toBe(
+    await press('View photo: Photo.jpg');
+    expect(tree.root.findAllByType(FastImage).at(-1)!.props.source.uri).toBe(
       'file:///private/photo.jpg',
     );
     await act(async () => {
@@ -441,7 +550,8 @@ test('Android Back closes an inline attachment menu or photo before leaving the 
         hardwareBack({ type: 'hardwareBackPress', timeStamp: Date.now() }),
       ).toBe(true);
     });
-    expect(tree.root.findAllByType(Image)).toHaveLength(0);
+    expect(tree.root.findAllByType(FastImage)).toHaveLength(1);
+    expect(photos.download).toHaveBeenCalledTimes(1);
     expect(tree.root.findByType(TextInput)).toBeDefined();
     expect(onClose).not.toHaveBeenCalled();
     await press('Back');

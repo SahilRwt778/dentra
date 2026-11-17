@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppImage } from '@dentra/video/src/AppImage';
 import { Camera, FileText, Images, X } from 'lucide-react-native';
 import { Button, Card, ErrorState } from './ui';
 import type { useBookingAttachments } from '@/hooks/use-booking-attachments';
@@ -20,10 +21,10 @@ export function BookingAttachments({
         <View key={item.key} style={ui.stack}>
           <View style={s.preview}>
             {item.local.type.startsWith('image/') ? (
-              <Image
+              <AppImage
                 source={{ uri: item.local.uri }}
                 style={s.image}
-                resizeMode="contain"
+                objectFit="contain"
                 accessibilityLabel={`Preview of ${item.local.name}`}
               />
             ) : (

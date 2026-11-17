@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   send: vi.fn(),
   refetch: vi.fn(),
+  inbox: vi.fn(),
+  unfilteredInbox: false,
 }));
 const cases: ConsultationCase[] = [
   {
@@ -48,11 +50,24 @@ const cases: ConsultationCase[] = [
   },
 ];
 vi.mock('../src/api/generated-api', () => ({
-  useGetConsultationCasesQuery: () => ({
-    currentData: { items: cases, unreadCount: 1, nextPage: null },
-    refetch: mocks.refetch,
-    isFetching: false,
-  }),
+  useGetConsultationCasesQuery: (query: { page: number; filter?: string }) => {
+    mocks.inbox(query);
+    return {
+      currentData: {
+        items: cases.filter((item) =>
+          !mocks.unfilteredInbox && query.filter === 'closed'
+            ? ['expired', 'revoked'].includes(item.status)
+            : !mocks.unfilteredInbox && query.filter === 'open'
+              ? ['pending', 'active'].includes(item.status)
+              : true,
+        ),
+        unreadCount: 1,
+        nextPage: query.page === 1 ? 2 : null,
+      },
+      refetch: mocks.refetch,
+      isFetching: false,
+    };
+  },
   useGetConsultationCaseQuery: (
     { caseId }: { caseId?: string },
     { skip }: { skip: boolean },
@@ -78,6 +93,7 @@ const saved: ChatMessage = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.unfilteredInbox = false;
   vi.useFakeTimers();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('document', {
@@ -108,8 +124,8 @@ async function mount(path = '/messages/case-a') {
           element.type === 'textarea'
             ? { style: {}, scrollHeight: 44 }
             : element.type === 'div'
-            ? { scrollTop: 0, scrollHeight: 300, clientHeight: 400 }
-            : null,
+              ? { scrollTop: 0, scrollHeight: 300, clientHeight: 400 }
+              : null,
       },
     );
   });
@@ -160,6 +176,48 @@ test('search and the unread filter help find a patient conversation', async () =
   );
   expect(links()).toEqual(['/messages/case-a']);
 });
+test('Open and Closed filter the complete inbox, preserve a selected conversation and reset pagination', async () => {
+  mocks.unfilteredInbox = true;
+  const closed: ConsultationCase = {
+    ...cases[1],
+    id: 'closed',
+    patientName: 'Closed patient',
+    status: 'expired',
+    canMessage: false,
+  };
+  cases.push(closed);
+  try {
+    await mount();
+    const select = async (name: string) => {
+      await act(async () =>
+        tree.root
+          .findAllByType('button')
+          .find((node) => node.children.includes(name))!
+          .props.onClick(),
+      );
+    };
+    const links = () =>
+      tree.root.findAllByType('a').map((node) => node.props.href);
+    await act(async () =>
+      tree.root
+        .findByProps({ 'aria-label': 'More conversations' })
+        .props.onClick(),
+    );
+    expect(mocks.inbox).toHaveBeenLastCalledWith({ page: 2, filter: 'all' });
+    await select('Closed');
+    expect(mocks.inbox).toHaveBeenLastCalledWith({ page: 1, filter: 'closed' });
+    expect(links()).toEqual(['/messages/closed']);
+    expect(
+      tree.root.findByProps({ 'aria-label': 'Consultation chat' }),
+    ).toBeDefined();
+    await select('Open');
+    expect(links()).toEqual(['/messages/case-a', '/messages/case-b']);
+    await select('All');
+    expect(links()).toHaveLength(3);
+  } finally {
+    cases.pop();
+  }
+});
 test('Enter sends a message while Shift+Enter leaves room for a newline', async () => {
   await mount();
   await act(async () =>
@@ -169,26 +227,22 @@ test('Enter sends a message while Shift+Enter leaves room for a newline', async 
   );
   const preventDefault = vi.fn();
   await act(async () =>
-    tree.root
-      .findByType('textarea')
-      .props.onKeyDown({
-        key: 'Enter',
-        shiftKey: true,
-        nativeEvent: { isComposing: false },
-        preventDefault,
-      }),
+    tree.root.findByType('textarea').props.onKeyDown({
+      key: 'Enter',
+      shiftKey: true,
+      nativeEvent: { isComposing: false },
+      preventDefault,
+    }),
   );
   expect(mocks.send).not.toHaveBeenCalled();
   expect(preventDefault).not.toHaveBeenCalled();
   await act(async () =>
-    tree.root
-      .findByType('textarea')
-      .props.onKeyDown({
-        key: 'Enter',
-        shiftKey: false,
-        nativeEvent: { isComposing: false },
-        preventDefault,
-      }),
+    tree.root.findByType('textarea').props.onKeyDown({
+      key: 'Enter',
+      shiftKey: false,
+      nativeEvent: { isComposing: false },
+      preventDefault,
+    }),
   );
   expect(mocks.send).toHaveBeenCalledWith(
     'visit-a',
@@ -229,14 +283,12 @@ test('IME composition does not send a partial message', async () => {
     );
   });
   await act(async () =>
-    tree.root
-      .findByType('textarea')
-      .props.onKeyDown({
-        key: 'Enter',
-        shiftKey: false,
-        nativeEvent: { isComposing: true },
-        preventDefault: vi.fn(),
-      }),
+    tree.root.findByType('textarea').props.onKeyDown({
+      key: 'Enter',
+      shiftKey: false,
+      nativeEvent: { isComposing: true },
+      preventDefault: vi.fn(),
+    }),
   );
   expect(onSend).not.toHaveBeenCalled();
 });

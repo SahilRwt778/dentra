@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
+import { AppImage } from '@dentra/video/src/AppImage';
 import {
-  Image,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -109,7 +109,7 @@ export function ProfilePhotoField({
       <View style={styles.row}>
         <View style={styles.preview}>
           {uri && failedUri !== uri ? (
-            <Image
+            <AppImage
               source={{ uri }}
               style={styles.image}
               accessibilityLabel="Profile photo preview"

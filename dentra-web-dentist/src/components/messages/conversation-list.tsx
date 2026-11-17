@@ -8,7 +8,12 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { consultationDeadline } from '@dentra/call-core';
+import {
+  consultationDeadline,
+  conversationFilters,
+  matchesConversationFilter,
+  type ConversationFilter,
+} from '@dentra/call-core';
 import type { ConsultationCase } from '@/api/generated-api';
 import { ProfileAvatar } from '../profile-avatar';
 
@@ -22,6 +27,8 @@ export function ConversationList({
   unreadCount,
   onPage,
   onRefresh,
+  filter,
+  onFilter,
 }: {
   items: ConsultationCase[];
   selectedId?: string;
@@ -32,12 +39,15 @@ export function ConversationList({
   unreadCount: number;
   onPage(page: number): void;
   onRefresh(): void;
+  filter: ConversationFilter;
+  onFilter(filter: ConversationFilter): void;
 }) {
   const [search, setSearch] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const term = search.trim().toLocaleLowerCase();
   const matches = items.filter(
     (item) =>
+      matchesConversationFilter(item, filter) &&
       (!unreadOnly || item.unreadCount > 0) &&
       (!term ||
         `${item.patientName} ${item.concern}`
@@ -96,17 +106,26 @@ export function ConversationList({
         role="group"
         aria-label="Filter conversations"
       >
-        <button
-          type="button"
-          aria-pressed={!unreadOnly}
-          onClick={() => setUnreadOnly(false)}
-        >
-          All
-        </button>
+        {conversationFilters.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={!unreadOnly && filter === option.value}
+            onClick={() => {
+              setUnreadOnly(false);
+              onFilter(option.value);
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
         <button
           type="button"
           aria-pressed={unreadOnly}
-          onClick={() => setUnreadOnly(true)}
+          onClick={() => {
+            setUnreadOnly(true);
+            onFilter('all');
+          }}
         >
           Unread
         </button>
@@ -133,12 +152,16 @@ export function ConversationList({
             <strong>
               {search || unreadOnly
                 ? 'No matching conversations'
-                : 'No conversations yet'}
+                : filter === 'all'
+                  ? 'No conversations yet'
+                  : `No ${filter} conversations`}
             </strong>
             <p>
               {search || unreadOnly
                 ? 'Try a different name or view all chats.'
-                : 'Conversations appear here when patients consult with you.'}
+                : filter === 'all'
+                  ? 'Conversations appear here when patients consult with you.'
+                  : 'Choose All to view your other consultation chats.'}
             </p>
           </div>
         )}
@@ -174,8 +197,8 @@ export function ConversationList({
                   {item.status === 'active' && item.expiresAt
                     ? `Open until ${consultationDeadline(item.expiresAt)}`
                     : item.status === 'pending'
-                    ? 'Consultation chat'
-                    : 'Closed · History available'}
+                      ? 'Consultation chat'
+                      : 'Closed · History available'}
                 </span>
                 {item.unreadCount > 0 && (
                   <span

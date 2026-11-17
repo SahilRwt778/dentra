@@ -1,9 +1,9 @@
 import { useAppActive } from './useAppActive';
-import React, { useEffect, useRef, useState } from 'react';
+import { AppImage } from './AppImage';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -18,12 +18,16 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   useCallChat,
+  createChatMediaLoader,
   type ChatAttachment,
   type ChatClient,
   type ChatFile,
 } from '@dentra/call-core';
-import { ArrowLeft, Paperclip } from 'lucide-react-native';
+import { ArrowLeft, ExternalLink, Paperclip } from 'lucide-react-native';
 import { ChatAttachmentMenu } from './ChatAttachmentMenu';
+import { ChatAttachment as AttachmentCard } from './ChatAttachment';
+import { ChatPhotoViewer } from './ChatPhotoViewer';
+import { useChatScroll } from './useChatScroll';
 import type { ChatAttachmentSource } from './pickChatFile';
 
 export type NativeChatClient = ChatClient & {
@@ -36,7 +40,7 @@ export type NativeChatClient = ChatClient & {
   ): Promise<string>;
   openFile(path: string, mime: string): Promise<void>;
 };
-type Photo = { path: string; name: string };
+type Photo = { path: string; name: string; mime: string };
 const fileUri = (path: string) =>
   path.startsWith('/') ? `file://${path}` : path;
 
@@ -67,6 +71,20 @@ export function CallChat({
 }) {
   const active = useAppActive();
   const chat = useCallChat(appointmentId, client, visible && active);
+  const media = useMemo(
+    () =>
+      createChatMediaLoader(async (attachment, signal) => {
+        if (!visible)
+          throw new Error('Open the conversation to view attachments.');
+        return {
+          uri: fileUri(
+            await client.download(appointmentId, attachment, signal),
+          ),
+        };
+      }),
+    [appointmentId, client, visible],
+  );
+  useEffect(() => () => media.clear(), [media]);
   const [text, setText] = useState('');
   const [file, setFile] = useState<ChatFile>();
   const [requestId, setRequestId] = useState(() => client.requestId());
@@ -75,17 +93,14 @@ export function CallChat({
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [opening, setOpening] = useState<string>();
   const [photo, setPhoto] = useState<Photo>();
-  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const operation = useRef<AbortController | null>(null);
   const live = useRef(true);
   const tail = chat.items.at(-1)?.sequence;
+  const timeline = useChatScroll(tail, visible && active, appointmentId);
 
   useEffect(() => {
     onUnread(chat.unread);
   }, [chat.unread, onUnread]);
-  useEffect(() => {
-    if (visible) scroll.current?.scrollToEnd({ animated: false });
-  }, [tail, visible]);
   useEffect(() => {
     live.current = true;
     return () => {
@@ -94,12 +109,11 @@ export function CallChat({
     };
   }, []);
   useEffect(() => {
-    if (!visible) {
-      operation.current?.abort();
-      setPhoto(undefined);
-      setAttachmentsOpen(false);
-    }
-  }, [visible]);
+    operation.current?.abort();
+    setOpening(undefined);
+    setPhoto(undefined);
+    setAttachmentsOpen(false);
+  }, [visible, appointmentId, client]);
   useEffect(() => {
     if (presentation !== 'screen' || !visible || (!photo && !attachmentsOpen))
       return;
@@ -164,14 +178,11 @@ export function CallChat({
     setOpening(attachment.id);
     setNotice(undefined);
     try {
-      const path = await client.download(
-        appointmentId,
-        attachment,
-        abort.signal,
-      );
+      const { uri } = await media.load(attachment);
+      const path = uri.startsWith('file://') ? uri.slice(7) : uri;
       if (abort.signal.aborted) return;
       if (attachment.mimeType.startsWith('image/'))
-        setPhoto({ path, name: attachment.name });
+        setPhoto({ path, name: attachment.name, mime: attachment.mimeType });
       else await client.openFile(path, attachment.mimeType);
     } catch (error) {
       if (!abort.signal.aborted)
@@ -181,10 +192,12 @@ export function CallChat({
             : 'Could not open the attachment.',
         );
     } finally {
-      if (live.current) setOpening(undefined);
+      if (live.current && !abort.signal.aborted) setOpening(undefined);
     }
   }
   function close() {
+    operation.current?.abort();
+    setOpening(undefined);
     if (photo) setPhoto(undefined);
     else if (attachmentsOpen) setAttachmentsOpen(false);
     else onClose();
@@ -193,16 +206,14 @@ export function CallChat({
   const content = (
     <SafeAreaView style={[styles.screen, photo && styles.photoScreen]}>
       <View style={styles.header}>
-        {!photo && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={close}
-            style={styles.back}
-          >
-            <ArrowLeft size={24} color="#122B39" />
-          </Pressable>
-        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={photo ? 'Close photo' : 'Back'}
+          onPress={close}
+          style={styles.back}
+        >
+          <ArrowLeft size={24} color={photo ? '#FFFFFF' : '#122B39'} />
+        </Pressable>
         <View style={styles.grow}>
           <Text numberOfLines={1} style={[styles.title, photo && styles.white]}>
             {photo?.name ?? title}
@@ -220,32 +231,51 @@ export function CallChat({
         {photo && (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Close photo"
-            onPress={close}
-            style={styles.close}
+            accessibilityLabel="Open photo in another app"
+            onPress={async () => {
+              try {
+                await client.openFile(photo.path, photo.mime);
+              } catch {
+                setNotice('Could not open the photo in another app.');
+              }
+            }}
+            style={styles.back}
           >
-            <Text style={styles.white}>×</Text>
+            <ExternalLink size={23} color="#FFFFFF" />
           </Pressable>
         )}
       </View>
-      {photo ? (
-        <Image
-          source={{ uri: fileUri(photo.path) }}
-          resizeMode="contain"
-          style={styles.photo}
-        />
-      ) : (
+      {photo && notice && (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {notice}
+        </Text>
+      )}
+      <View style={styles.grow}>
         <KeyboardAvoidingView
           style={styles.grow}
+          pointerEvents={photo ? 'none' : 'auto'}
+          accessibilityElementsHidden={!!photo}
+          importantForAccessibility={photo ? 'no-hide-descendants' : 'auto'}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <ScrollView
-            ref={scroll}
+            ref={timeline.scroll}
+            onLayout={timeline.onLayout}
+            onContentSizeChange={timeline.onContentSizeChange}
+            onScroll={timeline.onScroll}
+            onScrollBeginDrag={timeline.onScrollBeginDrag}
+            scrollEventThrottle={32}
             contentContainerStyle={styles.messages}
             keyboardShouldPersistTaps="handled"
           >
             {chat.hasOlder && (
-              <Pressable onPress={chat.older} accessibilityRole="button">
+              <Pressable
+                onPress={() => {
+                  timeline.preserveHistory();
+                  void chat.older();
+                }}
+                accessibilityRole="button"
+              >
                 <Text style={styles.link}>Earlier messages</Text>
               </Pressable>
             )}
@@ -256,7 +286,7 @@ export function CallChat({
                 appear here.
               </Text>
             )}
-            {chat.items.map((item) => (
+            {chat.items.map(item => (
               <View
                 key={item.id}
                 style={[styles.bubble, item.own ? styles.own : styles.other]}
@@ -268,30 +298,19 @@ export function CallChat({
                     ? 'Dentist'
                     : 'Patient'}
                 </Text>
+                {item.attachment && (
+                  <AttachmentCard
+                    file={item.attachment}
+                    loader={media}
+                    visible={visible && active}
+                    opening={opening === item.attachment.id}
+                    onOpen={() => void open(item.attachment!)}
+                  />
+                )}
                 {!!item.text && (
                   <Text selectable style={styles.body}>
                     {item.text}
                   </Text>
-                )}
-                {item.attachment && (
-                  <Pressable
-                    onPress={() => open(item.attachment!)}
-                    disabled={!!opening}
-                    accessibilityRole="button"
-                    style={styles.file}
-                  >
-                    <Text style={styles.link}>
-                      {opening === item.id
-                        ? 'Opening…'
-                        : item.attachment.mimeType.startsWith('image/')
-                        ? 'View photo'
-                        : 'Open PDF'}
-                    </Text>
-                    <Text numberOfLines={2} style={styles.muted}>
-                      {item.attachment.name} ·{' '}
-                      {Math.ceil(item.attachment.sizeBytes / 1024)} KB
-                    </Text>
-                  </Pressable>
                 )}
                 <Text style={styles.time}>
                   {new Date(item.createdAt).toLocaleTimeString(undefined, {
@@ -317,9 +336,9 @@ export function CallChat({
             {file && (
               <View style={styles.preview}>
                 {file.type.startsWith('image/') ? (
-                  <Image
+                  <AppImage
                     source={{ uri: file.uri }}
-                    resizeMode="cover"
+                    objectFit="cover"
                     style={styles.thumbnail}
                   />
                 ) : (
@@ -350,7 +369,7 @@ export function CallChat({
                 disabled={!chat.canSend || chat.sending || picking}
                 onPress={() => {
                   Keyboard.dismiss();
-                  setAttachmentsOpen((value) => !value);
+                  setAttachmentsOpen(value => !value);
                 }}
                 style={styles.attach}
               >
@@ -390,7 +409,16 @@ export function CallChat({
             </View>
           </View>
         </KeyboardAvoidingView>
-      )}
+        {photo && (
+          <View style={styles.photoOverlay}>
+            <ChatPhotoViewer
+              key={photo.path}
+              uri={fileUri(photo.path)}
+              name={photo.name}
+            />
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
   if (presentation === 'screen') return content;
@@ -433,7 +461,6 @@ const styles = StyleSheet.create({
   sender: { fontSize: 12, fontWeight: '700', color: '#12665F' },
   body: { fontSize: 16, color: '#122B39', lineHeight: 23 },
   time: { fontSize: 10, color: '#5D707A', alignSelf: 'flex-end' },
-  file: { padding: 10, borderRadius: 8, backgroundColor: '#EDF5F5', gap: 5 },
   link: { color: '#0D7870', fontWeight: '700', fontSize: 15 },
   composer: { backgroundColor: '#FFFFFF', padding: 14, gap: 12 },
   input: {
@@ -463,5 +490,5 @@ const styles = StyleSheet.create({
   preview: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   thumbnail: { width: 64, height: 64, borderRadius: 8 },
   photoScreen: { backgroundColor: '#102B39' },
-  photo: { flex: 1, width: '100%' },
+  photoOverlay: { ...StyleSheet.absoluteFill, backgroundColor: '#102B39' },
 });

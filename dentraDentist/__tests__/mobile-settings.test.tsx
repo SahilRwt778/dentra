@@ -1,5 +1,6 @@
+import FastImage from 'react-native-fast-image';
 import React from 'react';
-import { Image, Switch, TextInput, TurboModuleRegistry } from 'react-native';
+import { Switch, TextInput, TurboModuleRegistry } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import type { InternalAxiosRequestConfig } from 'axios';
@@ -203,9 +204,9 @@ test('previews photo removal locally, can undo it, and removes it only on Save c
   );
   await pressLabel('Remove profile photo');
   expect(writes).toHaveLength(0);
-  expect(tree!.root.findAllByType(Image)).toHaveLength(0);
+  expect(tree!.root.findAllByType(FastImage)).toHaveLength(0);
   await press('Undo photo change');
-  expect(tree!.root.findByType(Image).props.source.uri).toContain(
+  expect(tree!.root.findByType(FastImage).props.source.uri).toContain(
     mockDentist.profilePhotoUrl,
   );
   await pressLabel('Remove profile photo');
@@ -235,18 +236,16 @@ test('sends a selected profile photo through Axios multipart with the edited pro
     }
     return reply(config, mockDentist);
   };
-  jest
-    .mocked(launchImageLibrary)
-    .mockResolvedValueOnce({
-      assets: [
-        {
-          uri: 'file:///profile.png',
-          fileName: 'profile.png',
-          type: 'image/png',
-          fileSize: 100,
-        },
-      ],
-    });
+  jest.mocked(launchImageLibrary).mockResolvedValueOnce({
+    assets: [
+      {
+        uri: 'file:///profile.png',
+        fileName: 'profile.png',
+        type: 'image/png',
+        fileSize: 100,
+      },
+    ],
+  });
   await mount(
     <EditProfileScreen
       navigation={navigation}
@@ -262,7 +261,7 @@ test('sends a selected profile photo through Axios multipart with the edited pro
     native.mockRestore();
   }
   expect(parts).toHaveLength(0);
-  expect(tree!.root.findByType(Image).props.source.uri).toBe(
+  expect(tree!.root.findByType(FastImage).props.source.uri).toBe(
     'file:///profile.png',
   );
   await press('Save changes');
@@ -294,7 +293,7 @@ test('keeps photo removal as an unsaved draft if the server rejects the change',
   await press('Save changes');
   expect(mockGoBack).not.toHaveBeenCalled();
   await press('Undo photo change');
-  expect(tree!.root.findByType(Image).props.source.uri).toContain(
+  expect(tree!.root.findByType(FastImage).props.source.uri).toContain(
     mockDentist.profilePhotoUrl,
   );
 });
@@ -310,6 +309,13 @@ test('editing only a clinic name preserves its address, PIN code, phone and hour
       }}
     />,
   );
+  expect(
+    tree!.root
+      .findAllByType(TextInput)
+      .find(
+        node => node.props.accessibilityLabel === 'Clinic phone (optional)',
+      )!.props.value,
+  ).toBe('8888888888');
   await type('Clinic name', 'Renamed clinic');
   await press('Save clinic');
   expect(writes[0]).toEqual({
@@ -326,6 +332,37 @@ test('editing only a clinic name preserves its address, PIN code, phone and hour
     },
   });
   expect(mockGoBack).toHaveBeenCalledTimes(1);
+});
+
+test('filters clinic phone and PIN input and prevents saving an incomplete phone', async () => {
+  await mount(
+    <EditClinicScreen
+      navigation={navigation}
+      route={{ key: 'new', name: 'EditClinic' }}
+    />,
+  );
+  await type('Clinic name', 'New clinic');
+  await type('Clinic phone (optional)', 'ab98765');
+  await press('Save clinic');
+  expect(writes).toHaveLength(0);
+  await type('Clinic phone (optional)', '987654abc32101234');
+  await type('PIN code (optional)', '11a000123');
+  const inputs = tree!.root.findAllByType(TextInput);
+  expect(
+    inputs.find(
+      node => node.props.accessibilityLabel === 'Clinic phone (optional)',
+    )!.props.value,
+  ).toBe('9876543210');
+  expect(
+    inputs.find(
+      node => node.props.accessibilityLabel === 'PIN code (optional)',
+    )!.props.value,
+  ).toBe('110001');
+  await press('Save clinic');
+  expect(writes[0].body).toMatchObject({
+    phone: '+919876543210',
+    pincode: '110001',
+  });
 });
 
 test('adding a clinic calls the signed-in dentist endpoint', async () => {

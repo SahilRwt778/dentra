@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { AppImage } from './AppImage';
 
 export function ProfileAvatar({
   name,
@@ -21,17 +22,17 @@ export function ProfileAvatar({
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((part) => part[0])
+      .map(part => part[0])
       .join('')
       .toUpperCase() || 'U';
 
   return (
     <View style={styles.avatar}>
       {uri && failedUrl !== uri ? (
-        <Image
+        <AppImage
           source={{ uri }}
           style={styles.photo}
-          resizeMode="cover"
+          objectFit="cover"
           accessible={false}
           onError={() => setFailedUrl(uri)}
         />

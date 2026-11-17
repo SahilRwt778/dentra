@@ -79,20 +79,32 @@ export async function removePrivateFile(path: string): Promise<void> {
   if (await fs.exists(path)) await fs.unlink(path);
 }
 export async function openPrivatePdf(path: string): Promise<void> {
+  return openPrivateFile(path, 'application/pdf');
+}
+export async function openPrivateFile(
+  path: string,
+  mime: string,
+): Promise<void> {
   const blob = native();
+  const extension = {
+    'application/pdf': '.pdf',
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+  }[mime];
   if (
     !path.startsWith(`${directory()}/`) ||
     path.includes('/../') ||
-    !path.endsWith('.pdf')
+    !extension ||
+    !path.endsWith(extension)
   )
-    throw new Error('Could not open this report. Please download it again.');
+    throw new Error('Could not open this file. Please download it again.');
   try {
     if (Platform.OS === 'android')
-      await blob.android.actionViewIntent(path, 'application/pdf');
+      await blob.android.actionViewIntent(path, mime);
     else await blob.ios.openDocument(path);
   } catch {
     throw new Error(
-      'Could not open the report. Check that a PDF viewer is installed, then try again.',
+      'Could not open the file. Check that a compatible viewer is installed, then try again.',
     );
   }
 }

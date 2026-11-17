@@ -24,6 +24,26 @@ export type ConsultationCasePage = {
   unreadCount: number;
   nextPage: number | null;
 };
+export const conversationFilters = [
+  { value: 'all', label: 'All' },
+  { value: 'open', label: 'Open' },
+  { value: 'closed', label: 'Closed' },
+] as const;
+export type ConversationFilter = (typeof conversationFilters)[number]['value'];
+export type ConsultationCaseQuery = {
+  page?: number;
+  filter?: ConversationFilter;
+};
+/** Keep displayed rows consistent with the selected tab, including older API responses. */
+export function matchesConversationFilter(
+  item: Pick<ConsultationCaseBrief, 'status'>,
+  filter: ConversationFilter,
+) {
+  if (filter === 'all') return true;
+  return filter === 'open'
+    ? item.status === 'active' || item.status === 'pending'
+    : item.status === 'expired' || item.status === 'revoked';
+}
 export function consultationDeadline(value: string) {
   return new Date(value).toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',

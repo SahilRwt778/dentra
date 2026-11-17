@@ -9,16 +9,26 @@ import type { StackParamList } from '../../navigation/types';
 import { Screen } from '../../components/ui/Screen';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { API_BASE_URL } from '../../common/config/api';
+import type { ConversationFilter } from '@dentra/call-core';
 
 export function MessagesScreen() {
   const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState<ConversationFilter>('all');
   const focused = useIsFocused();
   const navigation = useNavigation<NativeStackNavigationProp<StackParamList>>();
-  const query = useGetConsultationCasesQuery(page, { skip: !focused });
+  const query = useGetConsultationCasesQuery(
+    { page, filter },
+    { skip: !focused },
+  );
   useForegroundRefresh(query.refetch, focused, 10000);
   return (
     <Screen title="Messages" compactHeader action={<NotificationBell />}>
       <ConsultationInbox
+        filter={filter}
+        onFilter={value => {
+          setFilter(value);
+          setPage(1);
+        }}
         items={query.currentData?.items ?? []}
         role="dentist"
         apiBaseUrl={API_BASE_URL}

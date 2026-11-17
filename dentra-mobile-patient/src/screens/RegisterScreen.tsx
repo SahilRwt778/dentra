@@ -26,6 +26,7 @@ import {
 } from '@/lib/patient';
 import { errorMessage } from '@/api/errors';
 import { ui } from '@/theme';
+import { mobileInput } from '@/lib/mobile-input';
 
 export function RegisterScreen() {
   const [register, { isLoading }] = useRegisterPatientMutation();
@@ -188,8 +189,11 @@ export function RegisterScreen() {
           <Field
             label="Guardian’s mobile number"
             value={form.guardianMobile}
-            onChangeText={v => set('guardianMobile', v)}
+            onChangeText={v => set('guardianMobile', mobileInput(v))}
             keyboardType="phone-pad"
+            maxLength={10}
+            autoComplete="tel-national"
+            hint="+91 (India) · Enter 10 digits."
           />
           <Checkbox
             title="I am the patient’s guardian and consent to this account and bookings on their behalf."

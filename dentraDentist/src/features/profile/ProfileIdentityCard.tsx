@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppImage } from '@dentra/video/src/AppImage';
 import { CheckCircle2, ChevronRight, Pencil } from 'lucide-react-native';
 import type { Dentist } from '../../common/types/api';
 import { API_BASE_URL } from '../../common/config/api';
@@ -36,10 +37,10 @@ export function ProfileIdentityCard({
           onPress={onEdit}
         >
           {photo && failedPhoto !== photo ? (
-            <Image
+            <AppImage
               source={{ uri: `${API_BASE_URL}${photo}` }}
               style={styles.photo}
-              resizeMode="cover"
+              objectFit="cover"
               accessibilityLabel="Your profile photo"
               onError={() => setFailedPhoto(photo)}
             />

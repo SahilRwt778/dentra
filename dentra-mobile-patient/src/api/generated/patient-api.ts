@@ -160,6 +160,7 @@ const injectedRtkApi = api
           url: `/consultation-cases`,
           params: {
             page: queryArg.page,
+            filter: queryArg.filter,
           },
         }),
         providesTags: ["Consultation Cases"],
@@ -440,6 +441,8 @@ export type GetConsultationCasesApiResponse =
   /** status 200 Owned cases, including read-only history */ ConsultationCasePage;
 export type GetConsultationCasesApiArg = {
   page?: number;
+  /** Open includes pending and active consultations; closed includes expired and revoked conversations. */
+  filter?: "all" | "open" | "closed";
 };
 export type GetConsultationCaseApiResponse =
   /** status 200 Current server-checked pass */ ConsultationCase;

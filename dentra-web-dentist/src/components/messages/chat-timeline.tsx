@@ -1,6 +1,11 @@
-import { Fragment, useEffect, useRef } from 'react';
-import { Check, FileText, ImageIcon, MessageCircle } from 'lucide-react';
-import type { ChatAttachment, ChatMessage } from '@dentra/call-core';
+import { Fragment, useEffect, useLayoutEffect, useRef } from 'react';
+import { Check, MessageCircle } from 'lucide-react';
+import type {
+  ChatAttachment,
+  ChatMessage,
+  ChatMediaLoader,
+} from '@dentra/call-core';
+import { ChatAttachment as AttachmentCard } from './chat-attachment';
 
 export function ChatTimeline({
   items,
@@ -8,6 +13,7 @@ export function ChatTimeline({
   hasOlder,
   opening,
   visible,
+  media,
   embedded,
   onOlder,
   onAttachment,
@@ -17,19 +23,39 @@ export function ChatTimeline({
   hasOlder: boolean;
   opening?: string;
   visible: boolean;
+  media: ChatMediaLoader;
   embedded: boolean;
   onOlder(): void;
   onAttachment(attachment: ChatAttachment): void;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const atBottom = useRef(true);
+  const follow = useRef(true);
+  const history = useRef<{ height: number; top: number } | null>(null);
   const tail = items.at(-1)?.id;
-  const ownLast = items.at(-1)?.own;
+  const first = items[0]?.id;
+  useLayoutEffect(() => {
+    if (!visible || !container.current) return;
+    follow.current = true;
+    history.current = null;
+    container.current.scrollTop = container.current.scrollHeight;
+  }, [tail, visible]);
+  useLayoutEffect(() => {
+    const node = container.current,
+      anchor = history.current;
+    if (!node || !anchor) return;
+    node.scrollTop = anchor.top + node.scrollHeight - anchor.height;
+    history.current = null;
+  }, [first]);
   useEffect(() => {
-    if (visible && container.current && (atBottom.current || ownLast)) {
-      container.current.scrollTop = container.current.scrollHeight;
-    }
-  }, [tail, visible, ownLast]);
+    if (!visible || !container.current || typeof ResizeObserver === 'undefined')
+      return;
+    const node = container.current;
+    const observer = new ResizeObserver(() => {
+      if (follow.current) node.scrollTop = node.scrollHeight;
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visible]);
   return (
     <div
       ref={container}
@@ -39,12 +65,25 @@ export function ChatTimeline({
       aria-relevant="additions text"
       onScroll={(event) => {
         const node = event.currentTarget;
-        atBottom.current =
+        follow.current =
           node.scrollHeight - node.scrollTop - node.clientHeight < 100;
       }}
     >
       {hasOlder && (
-        <button type="button" className="chat-earlier" onClick={onOlder}>
+        <button
+          type="button"
+          className="chat-earlier"
+          onClick={() => {
+            const node = container.current;
+            if (node)
+              history.current = {
+                height: node.scrollHeight,
+                top: node.scrollTop,
+              };
+            follow.current = false;
+            onOlder();
+          }}
+        >
           Earlier messages
         </button>
       )}
@@ -63,7 +102,6 @@ export function ChatTimeline({
         const showDate =
           index === 0 ||
           dayKey(item.createdAt) !== dayKey(items[index - 1].createdAt);
-        const photo = item.attachment?.mimeType.startsWith('image/');
         return (
           <Fragment key={item.id}>
             {showDate && (
@@ -77,41 +115,20 @@ export function ChatTimeline({
                   {item.own
                     ? 'You'
                     : item.senderRole === 'dentist'
-                    ? 'Dentist'
-                    : 'Patient'}
+                      ? 'Dentist'
+                      : 'Patient'}
                 </small>
               )}
-              {!!item.text && <p>{item.text}</p>}
               {item.attachment && (
-                <button
-                  type="button"
-                  className="call-chat-file"
-                  onClick={() => onAttachment(item.attachment!)}
-                  disabled={!!opening}
-                >
-                  <span className={`chat-file-icon ${photo ? 'is-photo' : ''}`}>
-                    {photo ? <ImageIcon size={23} /> : <FileText size={23} />}
-                  </span>
-                  <span className="chat-file-details">
-                    <strong>
-                      {opening === item.id
-                        ? 'Opening…'
-                        : photo
-                        ? 'View photo'
-                        : 'PDF report'}
-                    </strong>
-                    <span
-                      className="chat-file-name"
-                      title={item.attachment.name}
-                    >
-                      {item.attachment.name}
-                    </span>
-                    <small>
-                      {Math.ceil(item.attachment.sizeBytes / 1024)} KB
-                    </small>
-                  </span>
-                </button>
+                <AttachmentCard
+                  file={item.attachment}
+                  loader={media}
+                  visible={visible}
+                  opening={opening === item.attachment.id}
+                  onOpen={() => onAttachment(item.attachment!)}
+                />
               )}
+              {!!item.text && <p>{item.text}</p>}
               <div className="chat-message-meta">
                 <time dateTime={item.createdAt}>
                   {new Date(item.createdAt).toLocaleTimeString('en-IN', {

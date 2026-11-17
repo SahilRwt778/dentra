@@ -9,6 +9,7 @@ import {
   cachePrivateFile,
   clearPrivateFiles,
   openPrivatePdf,
+  openPrivateFile,
 } from '../src/common/services/private-files';
 import type { PatientFile } from '../src/common/types/api';
 
@@ -228,6 +229,22 @@ test('native PDF viewer receives only a path in private cache', async () => {
     expect(mockAndroidOpen).toHaveBeenCalledWith(path, 'application/pdf');
   else expect(mockIosOpen).toHaveBeenCalledWith(path);
   await expect(openPrivatePdf('/outside/untrusted.pdf')).rejects.toThrow();
+});
+
+test('a chat photo opens with its correct MIME type and rejects paths outside private cache', async () => {
+  const path = await cachePrivateFile(
+    'photo',
+    { mimeType: 'image/png' },
+    () => true,
+  );
+  await openPrivateFile(path, 'image/png');
+  if (Platform.OS === 'android')
+    expect(mockAndroidOpen).toHaveBeenCalledWith(path, 'image/png');
+  else expect(mockIosOpen).toHaveBeenCalledWith(path);
+  await expect(
+    openPrivateFile('/outside/photo.png', 'image/png'),
+  ).rejects.toThrow();
+  await expect(openPrivateFile(path, 'application/pdf')).rejects.toThrow();
 });
 
 test('an older installed binary gives a rebuild message without importing a missing native module', async () => {

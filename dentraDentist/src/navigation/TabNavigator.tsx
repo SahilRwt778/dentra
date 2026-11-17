@@ -45,7 +45,7 @@ function PatientsIcon(props: TabIconProps) {
 }
 
 export function TabNavigator() {
-  const inbox = useGetConsultationCasesQuery(1);
+  const inbox = useGetConsultationCasesQuery({ page: 1, filter: 'all' });
   useForegroundRefresh(inbox.refetch, true, 10000);
   return (
     <Tab.Navigator

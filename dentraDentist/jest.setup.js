@@ -30,6 +30,12 @@ jest.mock('lucide-react-native', () => {
       'ShieldX',
       'Check',
       'FileText',
+      'ExternalLink',
+      'Download',
+      'ImageOff',
+      'ZoomIn',
+      'ZoomOut',
+      'RotateCcw',
       'Upload',
       'AlertTriangle',
       'ChevronRight',
@@ -72,3 +78,13 @@ require('react-native').NativeModules.DentraCallBackground = {
   addListener: jest.fn(),
   removeListeners: jest.fn(),
 };
+jest.mock('react-native-fast-image', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: function FastImage(props) {
+      return React.createElement(View, props);
+    },
+  };
+});

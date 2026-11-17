@@ -68,10 +68,23 @@ test('hours are validated only for offered video visits and clinic details survi
   };
   expect(
     clinicSubmission({ ...clinicForm(clinic), name: ' New name ' }),
-  ).toEqual({ ...clinicForm(clinic), name: 'New name' });
+  ).toEqual({ ...clinicForm(clinic), name: 'New name', phone: clinic.phone });
+  expect(clinicForm(clinic).phone).toBe('9999999999');
   expect(() =>
     clinicSubmission({ ...clinicForm(), hoursFrom: '17:00', hoursTo: '10:00' }),
   ).toThrow();
+});
+test('rejects incomplete clinic phone numbers and PIN codes before submitting', () => {
+  const form = { ...clinicForm(), name: 'Clinic' };
+  expect(() => clinicSubmission({ ...form, phone: '123456789' })).toThrow(
+    '10-digit',
+  );
+  expect(() => clinicSubmission({ ...form, pincode: '11000' })).toThrow(
+    '6-digit',
+  );
+  expect(
+    clinicSubmission({ ...form, phone: '9876543210', pincode: '110001' }).phone,
+  ).toBe('+919876543210');
 });
 test('payout validation requires confirmation and uses the last observed request ID', () => {
   const profile = {

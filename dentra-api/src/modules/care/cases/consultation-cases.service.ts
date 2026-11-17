@@ -8,6 +8,7 @@ import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '@database/database.module';
 import type { AuthenticatedUser } from '@common/decorators/current-user.decorator';
 import { ProfilePhotosService } from '@modules/identity/profile-photos/profile-photos.service';
+import type { ConversationFilter } from './consultation-cases.dto';
 
 const CASE_COLUMNS = `c.*, a.concern_summary, a.concerns, a.scheduled_date, a.scheduled_time,
   a.status as original_status, t.status as payment_status, t.amount_paise,
@@ -21,6 +22,11 @@ const CASE_JOINS = `from consultation_cases c join appointments a on a.id=c.orig
   left join transactions t on t.appointment_id=a.id`;
 
 const CASE_SELECT = `select ${CASE_COLUMNS} ${CASE_JOINS}`;
+// Pending chats are ongoing consultations. Expired/revoked passes are read-only history.
+const CASE_STATUS = `case when c.activated_at is null then 'pending'
+  when not coalesce(t.status='paid' and t.amount_paise>0 and a.status='completed'
+    and pu.status='active' and du.status='active' and d.status='verified',false) then 'revoked'
+  when c.expires_at<=statement_timestamp() then 'expired' else 'active' end`;
 type ConsultationCaseRow = {
   id: string;
   original_appointment_id: string;
@@ -42,6 +48,7 @@ type ConsultationCaseRow = {
   unread_count?: number;
   total_unread?: number;
   latest_message_at?: Date | null;
+  case_status?: ConsultationCaseResponse['status'];
 };
 
 export type ConsultationCaseResponse = {
@@ -92,10 +99,15 @@ export class ConsultationCasesService {
     return this.response(await this.owned(user, id), user.role);
   }
 
-  async list(user: AuthenticatedUser, page = 1) {
+  async list(
+    user: AuthenticatedUser,
+    page = 1,
+    filter: ConversationFilter = 'all',
+  ) {
     const { rows } = await this.pool.query<ConsultationCaseRow>(
-      `select ${CASE_COLUMNS}, unread.count::int as unread_count,
-      latest.created_at as latest_message_at, sum(unread.count) over()::int as total_unread
+      `with conversations as (
+      select ${CASE_COLUMNS}, ${CASE_STATUS} as case_status, a.booked_at,
+      unread.count::int as unread_count, latest.created_at as latest_message_at
       ${CASE_JOINS}
       left join consultation_chat_reads seen on seen.case_id=c.id and seen.user_id=$1
       left join lateral(select count(*) as count from video_chat_messages m where m.appointment_id=c.original_appointment_id
@@ -104,8 +116,11 @@ export class ConsultationCasesService {
         order by sequence desc limit 1) latest on true
       where c.${user.role === 'dentist' ? 'dentist_id' : 'patient_id'}=$1
         and (c.activated_at is not null or latest.created_at is not null)
-      order by coalesce(latest.created_at,c.activated_at,a.booked_at) desc,c.id desc limit 21 offset $2`,
-      [user.userId, (page - 1) * 20],
+      ) select *, sum(unread_count) over()::int as total_unread from conversations
+      where $3='all' or ($3='open' and case_status in ('pending','active'))
+        or ($3='closed' and case_status in ('expired','revoked'))
+      order by coalesce(latest_message_at,activated_at,booked_at) desc,id desc limit 21 offset $2`,
+      [user.userId, (page - 1) * 20, filter],
     );
     return {
       items: rows.slice(0, 20).map((row) => this.response(row, user.role)),
@@ -156,13 +171,15 @@ export class ConsultationCasesService {
       (row.amount_paise ?? 0) > 0 &&
       row.original_status === 'completed' &&
       row.participants_active;
-    const status = !row.activated_at
-      ? 'pending'
-      : !funded
-      ? 'revoked'
-      : row.expires_at!.getTime() <= row.server_now.getTime()
-      ? 'expired'
-      : 'active';
+    const status =
+      row.case_status ??
+      (!row.activated_at
+        ? 'pending'
+        : !funded
+          ? 'revoked'
+          : row.expires_at!.getTime() <= row.server_now.getTime()
+            ? 'expired'
+            : 'active');
     return {
       id: row.id,
       originalAppointmentId: row.original_appointment_id,

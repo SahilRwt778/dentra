@@ -12,21 +12,23 @@ const statuses: Record<
     color: colors.green,
     background: colors.greenSoft,
   },
-  caries: { label: 'Caries', color: colors.red, background: colors.redSoft },
-  filled: { label: 'Filled', color: colors.blue, background: colors.blueSoft },
-  crown: { label: 'Crown', color: '#6B4FA3', background: '#EEE8F7' },
+  // Match the dentist chart so the same finding keeps its colour and name.
+  caries: { label: 'Cavity', color: '#8B641D', background: '#FFF4DA' },
+  filled: { label: 'Filled', color: '#3979A8', background: '#E8F2FC' },
+  crown: { label: 'Crown', color: '#0C7D76', background: '#DEF1ED' },
   rct: {
-    label: 'Root canal',
-    color: colors.amber,
-    background: colors.amberSoft,
+    label: 'Root canal treated',
+    color: '#7758AE',
+    background: '#F0EBFA',
   },
   missing: { label: 'Missing', color: colors.muted, background: colors.soft },
   extract: {
-    label: 'Extraction advised',
-    color: colors.red,
-    background: colors.redSoft,
+    label: 'To be extracted',
+    color: '#C63430',
+    background: '#FCECEA',
   },
 };
+
 const upper = [
   '18',
   '17',
@@ -81,7 +83,8 @@ export function DentalChart({ entries }: { entries: ChartEntry[] }) {
               </Text>
               <View style={s.row}>
                 {row.map(tooth => {
-                  const state = statuses[map.get(tooth) ?? ''];
+                  const status = map.get(tooth);
+                  const state = statuses[status ?? ''];
                   return (
                     <View
                       key={tooth}
@@ -93,11 +96,19 @@ export function DentalChart({ entries }: { entries: ChartEntry[] }) {
                         s.tooth,
                         {
                           backgroundColor: state?.background ?? colors.surface,
+                          borderColor: state?.color ?? colors.line,
                         },
                       ]}
                     >
                       <Tooth size={22} color={state?.color ?? colors.line} />
-                      <Text style={ui.small}>{tooth}</Text>
+                      <Text
+                        style={[
+                          ui.small,
+                          state && [s.recorded, { color: state.color }],
+                        ]}
+                      >
+                        {tooth}
+                      </Text>
                     </View>
                   );
                 })}
@@ -118,7 +129,16 @@ export function DentalChart({ entries }: { entries: ChartEntry[] }) {
         entries.map(entry => (
           <Text key={entry.toothNumber} style={ui.muted}>
             Tooth {entry.toothNumber}:{' '}
-            {statuses[entry.status ?? '']?.label ?? 'Not recorded'}
+            <Text
+              style={[
+                s.recorded,
+                {
+                  color: statuses[entry.status ?? '']?.color ?? colors.muted,
+                },
+              ]}
+            >
+              {statuses[entry.status ?? '']?.label ?? 'Not recorded'}
+            </Text>
           </Text>
         ))
       ) : (
@@ -143,4 +163,5 @@ const s = StyleSheet.create({
     borderColor: colors.line,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  recorded: { fontWeight: '600' },
 });

@@ -13,6 +13,7 @@ import {
   TextLink,
 } from '@/components/ui';
 import { normalizeMobile } from '@/lib/patient';
+import { isCompleteMobile, mobileInput } from '@/lib/mobile-input';
 import { colors, ui } from '@/theme';
 
 export function LoginScreen() {
@@ -33,10 +34,8 @@ export function LoginScreen() {
   }, [resendAt]);
   async function sendCode() {
     const phone = normalizeMobile(mobile);
-    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
-      setError(
-        'Enter a valid mobile number, including country code for numbers outside India.',
-      );
+    if (!isCompleteMobile(mobile)) {
+      setError('Enter a 10-digit mobile number.');
       return;
     }
     setError(undefined);
@@ -106,18 +105,20 @@ export function LoginScreen() {
           <Field
             label="Mobile number"
             value={mobile}
-            onChangeText={setMobile}
+            onChangeText={value => setMobile(mobileInput(value))}
+            maxLength={10}
             keyboardType="phone-pad"
-            placeholder="98100 23456"
+            placeholder="Enter your number"
+            autoComplete="tel-national"
             textContentType="telephoneNumber"
-            hint="Indian numbers can be entered without +91."
+            hint="+91 (India) · Enter your 10-digit mobile number."
           />
         )}
         {error ? <ErrorState message={error} /> : null}
         <Button
           title={otpId ? 'Verify and continue' : 'Send code'}
           loading={busy}
-          disabled={otpId ? !/^\d{4}$/.test(code) : !mobile.trim()}
+          disabled={otpId ? !/^\d{4}$/.test(code) : !isCompleteMobile(mobile)}
           onPress={otpId ? verify : sendCode}
         />
         {otpId ? (

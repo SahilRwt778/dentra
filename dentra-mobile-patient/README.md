@@ -48,6 +48,8 @@ For local API development, run `dentra-api` separately with its database and req
 
 ## Verification
 
+Photos and avatars use `react-native-fast-image` through the shared `AppImage` component in `packages/dentra-video/src/AppImage.tsx`. It respects HTTP cache headers for private images and uses `objectFit="contain"` for full-photo previews. After installing dependencies, run `pod install` in `ios` and rebuild/reinstall the native app; a Metro reload cannot add FastImage to an older installed build.
+
 ```sh
 npm run typecheck
 npm run lint

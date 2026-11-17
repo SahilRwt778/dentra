@@ -8,7 +8,13 @@ import {
   View,
 } from 'react-native';
 import { ChevronRight, MessageCircle } from 'lucide-react-native';
-import { consultationDeadline, type ConsultationCase } from '@dentra/call-core';
+import {
+  consultationDeadline,
+  conversationFilters,
+  matchesConversationFilter,
+  type ConsultationCase,
+  type ConversationFilter,
+} from '@dentra/call-core';
 import { ProfileAvatar } from './ProfileAvatar';
 
 export function ConsultationInbox({
@@ -22,6 +28,8 @@ export function ConsultationInbox({
   onOpen,
   onNext,
   onPrevious,
+  filter,
+  onFilter,
 }: {
   items: ConsultationCase[];
   role: 'patient' | 'dentist';
@@ -33,19 +41,48 @@ export function ConsultationInbox({
   onOpen(item: ConsultationCase): void;
   onNext?: () => void;
   onPrevious?: () => void;
+  filter: ConversationFilter;
+  onFilter(filter: ConversationFilter): void;
 }) {
   return (
     <FlatList
-      data={items}
-      keyExtractor={(item) => item.id}
+      key={filter}
+      data={items.filter(item => matchesConversationFilter(item, filter))}
+      keyExtractor={item => item.id}
       contentContainerStyle={styles.content}
       refreshing={refreshing}
       onRefresh={onRefresh}
       ListHeaderComponent={
-        <Text style={styles.intro}>
-          Messages, photos and reports for your consultations. Messaging stays
-          open for 72 hours after the first paid visit is completed.
-        </Text>
+        <View style={styles.heading}>
+          <Text style={styles.intro}>
+            Messages, photos and reports for your consultations. Messaging stays
+            open for 72 hours after the first paid visit is completed.
+          </Text>
+          <View accessibilityRole="tablist" style={styles.filters}>
+            {conversationFilters.map(option => (
+              <Pressable
+                key={option.value}
+                accessibilityRole="tab"
+                accessibilityLabel={`${option.label} conversations`}
+                accessibilityState={{ selected: filter === option.value }}
+                onPress={() => onFilter(option.value)}
+                style={[
+                  styles.filter,
+                  filter === option.value && styles.selectedFilter,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    filter === option.value && styles.selectedText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
       }
       ListEmptyComponent={
         loading ? (
@@ -54,10 +91,19 @@ export function ConsultationInbox({
           <View style={styles.empty}>
             <MessageCircle size={32} color="#617684" />
             <Text style={styles.title}>
-              {error ? 'Could not load messages' : 'No conversations yet'}
+              {error
+                ? 'Could not load messages'
+                : filter === 'all'
+                ? 'No conversations yet'
+                : `No ${filter} conversations`}
             </Text>
             <Text style={styles.description}>
-              {error || 'Your consultation conversations will appear here.'}
+              {error ||
+                (filter === 'all'
+                  ? 'Your consultation conversations will appear here.'
+                  : filter === 'closed'
+                  ? 'Expired and closed consultation chats will appear here.'
+                  : 'Your ongoing consultation chats will appear here.')}
             </Text>
             {error && (
               <Pressable onPress={onRefresh} accessibilityRole="button">
@@ -139,6 +185,18 @@ export function ConsultationInbox({
 }
 const styles = StyleSheet.create({
   content: { padding: 18, gap: 12, flexGrow: 1 },
+  heading: { gap: 14, marginBottom: 4 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filter: {
+    minHeight: 40,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+    borderRadius: 22,
+    backgroundColor: '#E8EFED',
+  },
+  selectedFilter: { backgroundColor: '#0D7870' },
+  filterText: { color: '#526A66', fontSize: 14, fontWeight: '600' },
+  selectedText: { color: '#FFFFFF' },
   intro: { fontSize: 13, lineHeight: 20, color: '#617684', marginBottom: 4 },
   card: {
     backgroundColor: '#FFFFFF',

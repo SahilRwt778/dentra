@@ -1,5 +1,9 @@
 import { consultationCasesApi } from '../api/consultation-cases.api';
-import type { ConsultationCase, ConsultationCasePage } from '@dentra/call-core';
+import type {
+  ConsultationCase,
+  ConsultationCasePage,
+  ConsultationCaseQuery,
+} from '@dentra/call-core';
 import { paymentsApi } from '../api/payments.api';
 import { walletApi } from '../api/wallet.api';
 import type {
@@ -99,9 +103,12 @@ export const dentraApi = createApi({
     'TimeOff',
   ],
   endpoints: builder => ({
-    getConsultationCases: builder.query<ConsultationCasePage, number>({
-      queryFn: (page, { signal }) =>
-        queryResult(() => consultationCasesApi.list(page, signal)),
+    getConsultationCases: builder.query<
+      ConsultationCasePage,
+      ConsultationCaseQuery
+    >({
+      queryFn: (params, { signal }) =>
+        queryResult(() => consultationCasesApi.list(params, signal)),
       providesTags: ['ConsultationCases'],
       keepUnusedDataFor: 0,
     }),

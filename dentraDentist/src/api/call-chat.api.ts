@@ -9,7 +9,7 @@ import { session } from '../features/auth/session';
 import { createRequestId } from '../common/utils/request-id';
 import {
   cachePrivateFile,
-  openPrivatePdf,
+  openPrivateFile,
 } from '../common/services/private-files';
 
 export const callChat: NativeChatClient = {
@@ -71,5 +71,5 @@ export const callChat: NativeChatClient = {
       throw new Error('The attachment is incomplete.');
     return cachePrivateFile(encode(result.data), file, current);
   },
-  openFile: path => openPrivatePdf(path),
+  openFile: (path, mime) => openPrivateFile(path, mime),
 };

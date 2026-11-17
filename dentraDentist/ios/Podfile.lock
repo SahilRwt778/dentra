@@ -14,6 +14,18 @@ PODS:
   - hermes-engine (260318099.0.4):
     - hermes-engine/Pre-built (= 260318099.0.4)
   - hermes-engine/Pre-built (260318099.0.4)
+  - libwebp (1.6.0):
+    - libwebp/demux (= 1.6.0)
+    - libwebp/mux (= 1.6.0)
+    - libwebp/sharpyuv (= 1.6.0)
+    - libwebp/webp (= 1.6.0)
+  - libwebp/demux (1.6.0):
+    - libwebp/webp
+  - libwebp/mux (1.6.0):
+    - libwebp/demux
+  - libwebp/sharpyuv (1.6.0)
+  - libwebp/webp (1.6.0):
+    - libwebp/sharpyuv
   - livekit-react-native (3.1.0):
     - hermes-engine
     - livekit-react-native-webrtc
@@ -1910,6 +1922,33 @@ PODS:
     - React-utils (= 0.88.0)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.88.0)
+  - RNFastImage (10.11.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - SDWebImage (< 6.0, >= 5.21.5)
+    - SDWebImagePhotosPlugin (< 2.0, >= 1.2.0)
+    - SDWebImageSVGCoder (< 2.0, >= 1.7.0)
+    - SDWebImageWebPCoder (< 1.0, >= 0.8.4)
+    - Yoga
   - RNKeychain (10.0.0):
     - hermes-engine
     - RCTRequired
@@ -2029,6 +2068,16 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - SDWebImage (5.21.7):
+    - SDWebImage/Core (= 5.21.7)
+  - SDWebImage/Core (5.21.7)
+  - SDWebImagePhotosPlugin (1.2.1):
+    - SDWebImage/Core (~> 5.10)
+  - SDWebImageSVGCoder (1.8.0):
+    - SDWebImage/Core (~> 5.6)
+  - SDWebImageWebPCoder (0.15.0):
+    - libwebp (~> 1.0)
+    - SDWebImage/Core (~> 5.17)
   - SocketRocket (0.7.1):
     - ReactNativeDependencies
   - Yoga (0.0.0):
@@ -2126,6 +2175,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - RNFastImage (from `../node_modules/react-native-fast-image`)
   - RNKeychain (from `../node_modules/react-native-keychain`)
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
@@ -2134,7 +2184,12 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - libwebp
     - LiveKitWebRTC
+    - SDWebImage
+    - SDWebImagePhotosPlugin
+    - SDWebImageSVGCoder
+    - SDWebImageWebPCoder
 
 EXTERNAL SOURCES:
   boost:
@@ -2318,6 +2373,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  RNFastImage:
+    :path: "../node_modules/react-native-fast-image"
   RNKeychain:
     :path: "../node_modules/react-native-keychain"
   RNScreens:
@@ -2337,6 +2394,7 @@ SPEC CHECKSUMS:
   fmt: ba0886e864ebb21d14c98b2e12e164b8002f5b93
   glog: 3cf7cb46f743c4bc758ae3e6d9c15bd1b4cfd6d4
   hermes-engine: a1158910bb7e300b9e3d2f1e2d433f817ec1a4b5
+  libwebp: af5937a13536ef73f3784d69cc342b98961acf33
   livekit-react-native: f6ff4a3746f8cd73a63a233410fbc54b8ba4a92a
   livekit-react-native-webrtc: c239a23e695baefc7d32fe10ee44bcf08ff21755
   LiveKitWebRTC: 3292b8df63708b5ba073a67f6dfa1756dd24d63b
@@ -2421,9 +2479,14 @@ SPEC CHECKSUMS:
   ReactCodegen: 7b71f4464442e9b6eae41094d11076d56c51c0e3
   ReactCommon: 145a14b942b19fc2fe38927f261955ada56978aa
   ReactNativeDependencies: d3b7423ba1e52525e42085c8470109abde583d2e
+  RNFastImage: 9c5907855116adff44cff40289792251de4a42e1
   RNKeychain: 990ea9078621f2617a9cdabdb4cfb485a8c1560d
   RNScreens: 6d0d3b7819284dbf9f222899eb819f069fce4b8b
   RNSVG: c35beed3dcf6fd14b50ca1fc0d4214a17ec5334d
+  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
+  SDWebImagePhotosPlugin: aaf5bc35fd49b66876de58c33eeb6e38b50920e5
+  SDWebImageSVGCoder: 8e10c8f6cc879c7dfb317b284e13dd589379f01c
+  SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 

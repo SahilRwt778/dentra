@@ -91,6 +91,18 @@ PODS:
   - hermes-engine (260318099.0.4):
     - hermes-engine/Pre-built (= 260318099.0.4)
   - hermes-engine/Pre-built (260318099.0.4)
+  - libwebp (1.6.0):
+    - libwebp/demux (= 1.6.0)
+    - libwebp/mux (= 1.6.0)
+    - libwebp/sharpyuv (= 1.6.0)
+    - libwebp/webp (= 1.6.0)
+  - libwebp/demux (1.6.0):
+    - libwebp/webp
+  - libwebp/mux (1.6.0):
+    - libwebp/demux
+  - libwebp/sharpyuv (1.6.0)
+  - libwebp/webp (1.6.0):
+    - libwebp/sharpyuv
   - livekit-react-native (3.1.0):
     - hermes-engine
     - livekit-react-native-webrtc
@@ -2043,6 +2055,33 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNFastImage (10.11.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - SDWebImage (< 6.0, >= 5.21.5)
+    - SDWebImagePhotosPlugin (< 2.0, >= 1.2.0)
+    - SDWebImageSVGCoder (< 2.0, >= 1.7.0)
+    - SDWebImageWebPCoder (< 1.0, >= 0.8.4)
+    - Yoga
   - RNFBApp (26.4.0):
     - Firebase/CoreOnly (= 12.18.0)
     - hermes-engine
@@ -2236,6 +2275,16 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - SDWebImage (5.21.7):
+    - SDWebImage/Core (= 5.21.7)
+  - SDWebImage/Core (5.21.7)
+  - SDWebImagePhotosPlugin (1.2.1):
+    - SDWebImage/Core (~> 5.10)
+  - SDWebImageSVGCoder (1.8.0):
+    - SDWebImage/Core (~> 5.6)
+  - SDWebImageWebPCoder (0.15.0):
+    - libwebp (~> 1.0)
+    - SDWebImage/Core (~> 5.17)
   - SocketRocket (0.7.1):
     - ReactNativeDependencies
   - Yoga (0.0.0):
@@ -2336,6 +2385,7 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - "RNDateTimePicker (from `../node_modules/@react-native-community/datetimepicker`)"
+  - RNFastImage (from `../node_modules/react-native-fast-image`)
   - "RNFBApp (from `../node_modules/@react-native-firebase/app`)"
   - "RNFBMessaging (from `../node_modules/@react-native-firebase/messaging`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
@@ -2355,11 +2405,16 @@ SPEC REPOS:
     - FirebaseMessaging
     - GoogleDataTransport
     - GoogleUtilities
+    - libwebp
     - LiveKitWebRTC
     - nanopb
     - PromisesObjC
     - razorpay-core-pod
     - razorpay-pod
+    - SDWebImage
+    - SDWebImagePhotosPlugin
+    - SDWebImageSVGCoder
+    - SDWebImageWebPCoder
 
 EXTERNAL SOURCES:
   AsyncStorage:
@@ -2549,6 +2604,8 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
   RNDateTimePicker:
     :path: "../node_modules/@react-native-community/datetimepicker"
+  RNFastImage:
+    :path: "../node_modules/react-native-fast-image"
   RNFBApp:
     :path: "../node_modules/@react-native-firebase/app"
   RNFBMessaging:
@@ -2583,6 +2640,7 @@ SPEC CHECKSUMS:
   GoogleDataTransport: a24e58982ab3ba2f64d79613e027fe7f57e88539
   GoogleUtilities: 7dc09b3fa9ecb5c2298b952313d14628b61b9da3
   hermes-engine: a1158910bb7e300b9e3d2f1e2d433f817ec1a4b5
+  libwebp: af5937a13536ef73f3784d69cc342b98961acf33
   livekit-react-native: 0019b6c96c4581a29e84a6d8ac10a55feec625f2
   livekit-react-native-webrtc: c239a23e695baefc7d32fe10ee44bcf08ff21755
   LiveKitWebRTC: 3292b8df63708b5ba073a67f6dfa1756dd24d63b
@@ -2673,12 +2731,17 @@ SPEC CHECKSUMS:
   ReactCommon: 145a14b942b19fc2fe38927f261955ada56978aa
   ReactNativeDependencies: d3b7423ba1e52525e42085c8470109abde583d2e
   RNDateTimePicker: 8e49fc08840e4359edacb608cb2735ffcaf19236
+  RNFastImage: 72bf9d8d8f1c3209f7f948b8dfc7aebed60ad565
   RNFBApp: 8bbde051316aeaeced1571a284b6a3b430af9aec
   RNFBMessaging: 7fe5e319cb80099bac6cd4989275e20ddff5fcf9
   RNGestureHandler: 81e413e85964996935382a4ed74fde7ede7d9b3b
   RNKeychain: c151043ce48ce98b038cff539b916f5e2fb7456a
   RNScreens: 96c6d636ee9b2b4c3f062db05eecc59217e7f7df
   RNSVG: c3f9498aa208ae99a217dd3d698251677b224890
+  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
+  SDWebImagePhotosPlugin: aaf5bc35fd49b66876de58c33eeb6e38b50920e5
+  SDWebImageSVGCoder: 8e10c8f6cc879c7dfb317b284e13dd589379f01c
+  SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 

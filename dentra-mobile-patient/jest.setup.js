@@ -1,4 +1,14 @@
 /* eslint-env jest */
+jest.mock('react-native-fast-image', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: function FastImage(props) {
+      return React.createElement(View, props);
+    },
+  };
+});
 jest.mock('react-native-keychain', () => ({
   getGenericPassword: jest.fn(async () => false),
   setGenericPassword: jest.fn(async () => true),

@@ -48,6 +48,36 @@ afterEach(async () => {
   jest.resetAllMocks();
 });
 
+test('keeps the mobile field numeric, limits it to ten digits, and blocks partial submissions', async () => {
+  mockRequestOtp.mockResolvedValue({
+    otpId: 'test-otp',
+    resendAfterSeconds: 30,
+  });
+  await act(async () => {
+    tree = Renderer.create(<LoginScreen />);
+  });
+  const input = () => tree.root.findByType(Field);
+  const send = () =>
+    tree.root
+      .findAllByType(Button)
+      .find(button => button.props.title === 'Send code')!;
+  await act(async () => input().props.onChangeText('abc98-76'));
+  expect(input().props.value).toBe('9876');
+  expect(input().props.maxLength).toBe(10);
+  expect(send().props.disabled).toBe(true);
+  await act(async () => {
+    await send().props.onPress();
+  });
+  expect(mockRequestOtp).not.toHaveBeenCalled();
+  await act(async () => input().props.onChangeText('98765abc432109999'));
+  expect(input().props.value).toBe('9876543210');
+  expect(send().props.disabled).toBe(false);
+  await act(async () => {
+    await send().props.onPress();
+  });
+  expect(mockRequestOtp).toHaveBeenCalledWith('+919876543210');
+});
+
 test('requires four digits, keeps a leading zero, and sends the code to backend verification', async () => {
   mockVerifyOtp.mockResolvedValue({});
   await requestCode();

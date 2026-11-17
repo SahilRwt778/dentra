@@ -1,11 +1,15 @@
-import type { ConsultationCase, ConsultationCasePage } from '@dentra/call-core';
+import type {
+  ConsultationCase,
+  ConsultationCasePage,
+  ConsultationCaseQuery,
+} from '@dentra/call-core';
 import { api } from './client';
 
 export const consultationCasesApi = {
-  async list(page: number, signal?: AbortSignal) {
+  async list(query: ConsultationCaseQuery, signal?: AbortSignal) {
     const { data } = await api.get<ConsultationCasePage>(
       '/consultation-cases',
-      { params: { page }, signal },
+      { params: query, signal },
     );
     return data;
   },

@@ -13,6 +13,7 @@ import { ErrorMessage } from '../../components/ui/Feedback';
 import { FormScreen } from '../../components/ui/Screen';
 import { Field } from '../../components/forms/Field';
 import { OtpInput } from '../../components/forms/OtpInput';
+import { mobileInput } from '../../common/utils/mobile-input';
 
 type Challenge = OtpChallenge & { resendAt: number; expiresAt: number };
 export function LoginScreen() {
@@ -148,9 +149,7 @@ export function LoginScreen() {
                   label="10-digit mobile number"
                   testID="phone-input"
                   value={phone}
-                  onChangeText={value =>
-                    setPhone(value.replace(/\D/g, '').slice(0, 10))
-                  }
+                  onChangeText={value => setPhone(mobileInput(value))}
                   keyboardType="phone-pad"
                   textContentType="telephoneNumber"
                   autoComplete="tel-national"

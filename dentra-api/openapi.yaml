@@ -522,6 +522,10 @@ paths:
       summary: My consultation conversations and follow-up passes
       parameters:
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - name: filter
+          in: query
+          description: Open includes pending and active consultations; closed includes expired and revoked conversations.
+          schema: { type: string, enum: [all, open, closed], default: all }
       responses:
         "200":
           description: Owned cases, including read-only history

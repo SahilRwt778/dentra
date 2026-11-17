@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 import { usePostAdminDentistsMutation } from '@/api/generated-api';
 import { Modal } from '@/components/modal';
+import { isCompleteMobile, mobileInput } from '@/utils/mobile-input';
 
 const EMPTY_FORM = {
   fullName: '',
@@ -25,11 +26,15 @@ export function CreateDentistDialog() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!isCompleteMobile(form.mobile)) {
+      toast.error('Enter a 10-digit mobile number.');
+      return;
+    }
     try {
       const result = await createDentist({
         adminCreateDentist: {
           fullName: form.fullName,
-          mobile: form.mobile,
+          mobile: `+91${form.mobile}`,
           email: form.email || undefined,
           primaryClinicName: form.primaryClinicName,
           offersVideo: false,
@@ -37,25 +42,38 @@ export function CreateDentistDialog() {
           overrideReason: form.overrideReason || undefined,
         },
       }).unwrap();
-      toast.success(`${result.fullName} created — ${result.status === 'verified' ? 'verified immediately.' : 'pending review.'}`);
+      toast.success(
+        `${result.fullName} created — ${
+          result.status === 'verified'
+            ? 'verified immediately.'
+            : 'pending review.'
+        }`,
+      );
       close();
     } catch (err) {
-      const message = (err as { data?: { message?: string } } | undefined)?.data?.message ?? 'Failed to create dentist.';
+      const message =
+        (err as { data?: { message?: string } } | undefined)?.data?.message ??
+        'Failed to create dentist.';
       toast.error(message);
     }
   }
 
   return (
     <>
-      <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className="btn btn-primary"
+        onClick={() => setOpen(true)}
+      >
         <Plus size={16} />
         Add dentist
       </button>
       <Modal open={open} onClose={close}>
         <h2 style={{ marginBottom: 4 }}>Admin-created dentist</h2>
         <p className="small muted" style={{ marginBottom: 16 }}>
-          Creates the record and an invite. The dentist fills in credentials, documents and bank details
-          themselves before review, unless you mark them verified now.
+          Creates the record and an invite. The dentist fills in credentials,
+          documents and bank details themselves before review, unless you mark
+          them verified now.
         </p>
         <form onSubmit={handleSubmit} className="stack">
           <label className="field">
@@ -68,12 +86,19 @@ export function CreateDentistDialog() {
             />
           </label>
           <label className="field">
-            <span>Mobile number (E.164, e.g. +919820010482)</span>
+            <span>Mobile number (+91)</span>
             <input
               className="input"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              minLength={10}
+              maxLength={10}
               value={form.mobile}
-              onChange={(e) => setForm({ ...form, mobile: e.target.value })}
-              pattern="^\+[1-9][0-9]{7,14}$"
+              onChange={(e) =>
+                setForm({ ...form, mobile: mobileInput(e.target.value) })
+              }
+              pattern="[0-9]{10}"
               required
             />
           </label>
@@ -91,7 +116,9 @@ export function CreateDentistDialog() {
             <input
               className="input"
               value={form.primaryClinicName}
-              onChange={(e) => setForm({ ...form, primaryClinicName: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, primaryClinicName: e.target.value })
+              }
               required
             />
           </label>
@@ -99,28 +126,43 @@ export function CreateDentistDialog() {
             <input
               type="checkbox"
               checked={form.overrideVerify}
-              onChange={(e) => setForm({ ...form, overrideVerify: e.target.checked })}
+              onChange={(e) =>
+                setForm({ ...form, overrideVerify: e.target.checked })
+              }
             />
             <span>
-              I have verified this dentist's degree, council registration and ID outside the app (e.g. during a
-              sales visit) and want to mark them verified immediately.
+              I have verified this dentist's degree, council registration and ID
+              outside the app (e.g. during a sales visit) and want to mark them
+              verified immediately.
             </span>
           </label>
           {form.overrideVerify && (
             <label className="field">
-              <span>Reason / evidence on file (required, logged to the audit trail)</span>
+              <span>
+                Reason / evidence on file (required, logged to the audit trail)
+              </span>
               <textarea
                 className="input"
                 placeholder="e.g. Physical documents checked at clinic visit on ..."
                 value={form.overrideReason}
-                onChange={(e) => setForm({ ...form, overrideReason: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, overrideReason: e.target.value })
+                }
                 required
               />
             </label>
           )}
           <div className="row">
-            <button type="submit" className="btn btn-primary" disabled={isLoading}>
-              {isLoading ? 'Creating…' : form.overrideVerify ? 'Create as verified' : 'Create & send invite'}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isLoading}
+            >
+              {isLoading
+                ? 'Creating…'
+                : form.overrideVerify
+                ? 'Create as verified'
+                : 'Create & send invite'}
             </button>
             <button type="button" className="btn" onClick={close}>
               Cancel

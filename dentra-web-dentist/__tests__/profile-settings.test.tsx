@@ -19,9 +19,13 @@ const photo = new File(['synthetic photo'], 'profile.png', {
   type: 'image/png',
 });
 function button(label: string) {
-  return tree.root
-    .findAllByType('button')
-    .find((node) => node.children.join('') === label)!;
+  return tree.root.findAllByType('button').find(
+    (node) =>
+      node.children
+        .filter((child) => typeof child === 'string')
+        .join('')
+        .trim() === label,
+  )!;
 }
 async function click(label: string) {
   await act(async () => button(label).props.onClick());

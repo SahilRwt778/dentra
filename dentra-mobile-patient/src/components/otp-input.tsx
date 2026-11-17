@@ -79,11 +79,12 @@ export function OtpInput({
 
 const styles = StyleSheet.create({
   row: { width: '100%' },
-  boxes: { flexDirection: 'row', gap: 12 },
+  boxes: { flexDirection: 'row', gap: 12, alignItems: 'center', justifyContent: 'center' },
   box: {
     flex: 1,
     minWidth: 0,
     minHeight: 64,
+    maxWidth: 64,
     paddingVertical: 8,
     borderWidth: 2,
     borderColor: colors.line,

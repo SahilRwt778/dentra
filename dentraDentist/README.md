@@ -64,6 +64,8 @@ npm run ios -- --no-packager
 
 The native app must be rebuilt after adding modules. A JavaScript reload alone cannot add secure storage, navigation screens, or the document picker to an older installed app.
 
+Photos and avatars use `react-native-fast-image` through the shared `AppImage` component in `packages/dentra-video/src/AppImage.tsx`. It respects HTTP cache headers for private images and uses `objectFit="contain"` for full-photo previews. FastImage also requires the native rebuild above; keep the shared packages alongside this app when installing dependencies.
+
 If iOS reports `"dentraDentist" has not been registered`, check the bundle's Metro port. Loading the patient bundle from 8081 causes this error even though the dentist app is registered correctly. Rebuild the dentist app with the command above after changing its native Metro configuration. For a physical phone, set the computer's LAN address with port 8082 in the dev menu.
 
 `src/common/config/api.ts` is the single API URL setting. The hosted HTTPS URL is used in both development and release builds. To test against a locally running API, replace it with the address for your device:

@@ -1,6 +1,6 @@
 import React from 'react';
+import { AppImage } from '@dentra/video/src/AppImage';
 import {
-  Image,
   Modal,
   Pressable,
   StatusBar,
@@ -63,10 +63,10 @@ export function PatientPhotoViewer({
                 </Pressable>
               </View>
               <View style={styles.stage}>
-                <Image
+                <AppImage
                   accessibilityLabel={photo.name}
                   source={{ uri: `file://${photo.path}` }}
-                  resizeMode="contain"
+                  objectFit="contain"
                   style={StyleSheet.absoluteFill}
                   onError={() => onError(photo.path)}
                 />

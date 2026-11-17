@@ -10,6 +10,7 @@ import {
 } from '../../store/dentraApi';
 import { useScreenActive } from '../../common/hooks/useScreenActive';
 import { errorMessage } from '../../common/utils/api-error';
+import { mobileInput } from '../../common/utils/mobile-input';
 import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/forms/Field';
 import { TimeField } from '../../components/forms/TimeField';
@@ -121,17 +122,25 @@ function ClinicEditor({
           label="PIN code (optional)"
           value={form.pincode}
           keyboardType="number-pad"
+          maxLength={6}
           editable={!busy}
           onChangeText={pincode =>
-            setForm(current => ({ ...current, pincode }))
+            setForm(current => ({
+              ...current,
+              pincode: pincode.replace(/\D/g, '').slice(0, 6),
+            }))
           }
         />
         <Field
           label="Clinic phone (optional)"
           value={form.phone}
           keyboardType="phone-pad"
+          maxLength={10}
+          autoComplete="tel-national"
           editable={!busy}
-          onChangeText={phone => setForm(current => ({ ...current, phone }))}
+          onChangeText={phone =>
+            setForm(current => ({ ...current, phone: mobileInput(phone) }))
+          }
         />
         <WorkingDaysField
           value={form.workingDays ?? []}

@@ -12,6 +12,7 @@
     "lucide-react-native": "*",
     "react": "*",
     "react-native": "*",
+    "react-native-fast-image": "^10.11.0",
     "react-native-safe-area-context": "*",
     "react-native-image-picker": "*",
     "@react-native-documents/picker": "*"

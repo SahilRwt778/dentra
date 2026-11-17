@@ -135,7 +135,19 @@ test('new sign-in validates mobile and submits a real four-digit dentist OTP', a
   await act(async () =>
     renderer.root
       .findByProps({ testID: 'phone-input' })
-      .props.onChangeText('9999000001'),
+      .props.onChangeText('ab12 3'),
+  );
+  expect(
+    renderer.root
+      .findAllByType(TextInput)
+      .find(input => input.props.testID === 'phone-input')!.props.value,
+  ).toBe('123');
+  await press('Send verification code');
+  expect(calls).toHaveLength(0);
+  await act(async () =>
+    renderer.root
+      .findByProps({ testID: 'phone-input' })
+      .props.onChangeText('9999abc0000012345'),
   );
   await press('Send verification code');
   expect(codeInput().props.textContentType).toBe('oneTimeCode');

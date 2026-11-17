@@ -1,4 +1,5 @@
 import type { Clinic, Dentist } from '../../common/types/api';
+import { isCompleteMobile, mobileInput } from '../../common/utils/mobile-input';
 import type {
   ClinicInput,
   DentistUpdate,
@@ -106,7 +107,7 @@ export function clinicForm(clinic?: Clinic): ClinicInput {
     name: clinic?.name ?? '',
     addressLine: clinic?.addressLine ?? '',
     pincode: clinic?.pincode ?? '',
-    phone: clinic?.phone ?? '',
+    phone: mobileInput(clinic?.phone ?? ''),
     hoursFrom: clinic?.hoursFrom.slice(0, 5) ?? '10:00',
     hoursTo: clinic?.hoursTo.slice(0, 5) ?? '18:30',
     workingDays: clinic?.workingDays ?? [0, 1, 2, 3, 4, 5, 6],
@@ -114,13 +115,17 @@ export function clinicForm(clinic?: Clinic): ClinicInput {
 }
 export function clinicSubmission(form: ClinicInput): ClinicInput {
   if (!form.name.trim()) throw new Error('Enter a clinic name.');
+  if (form.phone && !isCompleteMobile(form.phone))
+    throw new Error('Enter a 10-digit clinic phone number.');
+  if (form.pincode && !/^\d{6}$/.test(form.pincode))
+    throw new Error('Enter a 6-digit PIN code.');
   validHours(form.hoursFrom, form.hoursTo);
   return {
     ...form,
     name: form.name.trim(),
     addressLine: form.addressLine?.trim(),
     pincode: form.pincode?.trim(),
-    phone: form.phone?.trim(),
+    phone: form.phone ? `+91${form.phone}` : undefined,
   };
 }
 

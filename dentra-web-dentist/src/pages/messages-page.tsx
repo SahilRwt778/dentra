@@ -1,7 +1,10 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
 import { ArrowLeft, LockKeyhole, MessagesSquare } from 'lucide-react';
-import { consultationDeadline } from '@dentra/call-core';
+import {
+  consultationDeadline,
+  type ConversationFilter,
+} from '@dentra/call-core';
 import {
   useGetConsultationCaseQuery,
   useGetConsultationCasesQuery,
@@ -15,8 +18,9 @@ export function MessagesPage() {
   const { caseId } = useParams();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState<ConversationFilter>('all');
   const inbox = useGetConsultationCasesQuery(
-    { page },
+    { page, filter },
     {
       pollingInterval: 10000,
       skipPollingIfUnfocused: true,
@@ -39,6 +43,11 @@ export function MessagesPage() {
         aria-label="Consultation messages"
       >
         <ConversationList
+          filter={filter}
+          onFilter={(value) => {
+            setFilter(value);
+            setPage(1);
+          }}
           items={inbox.currentData?.items ?? []}
           selectedId={caseId}
           loading={inbox.isFetching}

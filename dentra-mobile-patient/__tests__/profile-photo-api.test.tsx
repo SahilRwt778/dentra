@@ -3,6 +3,10 @@ import Renderer, { act } from 'react-test-renderer';
 import { useUpdatePatientMutation } from '../src/api/patients';
 
 const mockSend = jest.fn();
+const originalFormData = FormData;
+const NativeFormData = jest.requireActual(
+  'react-native/Libraries/Network/FormData',
+).default as typeof FormData;
 jest.mock('../src/api/generated/patient-api', () => ({
   usePatchPatientsMeMutation: () => [mockSend, { isLoading: false }],
 }));
@@ -14,6 +18,7 @@ function Form() {
 }
 beforeEach(async () => {
   jest.clearAllMocks();
+  Object.assign(globalThis, { FormData: NativeFormData });
   mockSend.mockReturnValue({ unwrap: () => Promise.resolve({}) });
   await act(async () => {
     tree = Renderer.create(<Form />);
@@ -21,6 +26,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await act(async () => tree.unmount());
+  Object.assign(globalThis, { FormData: originalFormData });
 });
 
 test('uses native multipart file descriptors for photo updates and preserves edited details', async () => {
@@ -32,16 +38,18 @@ test('uses native multipart file descriptors for photo updates and preserves edi
   await update({ city: 'Delhi' }, photo);
   const body = mockSend.mock.calls[0][0].patientUpdate as FormData;
   expect(body).toBeInstanceOf(FormData);
-  const parts = body.getParts();
-  expect(parts.find(part => part.fieldName === 'details')?.string).toBe(
-    '{"city":"Delhi"}',
-  );
-  expect(parts.find(part => part.fieldName === 'profilePhoto')).toMatchObject({
-    fieldName: 'profilePhoto',
-    uri: photo.uri,
-    name: photo.name,
-    type: photo.type,
-  });
+  expect(body.getParts()).toEqual([
+    expect.objectContaining({
+      fieldName: 'details',
+      string: '{"city":"Delhi"}',
+    }),
+    expect.objectContaining({
+      fieldName: 'profilePhoto',
+      uri: photo.uri,
+      name: photo.name,
+      type: photo.type,
+    }),
+  ]);
 });
 
 test('keeps no-file profile saves and photo removal as JSON', async () => {

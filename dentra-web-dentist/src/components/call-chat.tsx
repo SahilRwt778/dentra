@@ -1,12 +1,19 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import { useCallChat, type ChatAttachment } from '@dentra/call-core';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createChatMediaLoader,
+  useCallChat,
+  type ChatAttachment,
+} from '@dentra/call-core';
 import { callChat, downloadChatAttachment } from '@/api/call-chat';
 import { ChatComposer } from './messages/chat-composer';
 import { ChatHeader } from './messages/chat-header';
 import { ChatTimeline } from './messages/chat-timeline';
 import { ChatCameraCapture } from './chat-camera-capture';
+import {
+  ChatAttachmentViewer,
+  type ChatViewerFile,
+} from './messages/chat-attachment-viewer';
 
 export function CallChat({
   appointmentId,
@@ -42,27 +49,43 @@ export function CallChat({
     return () => document.removeEventListener('visibilitychange', update);
   }, []);
   const chat = useCallChat(appointmentId, callChat, open && foreground);
+  const media = useMemo(
+    () =>
+      createChatMediaLoader(async (file, signal) => {
+        if (!open)
+          throw new Error('Open the conversation to view attachments.');
+        const blob = await downloadChatAttachment(
+          appointmentId,
+          file.id,
+          signal,
+        );
+        if (blob.size !== file.sizeBytes || blob.type !== file.mimeType)
+          throw new Error('The attachment is incomplete. Please retry.');
+        const uri = URL.createObjectURL(blob);
+        return { uri, dispose: () => URL.revokeObjectURL(uri) };
+      }),
+    [appointmentId, open],
+  );
+  useEffect(() => () => media.clear(), [media]);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File>();
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [preview, setPreview] = useState<string>();
   const [notice, setNotice] = useState<string>();
-  const [viewer, setViewer] = useState<{
-    url: string;
-    name: string;
-    mime: string;
-  }>();
+  const [viewer, setViewer] = useState<ChatViewerFile>();
   const [opening, setOpening] = useState<string>();
   const [cameraOpen, setCameraOpen] = useState(false);
-  const files = useRef(new Set<string>());
   const previewUrl = useRef<string | undefined>(undefined);
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
     onUnread(chat.unread);
   }, [chat.unread, onUnread]);
   useEffect(() => {
+    request.current?.abort();
+    setViewer(undefined);
+    setOpening(undefined);
     if (!open) setCameraOpen(false);
-  }, [open]);
+  }, [open, appointmentId]);
   function selectAttachment(selected: File) {
     if (chat.sending) return;
     if (
@@ -90,7 +113,6 @@ export function CallChat({
     () => () => {
       request.current?.abort();
       if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
-      files.current.forEach((url) => URL.revokeObjectURL(url));
     },
     [],
   );
@@ -108,17 +130,9 @@ export function CallChat({
     setOpening(item.id);
     setNotice(undefined);
     try {
-      const blob = await downloadChatAttachment(
-        appointmentId,
-        item.id,
-        abort.signal,
-      );
+      const { uri } = await media.load(item);
       if (abort.signal.aborted) return;
-      if (blob.size !== item.sizeBytes || blob.type !== item.mimeType)
-        throw new Error('The attachment is incomplete.');
-      const url = URL.createObjectURL(blob);
-      files.current.add(url);
-      setViewer({ url, name: item.name, mime: item.mimeType });
+      setViewer({ url: uri, name: item.name, mime: item.mimeType });
     } catch (error) {
       if (!abort.signal.aborted)
         setNotice(
@@ -154,6 +168,7 @@ export function CallChat({
           hasOlder={chat.hasOlder}
           opening={opening}
           visible={open}
+          media={media}
           embedded={embedded}
           onOlder={() => void chat.older()}
           onAttachment={(item) => void attachment(item)}
@@ -198,38 +213,11 @@ export function CallChat({
         />
       )}
       {viewer && open && (
-        <div
-          className={`call-chat-viewer ${
-            embedded ? 'chat-viewer-fullscreen' : ''
-          }`}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Chat attachment"
-        >
-          <header>
-            <span>{viewer.name}</span>
-            <a className="btn" href={viewer.url} download={viewer.name}>
-              Download
-            </a>
-            <button
-              type="button"
-              className="call-chat-remove"
-              aria-label="Close attachment"
-              onClick={() => {
-                URL.revokeObjectURL(viewer.url);
-                files.current.delete(viewer.url);
-                setViewer(undefined);
-              }}
-            >
-              <X />
-            </button>
-          </header>
-          {viewer.mime.startsWith('image/') ? (
-            <img src={viewer.url} alt={viewer.name} />
-          ) : (
-            <iframe src={viewer.url} title={viewer.name} />
-          )}
-        </div>
+        <ChatAttachmentViewer
+          key={viewer.url}
+          file={viewer}
+          onClose={() => setViewer(undefined)}
+        />
       )}
     </div>
   );
