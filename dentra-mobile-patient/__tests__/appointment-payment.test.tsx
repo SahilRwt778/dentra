@@ -7,6 +7,7 @@ import { Button, ErrorState } from '../src/components/ui';
 import type { Appointment } from '../src/api/types';
 import type { PatientScreenProps } from '../src/navigation/types';
 
+jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
 jest.mock('react-native-razorpay', () => ({ open: jest.fn() }));
 const mockLoad = jest.fn();
 const mockRefetch = jest.fn();

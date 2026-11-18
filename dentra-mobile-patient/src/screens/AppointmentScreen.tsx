@@ -2,7 +2,7 @@ import { ConsultationPassCard } from '@/components/consultation-pass-card';
 import { ClinicPaymentDetails } from '@/components/clinic-payment-details';
 import { cancellationPaymentMessage } from '@/lib/clinic-payment';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Text } from 'react-native';
+import { Alert, Linking, Text, View } from 'react-native';
 import { Building2, Check, Video } from 'lucide-react-native';
 import {
   useAppointmentQuery,
@@ -42,6 +42,7 @@ import {
   checkoutUnavailableReason,
 } from '@/lib/checkout';
 import { useCheckout } from '@/hooks/use-checkout';
+import { useAppointmentQueryOptions } from '@/hooks/use-appointment-query-options';
 import type { PatientScreenProps } from '@/navigation/types';
 import { colors, ui } from '@/theme';
 import { useVideoCall } from '@/video/video-call-provider';
@@ -55,16 +56,16 @@ export function AppointmentScreen({
     string | undefined
   >(route.params.paymentSubmitted ? appointmentId : undefined);
   const videoCall = useVideoCall();
+  const queryOptions = useAppointmentQueryOptions({
+    awaitingPaymentConfirmation: submittedPaymentId === appointmentId,
+  });
   const {
     data: a,
     isLoading,
     isFetching,
     error,
     refetch,
-  } = useAppointmentQuery(appointmentId, {
-    pollingInterval: submittedPaymentId === appointmentId ? 3000 : 15000,
-    refetchOnMountOrArgChange: true,
-  });
+  } = useAppointmentQuery(appointmentId, queryOptions);
   const { data: dentist } = useDentistQuery(a?.dentistId);
   const { data: me } = usePatientQuery();
   const loadAppointment = useLoadAppointment();
@@ -215,20 +216,63 @@ export function AppointmentScreen({
             </Card>
           ) : null}
           <Card>
-            <Avatar name={a.dentistName} large />
-            <Text style={ui.title}>{a.dentistName}</Text>
-            <Text style={ui.muted}>{dentist?.qualification}</Text>
-            <Badge
-              title={statusLabel[a.status ?? ''] ?? 'Appointment'}
-              tone={
-                a.status === 'cancelled'
-                  ? 'red'
-                  : a.status === 'completed'
-                  ? 'green'
-                  : 'accent'
+            <View style={ui.row}>
+              <Avatar
+                name={a.dentistName}
+                photoUrl={dentist?.profilePhotoUrl}
+                large
+              />
+              <View style={[ui.grow, ui.stack]}>
+                <View>
+                  <Text style={ui.heading}>{a.dentistName}</Text>
+                  <Text style={ui.muted}>{dentist?.qualification}</Text>
+                </View>
+                <View style={ui.wrap}>
+                  <Badge
+                    title={statusLabel[a.status ?? ''] ?? 'Appointment'}
+                    tone={
+                      a.status === 'cancelled'
+                        ? 'red'
+                        : a.status === 'completed'
+                        ? 'green'
+                        : 'accent'
+                    }
+                  />
+                  {a.followUpOf && <Badge title="Free follow-up" />}
+                </View>
+              </View>
+            </View>
+            <ConsultationPassCard
+              embedded
+              item={a.consultationCase}
+              onMessage={() =>
+                navigation.navigate('Chat', { caseId: a.consultationCase!.id })
+              }
+              onBook={() =>
+                navigation.navigate('FollowUp', {
+                  caseId: a.consultationCase!.id,
+                })
               }
             />
           </Card>
+          {active && a.type === 'video' ? (
+            <Card>
+              <Video color={colors.accent} size={25} />
+              <Text style={ui.heading}>Video consultation</Text>
+              <Text style={ui.muted}>
+                {['paid', 'covered'].includes(a.payment?.status ?? '')
+                  ? 'Join from 10 minutes before your appointment. Your dentist will meet you in a private video room.'
+                  : 'Complete your payment before joining the video consultation.'}
+              </Text>
+              <Button
+                title="Open video consultation"
+                disabled={
+                  !['paid', 'covered'].includes(a.payment?.status ?? '')
+                }
+                onPress={() => videoCall.open(appointmentId)}
+              />
+            </Card>
+          ) : null}
           <Card>
             <Detail
               label="When"
@@ -280,18 +324,6 @@ export function AppointmentScreen({
               />
             </Card>
           ) : null}
-          {a.followUpOf && <Badge title="Free follow-up" />}
-          <ConsultationPassCard
-            item={a.consultationCase}
-            onMessage={() =>
-              navigation.navigate('Chat', { caseId: a.consultationCase!.id })
-            }
-            onBook={() =>
-              navigation.navigate('FollowUp', {
-                caseId: a.consultationCase!.id,
-              })
-            }
-          />
           <AppointmentFiles appointmentId={appointmentId} />
           {a.status === 'completed' ? (
             <CompletedVisitDocuments appointmentId={appointmentId} />
@@ -330,24 +362,6 @@ export function AppointmentScreen({
                   }}
                 />
               ) : null}
-            </Card>
-          ) : null}
-          {active && a.type === 'video' ? (
-            <Card>
-              <Video color={colors.accent} size={25} />
-              <Text style={ui.heading}>Video consultation</Text>
-              <Text style={ui.muted}>
-                {['paid', 'covered'].includes(a.payment?.status ?? '')
-                  ? 'Join from 10 minutes before your appointment. Your dentist will meet you in a private video room.'
-                  : 'Complete your payment before joining the video consultation.'}
-              </Text>
-              <Button
-                title="Open video consultation"
-                disabled={
-                  !['paid', 'covered'].includes(a.payment?.status ?? '')
-                }
-                onPress={() => videoCall.open(appointmentId)}
-              />
             </Card>
           ) : null}
           {actionError ? <ErrorState message={actionError} /> : null}

@@ -2,6 +2,8 @@ import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 import { useAppointments } from '../src/hooks/use-appointments';
 
+jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+
 const mockLoad = jest.fn();
 const mockFirst = {
   data: { items: [{ id: 'new-visit' }], nextPage: 2 },

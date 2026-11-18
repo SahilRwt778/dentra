@@ -57,8 +57,8 @@ export const videoStyles = StyleSheet.create({
   },
   fill: { width: '100%', height: '100%' },
   placeholder: { flex: 1, justifyContent: 'center', padding: 24, gap: 14 },
-  miniHeading: { fontSize: 14, lineHeight: 19 },
-  miniPlaceholder: { padding: 12, gap: 0 },
+  miniHeading: { fontSize: 12, lineHeight: 16 },
+  miniPlaceholder: { padding: 8, gap: 0 },
   local: {
     position: 'absolute',
     height: 160,

@@ -1,10 +1,9 @@
-import { useAppActive } from '@dentra/video/src/useAppActive';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { ConsultationInbox } from '@dentra/video/src/ConsultationInbox';
-import { useConsultationCasesQuery } from '@/api/consultation-cases';
+import { useConversationInbox } from '@/hooks/use-conversation-inbox';
 import { errorMessage } from '@/api/errors';
 import type { PatientNavigation } from '@/navigation/types';
 import { colors, ui } from '@/theme';
@@ -14,17 +13,8 @@ import type { ConversationFilter } from '@dentra/call-core';
 export function MessagesScreen() {
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<ConversationFilter>('all');
-  const focused = useIsFocused();
-  const active = useAppActive();
   const navigation = useNavigation<PatientNavigation>();
-  const query = useConsultationCasesQuery(
-    { page, filter },
-    {
-      skip: !focused || !active,
-      pollingInterval: focused && active ? 10000 : 0,
-      refetchOnMountOrArgChange: true,
-    },
-  );
+  const query = useConversationInbox({ page, filter });
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <View style={styles.header}>

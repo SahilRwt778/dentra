@@ -36,13 +36,19 @@ export type ConsultationCaseQuery = {
 };
 /** Keep displayed rows consistent with the selected tab, including older API responses. */
 export function matchesConversationFilter(
-  item: Pick<ConsultationCaseBrief, 'status'>,
+  item: Pick<ConsultationCase, 'canMessage'>,
   filter: ConversationFilter,
 ) {
   if (filter === 'all') return true;
-  return filter === 'open'
-    ? item.status === 'active' || item.status === 'pending'
-    : item.status === 'expired' || item.status === 'revoked';
+  return filter === 'open' ? item.canMessage : !item.canMessage;
+}
+export function conversationMessagingLabel(
+  item: Pick<ConsultationCase, 'canMessage' | 'expiresAt'>,
+) {
+  if (!item.canMessage) return 'Closed · History available';
+  return item.expiresAt
+    ? `Open until ${consultationDeadline(item.expiresAt)}`
+    : 'Messaging open';
 }
 export function consultationDeadline(value: string) {
   return new Date(value).toLocaleString('en-IN', {

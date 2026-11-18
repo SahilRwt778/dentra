@@ -524,7 +524,7 @@ paths:
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
         - name: filter
           in: query
-          description: Open includes pending and active consultations; closed includes expired and revoked conversations.
+          description: Open includes conversations where the authenticated user can currently send messages; closed includes read-only conversations.
           schema: { type: string, enum: [all, open, closed], default: all }
       responses:
         "200":
@@ -2370,7 +2370,7 @@ components:
             dentistProfilePhotoUrl: { type: string, nullable: true, description: Signed image path relative to the API origin }
             concern: { type: string }
             serverNow: { type: string }
-            canMessage: { type: boolean }
+            canMessage: { type: boolean, description: Whether the authenticated user can currently send messages in this conversation; used by the open and closed filters. }
             canBookFollowUp: { type: boolean }
             unreadCount: { type: integer }
             latestMessageAt: { type: string, nullable: true }

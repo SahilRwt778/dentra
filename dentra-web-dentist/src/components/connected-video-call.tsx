@@ -67,6 +67,24 @@ export default function ConnectedVideoCall({
   } = callState;
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
+  useEffect(() => {
+    if (!room || connection !== 'connected') return;
+    const resumeAudio = () => {
+      void room.startAudio().catch(() => undefined);
+    };
+    const unlockAudio = () => {
+      if (!room.canPlaybackAudio) resumeAudio();
+    };
+    resumeAudio();
+    // Browsers may require a user gesture. Any normal call interaction can
+    // unlock playback, including clicks while the video is minimized.
+    window.addEventListener('pointerdown', unlockAudio, true);
+    window.addEventListener('keydown', unlockAudio, true);
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio, true);
+      window.removeEventListener('keydown', unlockAudio, true);
+    };
+  }, [room, connection]);
   async function change(action: () => Promise<void>) {
     if (!room || lock.current) return;
     lock.current = true;
@@ -88,8 +106,8 @@ export default function ConnectedVideoCall({
         ? 'Reconnecting…'
         : 'Connecting…'
       : remotePresent
-      ? 'Patient connected'
-      : 'Waiting for the patient';
+        ? 'Patient connected'
+        : 'Waiting for the patient';
   const contentTile = callState.remoteScreenTrack;
   const stageTile = contentTile ?? callState.remoteCameraTrack;
   return (
@@ -164,18 +182,21 @@ export default function ConnectedVideoCall({
                   {sharing
                     ? 'Sharing your screen · '
                     : contentTile
-                    ? 'Patient is sharing their screen · '
-                    : ''}
+                      ? 'Patient is sharing their screen · '
+                      : ''}
                   {status}
                 </p>
                 <div className="row video-options consult-call-controls">
                   <button
                     type="button"
-                    className="btn"
+                    className="btn btn-icon consult-icon-control"
+                    data-call-action="microphone"
                     disabled={busy || connection !== 'connected'}
                     aria-label={
                       microphone ? 'Mute microphone' : 'Unmute microphone'
                     }
+                    title={microphone ? 'Mute microphone' : 'Unmute microphone'}
+                    aria-pressed={!microphone}
                     onClick={() =>
                       void change(async () => {
                         await room!.localParticipant.setMicrophoneEnabled(
@@ -185,13 +206,15 @@ export default function ConnectedVideoCall({
                     }
                   >
                     {microphone ? <Mic size={18} /> : <MicOff size={18} />}
-                    {microphone ? 'Mute' : 'Unmute'}
                   </button>
                   <button
                     type="button"
-                    className="btn"
+                    className="btn btn-icon consult-icon-control"
+                    data-call-action="camera"
                     disabled={busy || connection !== 'connected'}
                     aria-label={camera ? 'Turn camera off' : 'Turn camera on'}
+                    title={camera ? 'Turn camera off' : 'Turn camera on'}
+                    aria-pressed={!camera}
                     onClick={() =>
                       void change(async () => {
                         await room!.localParticipant.setCameraEnabled(!camera);
@@ -199,10 +222,10 @@ export default function ConnectedVideoCall({
                     }
                   >
                     {camera ? <Camera size={18} /> : <CameraOff size={18} />}
-                    Camera {camera ? 'on' : 'off'}
                   </button>
                   <button
                     type="button"
+                    data-call-action="screen"
                     className={`btn btn-icon consult-icon-control${
                       sharing ? ' is-sharing' : ''
                     }`}
@@ -230,6 +253,7 @@ export default function ConnectedVideoCall({
                   <button
                     type="button"
                     className="btn btn-icon consult-icon-control"
+                    data-call-action="chat"
                     aria-label="Open call chat"
                     aria-description={
                       unread ? `${unread} unread messages` : undefined
@@ -246,26 +270,13 @@ export default function ConnectedVideoCall({
                   </button>
                   <button
                     type="button"
-                    className="btn btn-danger"
+                    className="btn btn-icon btn-danger consult-icon-control"
+                    data-call-action="leave"
+                    aria-label="Leave call"
+                    title="Leave call"
                     onClick={() => end(call)}
                   >
                     <PhoneOff size={18} />
-                    Leave call
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      void room
-                        ?.startAudio()
-                        .catch(() =>
-                          report(
-                            'Use your browser controls to allow call audio.',
-                          ),
-                        );
-                    }}
-                  >
-                    Enable call audio
                   </button>
                 </div>
               </div>

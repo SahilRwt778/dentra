@@ -1140,22 +1140,11 @@ button.lg:hover {
 .consult-resize-handle:hover, .consult-resize-handle:focus-visible { background: var(--accent); }
 .consult-tool-rail { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 18px; background: #fff; border-top: 1px solid var(--line); }
 .consult-tool-rail > span { margin-right: auto; color: var(--muted); }
-.is-minimized .consult-media-window { position: fixed; z-index: 40; right: 20px; bottom: 20px; width: min(var(--consult-mini-width), calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow-y: auto; box-shadow: 0 12px 50px #10283a55; border: 1px solid #42606a; }
 .consult-move-handle { display: flex; align-items: center; gap: 8px; min-width: 0; border: 0; padding: 8px 0; background: transparent; color: inherit; font: inherit; text-align: left; touch-action: none; user-select: none; cursor: grab; }
 .consult-move-handle:active { cursor: grabbing; }
 .consult-move-handle b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .consult-move-handle svg { flex-shrink: 0; }
 .consult-move-handle:focus-visible { outline: 2px solid #85d6cf; outline-offset: 2px; border-radius: 4px; }
-.is-minimized .consult-call-stage { min-height: 0; height: 190px; aspect-ratio: auto; border-radius: 0; }
-.is-minimized .consult-call-placeholder { min-height: 0; padding: 16px; font-size: 13px; gap: 8px; }
-.is-minimized .consult-call-placeholder > svg, .is-minimized .consult-call-placeholder > span { display: none; }
-.is-minimized .consult-call-self { width: 64px; height: 82px; right: 8px; bottom: 8px; }
-.is-minimized .consult-media-header { padding: 10px; }
-.is-minimized .consult-media-header p { display: none; }
-.is-minimized .consult-call-controls { gap: 6px; padding: 0 8px 8px; }
-.is-minimized .consult-call-controls .btn { padding: 8px; font-size: 12px; gap: 4px; }
-.consult-mini-size { display: flex; align-items: center; gap: 12px; padding: 8px 14px; font-size: 12px; background: #183d4a; }
-.consult-mini-size input { flex: 1; min-width: 0; accent-color: #85d6cf; }
 @media (max-width: 760px) {
   .is-expanded.has-panel .consult-workspace-body { flex-direction: column; }
   .is-expanded.has-panel .consult-media-window { flex: 0 0 34%; min-height: 180px; }
@@ -1170,7 +1159,6 @@ button.lg:hover {
   .consult-tool-rail { flex-wrap: nowrap; overflow-x: auto; padding: 10px; flex-shrink: 0; }
   .consult-tool-rail > span { display: none; }
   .consult-tool-rail .btn { flex-shrink: 0; }
-  .is-minimized .consult-media-window { right: 12px; bottom: 12px; }
 }
 
 /* Call collaboration stays inside the movable consultation surface. */

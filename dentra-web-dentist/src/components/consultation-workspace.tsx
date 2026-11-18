@@ -10,6 +10,13 @@ import {
   Maximize2,
   Minimize2,
   PanelRightClose,
+  ClipboardList,
+  ClipboardCheck,
+  FileText,
+  Images,
+  Pill,
+  Stethoscope,
+  UserRound,
   X,
 } from 'lucide-react';
 import { useMovableCallWindow } from './use-movable-call-window';
@@ -19,6 +26,15 @@ export type ConsultationPanel = {
   id: string;
   label: string;
   content: ReactNode;
+};
+
+const panelIcons: Record<string, typeof FileText> = {
+  notes: ClipboardList,
+  chart: Stethoscope,
+  prescription: Pill,
+  plan: ClipboardCheck,
+  patient: UserRound,
+  files: Images,
 };
 
 /** Keep one media tree mounted when changing layout so resizing never reconnects the call. */
@@ -43,7 +59,6 @@ export function ConsultationWorkspace({
   const minimized = floating || locallyMinimized;
   const [panelId, setPanelId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(40);
-  const [miniWidth, setMiniWidth] = useState(360);
   const body = useRef<HTMLDivElement>(null);
   const workspace = useRef<HTMLElement>(null);
   const mediaWindow = useRef<HTMLDivElement>(null);
@@ -89,7 +104,6 @@ export function ConsultationWorkspace({
       style={
         {
           '--consult-panel-width': `${panelWidth}%`,
-          '--consult-mini-width': `${miniWidth}px`,
         } as CSSProperties
       }
       onKeyDown={(event) => {
@@ -131,6 +145,9 @@ export function ConsultationWorkspace({
               aria-label={
                 overlays.visible ? 'Hide call controls' : 'Show call controls'
               }
+              title={
+                overlays.visible ? 'Hide call controls' : 'Show call controls'
+              }
               onClick={overlays.toggle}
             />
           )}
@@ -156,40 +173,27 @@ export function ConsultationWorkspace({
             {active && (
               <button
                 type="button"
-                className="btn consult-icon-button"
+                className="btn btn-icon consult-icon-button"
                 aria-label={
                   minimized ? 'Restore full-screen call' : 'Minimize call'
                 }
+                title={minimized ? 'Restore full-screen call' : 'Minimize call'}
                 onClick={() =>
                   floating ? onExpand?.() : setMinimized((value) => !value)
                 }
               >
                 {minimized ? <Maximize2 size={20} /> : <Minimize2 size={20} />}
-                <span>{minimized ? 'Expand' : 'Minimize'}</span>
               </button>
             )}
           </header>
           <div className="consult-media-content">{call}</div>
-          {active && minimized && (
-            <label className="consult-mini-size">
-              Call size
-              <input
-                aria-label="Minimized call size"
-                type="range"
-                min="280"
-                max="600"
-                step="10"
-                value={miniWidth}
-                onChange={(event) => setMiniWidth(Number(event.target.value))}
-              />
-            </label>
-          )}
         </div>
         {expanded && panelId && (
           <div
             className="consult-resize-handle"
             role="separator"
             aria-label="Resize video and clinical panel"
+            title="Drag to resize the video and clinical panel"
             aria-orientation="vertical"
             aria-valuemin={28}
             aria-valuemax={65}
@@ -228,6 +232,7 @@ export function ConsultationWorkspace({
                 type="button"
                 className="btn"
                 aria-label="Close clinical panel"
+                title="Close clinical panel"
                 onClick={() => setPanelId(null)}
               >
                 <X size={18} />
@@ -254,27 +259,33 @@ export function ConsultationWorkspace({
       {expanded && (
         <nav className="consult-tool-rail" aria-label="Clinical tools">
           <span className="small">Consultation tools</span>
-          {panels.map((panel) => (
-            <button
-              key={panel.id}
-              type="button"
-              className={`btn${panelId === panel.id ? ' btn-primary' : ''}`}
-              aria-expanded={panelId === panel.id}
-              aria-controls={`consult-panel-${panel.id}`}
-              onClick={() =>
-                setPanelId((current) =>
-                  current === panel.id ? null : panel.id,
-                )
-              }
-            >
-              {panel.label}
-            </button>
-          ))}
+          {panels.map((panel) => {
+            const Icon = panelIcons[panel.id] ?? FileText;
+            return (
+              <button
+                key={panel.id}
+                type="button"
+                className={`btn btn-icon${panelId === panel.id ? ' btn-primary' : ''}`}
+                aria-label={panel.label}
+                title={panel.label}
+                aria-expanded={panelId === panel.id}
+                aria-controls={`consult-panel-${panel.id}`}
+                onClick={() =>
+                  setPanelId((current) =>
+                    current === panel.id ? null : panel.id,
+                  )
+                }
+              >
+                <Icon size={21} />
+              </button>
+            );
+          })}
           {panelId && (
             <button
               type="button"
               className="btn"
               aria-label="Hide clinical panel"
+              title="Hide clinical panel"
               onClick={() => setPanelId(null)}
             >
               <PanelRightClose size={18} />

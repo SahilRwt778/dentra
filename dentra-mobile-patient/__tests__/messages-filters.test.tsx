@@ -5,6 +5,7 @@ import { ConsultationInbox } from '@dentra/video/src/ConsultationInbox';
 import { MessagesScreen } from '../src/screens/MessagesScreen';
 import type { ConsultationCase } from '@dentra/call-core';
 
+jest.mock('../src/store/hooks', () => ({ useAppDispatch: () => jest.fn() }));
 let mockItems: ConsultationCase[] = [];
 
 const mockQuery = jest.fn((_query: unknown, _options?: unknown) => ({
@@ -67,9 +68,18 @@ test('Open excludes closed rows even when an older API returns a mixed page', as
       .props.data.map((item: ConsultationCase) => item.status);
   expect(rows()).toHaveLength(4);
   await choose('Open conversations');
-  expect(rows()).toEqual(['active', 'pending']);
+  expect(rows()).toEqual(['active']);
   await choose('Closed conversations');
-  expect(rows()).toEqual(['expired', 'revoked']);
+  expect(rows()).toEqual(['pending', 'expired', 'revoked']);
+  mockItems = mockItems.map(item => ({
+    ...item,
+    canMessage: item.status === 'pending',
+  }));
+  await act(async () => tree.update(<MessagesScreen />));
+  await choose('Open conversations');
+  expect(rows()).toEqual(['pending']);
+  await choose('Closed conversations');
+  expect(rows()).toEqual(['active', 'expired', 'revoked']);
   await choose('All conversations');
   expect(rows()).toHaveLength(4);
 });

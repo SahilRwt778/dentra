@@ -11,7 +11,10 @@ import {
 type Point = { x: number; y: number };
 const GAP = 12;
 
-export function useMovableCallWindow(ref: RefObject<HTMLDivElement | null>, enabled: boolean) {
+export function useMovableCallWindow(
+  ref: RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+) {
   const [position, setPosition] = useState<Point | null>(null);
   const savedPosition = useRef<Point | null>(null);
   const drag = useRef<{
@@ -25,11 +28,19 @@ export function useMovableCallWindow(ref: RefObject<HTMLDivElement | null>, enab
       const bounds = ref.current?.getBoundingClientRect();
       if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
       const next = {
-        x: Math.max(GAP, Math.min(window.innerWidth - bounds.width - GAP, point.x)),
-        y: Math.max(GAP, Math.min(window.innerHeight - bounds.height - GAP, point.y)),
+        x: Math.max(
+          GAP,
+          Math.min(window.innerWidth - bounds.width - GAP, point.x),
+        ),
+        y: Math.max(
+          GAP,
+          Math.min(window.innerHeight - bounds.height - GAP, point.y),
+        ),
       };
       savedPosition.current = next;
-      setPosition((current) => (current?.x === next.x && current.y === next.y ? current : next));
+      setPosition((current) =>
+        current?.x === next.x && current.y === next.y ? current : next,
+      );
     },
     [ref],
   );
@@ -41,7 +52,7 @@ export function useMovableCallWindow(ref: RefObject<HTMLDivElement | null>, enab
     }
     function keepVisible() {
       const bounds = ref.current?.getBoundingClientRect();
-      if (bounds) move(savedPosition.current ?? { x: bounds.left, y: bounds.top });
+      if (bounds) move(savedPosition.current ?? { x: Infinity, y: Infinity });
     }
     keepVisible();
     const observer = new ResizeObserver(keepVisible);
@@ -72,7 +83,13 @@ export function useMovableCallWindow(ref: RefObject<HTMLDivElement | null>, enab
         : undefined,
     handleProps: {
       onPointerDown(event: PointerEvent<HTMLButtonElement>) {
-        if (!enabled || !event.isPrimary || event.button !== 0 || !savedPosition.current) return;
+        if (
+          !enabled ||
+          !event.isPrimary ||
+          event.button !== 0 ||
+          !savedPosition.current
+        )
+          return;
         event.preventDefault();
         event.currentTarget.focus();
         event.currentTarget.setPointerCapture(event.pointerId);

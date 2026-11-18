@@ -74,28 +74,19 @@ export class VideoChatService {
       ]);
       owner = await this.owner(user, requestedId, db);
     }
-    const row = owner.consultation_case_id
-      ? await this.cases.owned(user, owner.consultation_case_id, db)
-      : null;
-    if (lock && row) {
-      const paid = await db.query(
+    if (lock && owner.consultation_case_id) {
+      await db.query(
         'select status from transactions where appointment_id=$1 for share',
         [owner.original_id],
       );
-      row.payment_status = paid.rows[0]?.status;
     }
+    const row = owner.consultation_case_id
+      ? await this.cases.owned(user, owner.consultation_case_id, db)
+      : null;
     const pass = row ? this.cases.response(row, user.role) : null;
     let canSend = pass?.canMessage ?? false;
-    if (canSend) {
-      const session = await db.query(
-        `select 1 from refresh_tokens where user_id=$1 and session_id=$2 and device_id=$3
-        and revoked_at is null and expires_at>now() limit 1`,
-        [user.userId, user.sessionId, user.deviceId],
-      );
-      canSend = !!session.rowCount;
-    }
-    // Before completion, existing video-room chat keeps its original join/session rules.
-    if (!row?.activated_at && owner.type === 'video') {
+    // Legacy call-only chats have no consultation case yet.
+    if (!row && owner.type === 'video') {
       try {
         await this.video.assertCanJoin(user, requestedId, db);
         const active = await db.query(
@@ -139,8 +130,8 @@ export class VideoChatService {
         page.after
           ? 'and sequence>$3::bigint'
           : page.before
-          ? 'and sequence<$3::bigint'
-          : ''
+            ? 'and sequence<$3::bigint'
+            : ''
       }
       order by sequence ${page.after ? 'asc' : 'desc'} limit $2`,
       page.after || page.before
@@ -181,8 +172,8 @@ export class VideoChatService {
         mime === 'application/pdf'
           ? 'pdf'
           : mime === 'image/png'
-          ? 'png'
-          : 'jpg';
+            ? 'png'
+            : 'jpg';
       if (!name.toLowerCase().endsWith(`.${extension}`))
         name = `${name.slice(0, 155)}.${extension}`;
     }

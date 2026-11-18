@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   room: undefined as any,
   shareStarted: vi.fn(),
   shareStopped: vi.fn(),
+  audioStarted: vi.fn(),
   subscribers: new Set<() => void>(),
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
@@ -36,7 +37,7 @@ vi.mock('@/store/store', () => ({
 vi.mock('@/api/generated-api', () => ({
   useGetAppointmentsByAppointmentIdVideoQuery: (
     _arg: unknown,
-    options: { skip?: boolean }
+    options: { skip?: boolean },
   ) => ({
     currentData: options.skip ? undefined : mocks.status,
     error: mocks.error,
@@ -89,7 +90,7 @@ vi.mock('livekit-client', () => ({
       'LocalTrackPublished',
       'LocalTrackUnpublished',
       'Disconnected',
-    ].map((key) => [key, key])
+    ].map((key) => [key, key]),
   ),
   Track: {
     Source: {
@@ -100,6 +101,7 @@ vi.mock('livekit-client', () => ({
   },
   Room: class {
     state = 'connecting';
+    canPlaybackAudio = false;
     remoteParticipants = new Map();
     handlers = new Map<string, Set<(...args: any[]) => void>>();
     localParticipant = {
@@ -145,7 +147,10 @@ vi.mock('livekit-client', () => ({
     async disconnect() {
       mocks.unmounted();
     }
-    async startAudio() {}
+    async startAudio() {
+      await mocks.audioStarted();
+      this.canPlaybackAudio = true;
+    }
   },
 }));
 
@@ -202,7 +207,7 @@ beforeEach(async () => {
   mocks.error = undefined;
   mocks.subscribers.clear();
   mocks.token = `x.${btoa(
-    JSON.stringify({ sub: 'dentist-one', sid: 'session-one' })
+    JSON.stringify({ sub: 'dentist-one', sid: 'session-one' }),
   )}.x`;
   mocks.status = {
     canJoin: true,
@@ -269,6 +274,28 @@ test('navigating away and returning moves the visual target without replacing th
   expect(mocks.getToken).toHaveBeenCalledTimes(1);
 });
 
+test('audio starts automatically and a normal interaction retries playback when the browser blocks it', async () => {
+  await join();
+  expect(mocks.audioStarted).toHaveBeenCalledOnce();
+  const gesture = vi
+    .mocked(window.addEventListener)
+    .mock.calls.find(([type]) => type === 'pointerdown')![1] as () => void;
+  mocks.room.canPlaybackAudio = false;
+  await act(async () => {
+    gesture();
+    await flush();
+  });
+  expect(mocks.audioStarted).toHaveBeenCalledTimes(2);
+  expect(mocks.room.canPlaybackAudio).toBe(true);
+  await act(async () => {
+    gesture();
+    await flush();
+  });
+  expect(mocks.audioStarted).toHaveBeenCalledTimes(2);
+  expect(mocks.mounted).toHaveBeenCalledOnce();
+  expect(mocks.unmounted).not.toHaveBeenCalled();
+});
+
 test('server cancellation tears down the room even when its appointment page is closed', async () => {
   await join();
   await act(async () => {
@@ -297,7 +324,7 @@ test('a second appointment returns to the current call instead of creating anoth
       patientName: 'Other patient',
       microphone: true,
       camera: true,
-    })
+    }),
   );
   expect(mocks.navigate).toHaveBeenCalledWith('/consult/visit-one');
   expect(mocks.getToken).toHaveBeenCalledTimes(1);
@@ -387,7 +414,7 @@ test('screen sharing starts and stops without replacing the call, and received s
   expect(
     tree.root
       .findAllByType('video')
-      .some((node) => node.props.className?.includes('consult-screen-content'))
+      .some((node) => node.props.className?.includes('consult-screen-content')),
   ).toBe(true);
   await act(async () => {
     publications.delete('screen');
@@ -396,7 +423,7 @@ test('screen sharing starts and stops without replacing the call, and received s
   expect(
     tree.root
       .findAllByType('video')
-      .some((node) => node.props.className?.includes('consult-screen-content'))
+      .some((node) => node.props.className?.includes('consult-screen-content')),
   ).toBe(false);
   expect(mocks.mounted).toHaveBeenCalledTimes(1);
 });

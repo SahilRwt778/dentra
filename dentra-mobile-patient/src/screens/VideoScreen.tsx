@@ -323,7 +323,10 @@ function NativeCall({
             testID="call-waiting-state"
             style={[s.remote, s.placeholder, minimized && s.miniPlaceholder]}
           >
-            <Text style={[s.heading, minimized && s.miniHeading]}>
+            <Text
+              style={[s.heading, minimized && s.miniHeading]}
+              numberOfLines={minimized ? 3 : undefined}
+            >
               {videoStatus}
             </Text>
             {!minimized && (
@@ -577,8 +580,8 @@ const s = StyleSheet.create({
   disabled: { opacity: 0.4 },
   root: { flex: 1, backgroundColor: '#102B39' },
   layoutButton: { padding: 10 },
-  miniHeading: { fontSize: 14, lineHeight: 19 },
-  miniPlaceholder: { padding: 12, gap: 0 },
+  miniHeading: { fontSize: 12, lineHeight: 16 },
+  miniPlaceholder: { padding: 8, gap: 0 },
   miniLocal: {
     width: 52,
     height: 68,

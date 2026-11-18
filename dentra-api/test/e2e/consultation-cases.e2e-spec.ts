@@ -208,6 +208,90 @@ describe('72-hour consultation passes and messages', () => {
         .status,
     ).toBe('revoked');
   });
+  it('uses the same messaging permission for inbox filters and ongoing consultation chat', async () => {
+    const t = await fixture();
+    await send(
+      t.patient.token,
+      t.appointment.id,
+      'Existing conversation',
+    ).expect(201);
+    await pool.query(
+      'update consultation_cases set activated_at=null,expires_at=null where id=$1',
+      [t.caseId],
+    );
+    await pool.query(
+      `update appointments set status='in_consult',
+      scheduled_date=(now() at time zone 'Asia/Kolkata')::date,
+      scheduled_time=date_trunc('minute',now() at time zone 'Asia/Kolkata')::time where id=$1`,
+      [t.appointment.id],
+    );
+    jest
+      .spyOn(app.get(VideoProviderService), 'isEnabled')
+      .mockReturnValue(true);
+    const inbox = (actor: typeof t.patient, filter: string) =>
+      request(app.getHttpServer())
+        .get(`/consultation-cases?filter=${filter}`)
+        .set('Authorization', `Bearer ${actor.token}`);
+    const chat = (actor: typeof t.patient) =>
+      request(app.getHttpServer())
+        .get(`/appointments/${t.appointment.id}/video/chat`)
+        .set('Authorization', `Bearer ${actor.token}`);
+    const closed = await inbox(t.patient, 'closed').expect(200);
+    expect(closed.body.items).toEqual([
+      expect.objectContaining({
+        id: t.caseId,
+        status: 'pending',
+        canMessage: false,
+      }),
+    ]);
+    expect((await chat(t.patient).expect(200)).body.canSend).toBe(false);
+    const session = (token: string) =>
+      (
+        JSON.parse(
+          Buffer.from(token.split('.')[1], 'base64url').toString(),
+        ) as { sid: string }
+      ).sid;
+    await pool.query(
+      `insert into video_rooms(appointment_id,room_name,provider_room_id,scheduled_date,scheduled_time,expires_at,patient_session_id,dentist_session_id)
+      select id,$2,$2,scheduled_date,scheduled_time,now()+interval '2 hours',$3,$4 from appointments where id=$1`,
+      [
+        t.appointment.id,
+        `synthetic-chat-${randomUUID()}`,
+        session(t.patient.token),
+        session(t.dentist.token),
+      ],
+    );
+    for (const actor of [t.patient, t.dentist]) {
+      const open = await inbox(actor, 'open').expect(200);
+      expect(open.body.items).toEqual([
+        expect.objectContaining({
+          id: t.caseId,
+          status: 'pending',
+          canMessage: true,
+        }),
+      ]);
+      expect((await chat(actor).expect(200)).body.canSend).toBe(true);
+      await send(
+        actor.token,
+        t.appointment.id,
+        'Message during the consultation',
+      ).expect(201);
+    }
+    await pool.query(
+      'update video_rooms set closed_at=now() where appointment_id=$1',
+      [t.appointment.id],
+    );
+    expect((await chat(t.patient).expect(200)).body.canSend).toBe(false);
+    expect(
+      (await inbox(t.patient, 'open').expect(200)).body.items,
+    ).toHaveLength(0);
+    expect((await inbox(t.patient, 'closed').expect(200)).body.items).toEqual([
+      expect.objectContaining({ id: t.caseId, canMessage: false }),
+    ]);
+    await send(t.patient.token, t.appointment.id, 'Closed call chat').expect(
+      409,
+    );
+  });
   it('books an idempotent free follow-up without a gateway order, transaction, or new validity window', async () => {
     const t = await fixture(),
       key = randomUUID();

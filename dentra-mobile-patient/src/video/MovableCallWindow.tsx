@@ -48,11 +48,11 @@ export function MovableCallWindow({
       1,
       viewport.height - top - Math.max(insets.bottom, GAP),
     );
-    // A small 9:16 tile, matching the portrait shape of system picture-in-picture.
+    // Keep the portrait tile compact on phones, tablets and rotated screens.
     const width = Math.min(
-      140,
-      availableWidth * 0.34,
-      (availableHeight * 9) / 16,
+      180,
+      availableWidth * 0.28,
+      (availableHeight * 0.42 * 9) / 16,
     );
     const height = (width * 16) / 9;
     return {

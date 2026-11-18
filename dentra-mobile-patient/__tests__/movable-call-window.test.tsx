@@ -107,16 +107,23 @@ test('drags freely, stays inside safe edges, and starts each new drag at its sav
   await drag(60, 90);
   expect(position()).toEqual({ x: 72, y: 120 });
   await drag(5000, 5000);
-  expect(position()).toEqual({ x: 128, y: 490 });
+  expect(position().x + style().width).toBeCloseTo(388);
+  expect(position().y + style().height).toBeCloseTo(780);
 });
 
 test('resizing or rotation keeps the whole window and its controls on screen', async () => {
   await drag(5000, 5000);
   await layout(320, 380);
-  expect(position()).toEqual({ x: 48, y: 70 });
+  expect(position().x + style().width).toBeLessThanOrEqual(308);
+  expect(position().y + style().height).toBeLessThanOrEqual(360);
   await layout(250, 250);
-  expect(style()).toMatchObject({ width: 226, height: 200 });
-  expect(position()).toEqual({ x: 12, y: 30 });
+  expect(style().width).toBeLessThan(250 / 3);
+  expect(style().height).toBeLessThan(250 / 2);
+  expect(style().height / style().width).toBeCloseTo(16 / 9);
+  expect(position().x).toBeGreaterThanOrEqual(12);
+  expect(position().y).toBeGreaterThanOrEqual(30);
+  expect(position().x + style().width).toBeLessThanOrEqual(238);
+  expect(position().y + style().height).toBeLessThanOrEqual(230);
 });
 
 test('small movements and multi-touch leave taps alone; full-screen calls do not drag', async () => {

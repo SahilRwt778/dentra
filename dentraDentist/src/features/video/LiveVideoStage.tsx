@@ -128,7 +128,10 @@ export function LiveVideoStage({
               minimized && styles.miniPlaceholder,
             ]}
           >
-            <Text style={[styles.heading, minimized && styles.miniHeading]}>
+            <Text
+              style={[styles.heading, minimized && styles.miniHeading]}
+              numberOfLines={minimized ? 3 : undefined}
+            >
               {videoStatus}
             </Text>
             {!minimized && (

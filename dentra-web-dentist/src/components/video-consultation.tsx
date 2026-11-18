@@ -1,7 +1,10 @@
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { Camera, CameraOff, Mic, MicOff, Video } from 'lucide-react';
 import { useGetAppointmentsByAppointmentIdVideoQuery } from '@/api/generated-api';
-import { ConsultationWorkspace, type ConsultationPanel } from './consultation-workspace';
+import {
+  ConsultationWorkspace,
+  type ConsultationPanel,
+} from './consultation-workspace';
 import { useVideoCall } from './video-call-context';
 import { videoStatusText } from './video-status';
 
@@ -48,21 +51,25 @@ export function VideoConsultation({
               <div className="row video-options">
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn-icon consult-icon-button"
+                  aria-label={
+                    microphone ? 'Mute microphone' : 'Unmute microphone'
+                  }
+                  title={microphone ? 'Mute microphone' : 'Unmute microphone'}
                   aria-pressed={!microphone}
                   onClick={() => setMicrophone((value) => !value)}
                 >
                   {microphone ? <Mic size={18} /> : <MicOff size={18} />}
-                  Microphone {microphone ? 'on' : 'off'}
                 </button>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn-icon consult-icon-button"
+                  aria-label={camera ? 'Turn camera off' : 'Turn camera on'}
+                  title={camera ? 'Turn camera off' : 'Turn camera on'}
                   aria-pressed={!camera}
                   onClick={() => setCamera((value) => !value)}
                 >
                   {camera ? <Camera size={18} /> : <CameraOff size={18} />}
-                  Camera {camera ? 'on' : 'off'}
                 </button>
               </div>
               <button
@@ -74,7 +81,11 @@ export function VideoConsultation({
                 }}
               >
                 <Video size={17} />
-                {joining ? 'Joining…' : call ? 'Return to current call' : 'Join video call'}
+                {joining
+                  ? 'Joining…'
+                  : call
+                    ? 'Return to current call'
+                    : 'Join video call'}
               </button>
               {error && (
                 <button

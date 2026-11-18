@@ -2,6 +2,7 @@ import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 import { AppState, type AppStateStatus } from 'react-native';
 import { useNotificationSync } from '../src/hooks/use-notification-sync';
+import type { PushState } from '../src/notifications/push-manager';
 
 const mockDispatch = jest.fn();
 const mockQuery = jest.fn();
@@ -17,10 +18,15 @@ jest.mock('../src/api/generated/patient-api', () => ({
     util: { invalidateTags: (...args: unknown[]) => mockInvalidate(args[0]) },
   },
 }));
-function Bridge() {
-  useNotificationSync();
+function Bridge({ state = 'unavailable' }: { state?: PushState }) {
+  useNotificationSync(state);
   return null;
 }
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockData = { items: [{ id: 'initial' }] };
+  jest.mocked(AppState.addEventListener).mockReturnValue({ remove: jest.fn() });
+});
 
 test('pauses in the background, resumes on return and refreshes appointments for newly received events', async () => {
   let stateChanged: (state: AppStateStatus) => void = () => undefined;
@@ -57,6 +63,7 @@ test('pauses in the background, resumes on return and refreshes appointments for
       'Appointments',
       'Consultations',
       'Patients',
+      'Consultation Cases',
     ]);
     await act(async () => tree!.update(<Bridge />));
     expect(mockDispatch).toHaveBeenCalledTimes(1);
@@ -66,3 +73,39 @@ test('pauses in the background, resumes on return and refreshes appointments for
     subscription.mockRestore();
   }
 });
+
+test('enabled push disables polling while keeping the initial inbox subscription', async () => {
+  let tree!: Renderer.ReactTestRenderer;
+  await act(async () => {
+    tree = Renderer.create(<Bridge state="enabled" />);
+  });
+  expect(mockQuery).toHaveBeenLastCalledWith(
+    {},
+    expect.objectContaining({
+      skip: false,
+      pollingInterval: 0,
+      refetchOnMountOrArgChange: true,
+    }),
+  );
+  await act(async () => tree.unmount());
+});
+
+test.each(['unavailable', 'off', 'denied', 'error', 'busy'] as const)(
+  'falls back to polling when push is %s and stops once registration succeeds',
+  async state => {
+    let tree!: Renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = Renderer.create(<Bridge state={state} />);
+    });
+    expect(mockQuery).toHaveBeenLastCalledWith(
+      {},
+      expect.objectContaining({ pollingInterval: 10000 }),
+    );
+    await act(async () => tree.update(<Bridge state="enabled" />));
+    expect(mockQuery).toHaveBeenLastCalledWith(
+      {},
+      expect.objectContaining({ pollingInterval: 0 }),
+    );
+    await act(async () => tree.unmount());
+  },
+);

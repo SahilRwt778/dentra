@@ -1348,7 +1348,7 @@ export type GetConsultationCasesApiResponse =
   /** status 200 Owned cases, including read-only history */ ConsultationCasePage;
 export type GetConsultationCasesApiArg = {
   page?: number;
-  /** Open includes pending and active consultations; closed includes expired and revoked conversations. */
+  /** Open includes conversations where the authenticated user can currently send messages; closed includes read-only conversations. */
   filter?: "all" | "open" | "closed";
 };
 export type GetConsultationCaseApiResponse =
@@ -2066,6 +2066,7 @@ export type ConsultationCase = ConsultationCaseBrief & {
   dentistProfilePhotoUrl?: string | null;
   concern: string;
   serverNow: string;
+  /** Whether the authenticated user can currently send messages in this conversation; used by the open and closed filters. */
   canMessage: boolean;
   canBookFollowUp: boolean;
   unreadCount: number;

@@ -56,9 +56,9 @@ vi.mock('../src/api/generated-api', () => ({
       currentData: {
         items: cases.filter((item) =>
           !mocks.unfilteredInbox && query.filter === 'closed'
-            ? ['expired', 'revoked'].includes(item.status)
+            ? !item.canMessage
             : !mocks.unfilteredInbox && query.filter === 'open'
-              ? ['pending', 'active'].includes(item.status)
+              ? item.canMessage
               : true,
         ),
         unreadCount: 1,
@@ -206,15 +206,21 @@ test('Open and Closed filter the complete inbox, preserve a selected conversatio
     expect(mocks.inbox).toHaveBeenLastCalledWith({ page: 2, filter: 'all' });
     await select('Closed');
     expect(mocks.inbox).toHaveBeenLastCalledWith({ page: 1, filter: 'closed' });
-    expect(links()).toEqual(['/messages/closed']);
+    expect(links()).toEqual(['/messages/case-b', '/messages/closed']);
     expect(
       tree.root.findByProps({ 'aria-label': 'Consultation chat' }),
     ).toBeDefined();
     await select('Open');
+    expect(links()).toEqual(['/messages/case-a']);
+    cases[1].canMessage = true;
+    await select('Closed');
+    await select('Open');
     expect(links()).toEqual(['/messages/case-a', '/messages/case-b']);
+    expect(JSON.stringify(tree.toJSON())).toContain('Messaging open');
     await select('All');
     expect(links()).toHaveLength(3);
   } finally {
+    cases[1].canMessage = false;
     cases.pop();
   }
 });

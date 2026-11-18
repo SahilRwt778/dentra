@@ -12,6 +12,9 @@ import { patientNavigationRef } from '../src/navigation/navigation-ref';
 
 const mockDispatch = jest.fn();
 const mockStop = jest.fn();
+const mockInboxQuery = jest.fn((_args: unknown, _options?: unknown) => ({
+  data: { items: [] },
+}));
 const scope = {
   userId: 'patient',
   sessionId: 'session',
@@ -23,6 +26,8 @@ jest.mock('../src/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
 }));
 jest.mock('../src/api/generated/patient-api', () => ({
+  useGetNotificationsQuery: (args: unknown, options: unknown) =>
+    mockInboxQuery(args, options),
   dentraApi: {
     util: {
       invalidateTags: (tags: string[]) => ({ type: 'invalidate', tags }),
@@ -121,7 +126,13 @@ test('foreground delivery refreshes inbox and appointment data and shows a dismi
   });
   expect(mockDispatch).toHaveBeenCalledWith({
     type: 'invalidate',
-    tags: ['Notifications', 'Appointments', 'Consultations', 'Patients'],
+    tags: [
+      'Notifications',
+      'Appointments',
+      'Consultations',
+      'Patients',
+      'Consultation Cases',
+    ],
   });
   expect(
     tree.root.findByProps({
@@ -141,13 +152,11 @@ test('foreground delivery refreshes inbox and appointment data and shows a dismi
 });
 
 test('a message alert opens the conversation without requiring a video call', async () => {
-  jest
-    .mocked(resolvePushNotification)
-    .mockResolvedValue({
-      type: 'consultation_message',
-      caseId: 'case-id',
-      appointmentId: 'original-visit',
-    } as never);
+  jest.mocked(resolvePushNotification).mockResolvedValue({
+    type: 'consultation_message',
+    caseId: 'case-id',
+    appointmentId: 'original-visit',
+  } as never);
   await render();
   await act(async () => {
     jest.mocked(startPatientPush).mock.calls[0][1].open('message-notice');
@@ -161,5 +170,35 @@ test('a message alert opens the conversation without requiring a video call', as
     'PATCH',
     undefined,
     expect.any(AbortSignal),
+  );
+});
+
+test('push registration controls fallback polling inside the provider', async () => {
+  await render();
+  const callbacks = jest.mocked(startPatientPush).mock.calls[0][1];
+  await act(async () => callbacks.state('enabled'));
+  expect(mockInboxQuery).toHaveBeenLastCalledWith(
+    {},
+    expect.objectContaining({ pollingInterval: 0 }),
+  );
+  await act(async () => callbacks.message('new-update'));
+  expect(mockDispatch).toHaveBeenCalledWith({
+    type: 'invalidate',
+    tags: [
+      'Notifications',
+      'Appointments',
+      'Consultations',
+      'Patients',
+      'Consultation Cases',
+    ],
+  });
+  expect(mockInboxQuery).toHaveBeenLastCalledWith(
+    {},
+    expect.objectContaining({ pollingInterval: 0 }),
+  );
+  await act(async () => callbacks.state('error'));
+  expect(mockInboxQuery).toHaveBeenLastCalledWith(
+    {},
+    expect.objectContaining({ pollingInterval: 10000 }),
   );
 });

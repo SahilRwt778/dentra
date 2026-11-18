@@ -1,22 +1,24 @@
-import { Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { consultationDeadline } from '@dentra/call-core';
 import type { ConsultationCaseBrief } from '@/api/types';
 import { Button, Card } from './ui';
-import { ui } from '@/theme';
+import { colors, ui } from '@/theme';
 
 export function ConsultationPassCard({
   item,
   onMessage,
   onBook,
+  embedded = false,
 }: {
   item?: ConsultationCaseBrief | null;
   onMessage(): void;
   onBook(): void;
+  embedded?: boolean;
 }) {
   if (!item?.activatedAt) return null;
   const active = item.status === 'active';
-  return (
-    <Card>
+  const content = (
+    <>
       <Text style={ui.heading}>
         {active ? 'Your 3-day follow-up pass' : 'Consultation history'}
       </Text>
@@ -35,6 +37,20 @@ export function ConsultationPassCard({
         onPress={onMessage}
       />
       {active && <Button title="Book free follow-up" onPress={onBook} />}
-    </Card>
+    </>
+  );
+  return embedded ? (
+    <View style={styles.embedded}>{content}</View>
+  ) : (
+    <Card>{content}</Card>
   );
 }
+const styles = StyleSheet.create({
+  embedded: {
+    gap: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: 16,
+    marginTop: 2,
+  },
+});

@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import {
-  consultationDeadline,
+  conversationMessagingLabel,
   conversationFilters,
   matchesConversationFilter,
   type ConversationFilter,
@@ -193,12 +193,8 @@ export function ConversationList({
                 {item.concern}
               </p>
               <div className="messages-conversation-footer">
-                <span className={item.status === 'active' ? 'is-open' : ''}>
-                  {item.status === 'active' && item.expiresAt
-                    ? `Open until ${consultationDeadline(item.expiresAt)}`
-                    : item.status === 'pending'
-                      ? 'Consultation chat'
-                      : 'Closed · History available'}
+                <span className={item.canMessage ? 'is-open' : ''}>
+                  {conversationMessagingLabel(item)}
                 </span>
                 {item.unreadCount > 0 && (
                   <span

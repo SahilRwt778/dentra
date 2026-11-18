@@ -9,6 +9,7 @@ import {
   whenPatientNavigationReady,
 } from '@/navigation/navigation-ref';
 import { colors } from '@/theme';
+import { useNotificationSync } from '@/hooks/use-notification-sync';
 import { PushContext } from './push-context';
 import {
   currentPushSession,
@@ -29,6 +30,7 @@ export function PatientPushProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const [state, setState] = useState<PushState>('unavailable');
   const [banner, setBanner] = useState<string>();
+  useNotificationSync(state);
 
   useEffect(() => {
     const scope = currentPushSession();
@@ -42,6 +44,7 @@ export function PatientPushProvider({ children }: { children: ReactNode }) {
           'Appointments',
           'Consultations',
           'Patients',
+          'Consultation Cases',
         ]),
       );
     async function open(id: string) {

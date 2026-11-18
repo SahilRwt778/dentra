@@ -9,6 +9,7 @@ import { PG_POOL } from '@database/database.module';
 import type { AuthenticatedUser } from '@common/decorators/current-user.decorator';
 import { ProfilePhotosService } from '@modules/identity/profile-photos/profile-photos.service';
 import type { ConversationFilter } from './consultation-cases.dto';
+import { VideoProviderService } from '../video/video-provider.service';
 
 const CASE_COLUMNS = `c.*, a.concern_summary, a.concerns, a.scheduled_date, a.scheduled_time,
   a.status as original_status, t.status as payment_status, t.amount_paise,
@@ -21,12 +22,30 @@ const CASE_JOINS = `from consultation_cases c join appointments a on a.id=c.orig
   join users pu on pu.id=c.patient_id join users du on du.id=c.dentist_id
   left join transactions t on t.appointment_id=a.id`;
 
-const CASE_SELECT = `select ${CASE_COLUMNS} ${CASE_JOINS}`;
-// Pending chats are ongoing consultations. Expired/revoked passes are read-only history.
 const CASE_STATUS = `case when c.activated_at is null then 'pending'
   when not coalesce(t.status='paid' and t.amount_paise>0 and a.status='completed'
     and pu.status='active' and du.status='active' and d.status='verified',false) then 'revoked'
   when c.expires_at<=statement_timestamp() then 'expired' else 'active' end`;
+
+// The inbox and chat send endpoint use the same permission: a valid pass, or
+// an eligible video consultation joined by this session before pass activation.
+function canMessageSql(role: string) {
+  const roomSession =
+    role === 'dentist' ? 'dentist_session_id' : 'patient_session_id';
+  return `coalesce(
+    pu.status='active' and du.status='active' and d.status='verified'
+    and exists(select 1 from refresh_tokens rt where rt.user_id=$1 and rt.session_id=$3 and rt.device_id=$4
+      and rt.revoked_at is null and rt.expires_at>statement_timestamp())
+    and ((${CASE_STATUS})='active' or (
+      c.activated_at is null and $5::boolean and a.type='video'
+      and a.status in ('booked','waiting','in_consult') and t.status='paid'
+      and statement_timestamp()>=((a.scheduled_date+a.scheduled_time) at time zone 'Asia/Kolkata')-interval '10 minutes'
+      and statement_timestamp()<((a.scheduled_date+a.scheduled_time) at time zone 'Asia/Kolkata')+interval '2 hours'
+      and exists(select 1 from video_rooms r where r.appointment_id=a.id and r.provider='livekit'
+        and r.closed_at is null and r.expires_at>statement_timestamp() and r.provider_room_id is not null
+        and r.${roomSession}=$3)
+    )),false)`;
+}
 type ConsultationCaseRow = {
   id: string;
   original_appointment_id: string;
@@ -49,6 +68,7 @@ type ConsultationCaseRow = {
   total_unread?: number;
   latest_message_at?: Date | null;
   case_status?: ConsultationCaseResponse['status'];
+  can_message: boolean;
 };
 
 export type ConsultationCaseResponse = {
@@ -76,20 +96,29 @@ export class ConsultationCasesService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly photos: ProfilePhotosService,
+    private readonly video: VideoProviderService,
   ) {}
 
   async owned(
-    user: Pick<AuthenticatedUser, 'userId' | 'role'>,
+    user: AuthenticatedUser,
     id: string,
     db: Pool | PoolClient = this.pool,
     lock = false,
   ) {
     const { rows } = await db.query<ConsultationCaseRow>(
-      `${CASE_SELECT} where c.id=$1 and c.${
+      `select ${CASE_COLUMNS}, ${CASE_STATUS} as case_status,
+      ${canMessageSql(user.role)} as can_message ${CASE_JOINS}
+      where c.id=$2 and c.${
         user.role === 'dentist' ? 'dentist_id' : 'patient_id'
-      }=$2
+      }=$1
       ${lock ? 'for share of a' : ''}`,
-      [id, user.userId],
+      [
+        user.userId,
+        id,
+        user.sessionId ?? null,
+        user.deviceId ?? null,
+        this.video.isEnabled(),
+      ],
     );
     if (!rows[0]) throw new NotFoundException('No such consultation.');
     return rows[0];
@@ -106,7 +135,8 @@ export class ConsultationCasesService {
   ) {
     const { rows } = await this.pool.query<ConsultationCaseRow>(
       `with conversations as (
-      select ${CASE_COLUMNS}, ${CASE_STATUS} as case_status, a.booked_at,
+      select ${CASE_COLUMNS}, ${CASE_STATUS} as case_status,
+      ${canMessageSql(user.role)} as can_message, a.booked_at,
       unread.count::int as unread_count, latest.created_at as latest_message_at
       ${CASE_JOINS}
       left join consultation_chat_reads seen on seen.case_id=c.id and seen.user_id=$1
@@ -117,10 +147,16 @@ export class ConsultationCasesService {
       where c.${user.role === 'dentist' ? 'dentist_id' : 'patient_id'}=$1
         and (c.activated_at is not null or latest.created_at is not null)
       ) select *, sum(unread_count) over()::int as total_unread from conversations
-      where $3='all' or ($3='open' and case_status in ('pending','active'))
-        or ($3='closed' and case_status in ('expired','revoked'))
+      where $6='all' or ($6='open' and can_message) or ($6='closed' and not can_message)
       order by coalesce(latest_message_at,activated_at,booked_at) desc,id desc limit 21 offset $2`,
-      [user.userId, (page - 1) * 20, filter],
+      [
+        user.userId,
+        (page - 1) * 20,
+        user.sessionId ?? null,
+        user.deviceId ?? null,
+        this.video.isEnabled(),
+        filter,
+      ],
     );
     return {
       items: rows.slice(0, 20).map((row) => this.response(row, user.role)),
@@ -148,7 +184,10 @@ export class ConsultationCasesService {
       [row.original_appointment_id],
     );
     row.payment_status = paid.rows[0]?.status;
-    if (this.response(row, 'patient').status !== 'active')
+    if (
+      row.payment_status !== 'paid' ||
+      this.response(row, 'patient').status !== 'active'
+    )
       throw new ConflictException(
         'This consultation no longer has an active free follow-up pass.',
       );
@@ -202,7 +241,7 @@ export class ConsultationCasesService {
       expiresAt: row.expires_at?.toISOString() ?? null,
       serverNow: row.server_now.toISOString(),
       status,
-      canMessage: status === 'active',
+      canMessage: row.can_message,
       canBookFollowUp: role === 'patient' && status === 'active',
       unreadCount: row.unread_count ?? 0,
       latestMessageAt: row.latest_message_at?.toISOString() ?? null,

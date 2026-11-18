@@ -3,9 +3,10 @@ import { AppState } from 'react-native';
 import { apiCache } from '@/api/cache';
 import { useNotificationsQuery } from '@/api/notifications';
 import { useAppDispatch } from '@/store/hooks';
+import type { PushState } from '@/notifications/push-manager';
 
-// Keep one subscription alive across patient screens; stop polling in the background.
-export function useNotificationSync() {
+// Push refreshes this cache on delivery. Poll only as a foreground fallback.
+export function useNotificationSync(pushState: PushState) {
   const dispatch = useAppDispatch();
   const [active, setActive] = useState(
     AppState.currentState !== 'background' &&
@@ -21,7 +22,7 @@ export function useNotificationSync() {
   }, []);
   const { data, error } = useNotificationsQuery({
     skip: !active,
-    pollingInterval: 10000,
+    pollingInterval: active && pushState !== 'enabled' ? 10000 : 0,
     refetchOnMountOrArgChange: true,
   });
   useEffect(() => {
@@ -33,7 +34,12 @@ export function useNotificationSync() {
     initialized.current = true;
     if (changed)
       dispatch(
-        apiCache.invalidateTags(['Appointments', 'Consultations', 'Patients']),
+        apiCache.invalidateTags([
+          'Appointments',
+          'Consultations',
+          'Patients',
+          'Consultation Cases',
+        ]),
       );
   }, [data, error, dispatch]);
 }

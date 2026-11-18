@@ -1,6 +1,4 @@
-import { useAppActive } from '@dentra/video/src/useAppActive';
-import { useIsFocused } from '@react-navigation/native';
-import { useConsultationCasesQuery } from '@/api/consultation-cases';
+import { useConversationInbox } from '@/hooks/use-conversation-inbox';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -29,7 +27,6 @@ import { HelpScreen } from '@/screens/SupportScreen';
 import { NotificationsScreen } from '@/screens/NotificationsScreen';
 import { VideoCallProvider } from '@/video/video-call-provider';
 import { PatientPushProvider } from '@/notifications/push-provider';
-import { useNotificationSync } from '@/hooks/use-notification-sync';
 import type { PatientScreenProps, PatientStackParams, TabName } from './types';
 import { colors } from '@/theme';
 
@@ -42,16 +39,7 @@ const tabs = [
   { name: 'Profile', icon: UserRound },
 ] as const;
 function MainScreen({ route, navigation }: PatientScreenProps<'Main'>) {
-  const focused = useIsFocused();
-  const active = useAppActive();
-  const { data: inbox } = useConsultationCasesQuery(
-    { page: 1 },
-    {
-      skip: !focused || !active,
-      pollingInterval: 10000,
-      refetchOnMountOrArgChange: true,
-    },
-  );
+  const { data: inbox } = useConversationInbox();
   const [tab, setTab] = useState<TabName>(route.params?.tab ?? 'Home');
   const [prescriptions, setPrescriptions] = useState(
     !!route.params?.prescriptions,
@@ -115,7 +103,6 @@ function MainScreen({ route, navigation }: PatientScreenProps<'Main'>) {
   );
 }
 export function PatientNavigator() {
-  useNotificationSync();
   return (
     <PatientPushProvider>
       <VideoCallProvider>

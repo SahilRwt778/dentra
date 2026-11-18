@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { ChevronRight, MessageCircle } from 'lucide-react-native';
 import {
-  consultationDeadline,
+  conversationMessagingLabel,
   conversationFilters,
   matchesConversationFilter,
   type ConsultationCase,
@@ -102,8 +102,8 @@ export function ConsultationInbox({
                 (filter === 'all'
                   ? 'Your consultation conversations will appear here.'
                   : filter === 'closed'
-                  ? 'Expired and closed consultation chats will appear here.'
-                  : 'Your ongoing consultation chats will appear here.')}
+                  ? 'Chats where messaging is unavailable will appear here.'
+                  : 'Chats where you can send messages will appear here.')}
             </Text>
             {error && (
               <Pressable onPress={onRefresh} accessibilityRole="button">
@@ -138,14 +138,8 @@ export function ConsultationInbox({
             <Text style={styles.description} numberOfLines={2}>
               {item.concern}
             </Text>
-            <Text
-              style={[styles.status, item.status === 'active' && styles.active]}
-            >
-              {item.status === 'active' && item.expiresAt
-                ? `Open until ${consultationDeadline(item.expiresAt)}`
-                : item.status === 'pending'
-                ? 'Consultation chat'
-                : 'Closed · History available'}
+            <Text style={[styles.status, item.canMessage && styles.active]}>
+              {conversationMessagingLabel(item)}
             </Text>
           </View>
           {item.unreadCount > 0 && (

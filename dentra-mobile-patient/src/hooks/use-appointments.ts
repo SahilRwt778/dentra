@@ -4,14 +4,13 @@ import {
   useLoadAppointmentsPage,
 } from '@/api/appointments';
 import type { Appointment } from '@/api/types';
+import { useAppointmentQueryOptions } from './use-appointment-query-options';
 
 // The API is paginated. Home/records must also include older pages: the
 // most recent page alone isn't the patient's full history or next visit.
 export function useAppointments() {
-  const first = useAppointmentsPageQuery(1, {
-    refetchOnMountOrArgChange: true,
-    pollingInterval: 15000,
-  });
+  const queryOptions = useAppointmentQueryOptions();
+  const first = useAppointmentsPageQuery(1, queryOptions);
   const load = useLoadAppointmentsPage();
   const [items, setItems] = useState<Appointment[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
