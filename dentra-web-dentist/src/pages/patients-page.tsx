@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useGetDentistsMePatientsQuery } from '@/api/generated-api';
 import { PageHead } from '@/components/page-head';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { formatDate } from '@/lib/date';
 
 export function PatientsPage() {
@@ -27,15 +28,29 @@ export function PatientsPage() {
             <tbody>
               {(data ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
+                  <td
+                    colSpan={5}
+                    className="muted"
+                    style={{ textAlign: 'center' }}
+                  >
                     No patients yet.
                   </td>
                 </tr>
               )}
               {(data ?? []).map((p) => (
-                <tr key={p.id} className="clickable" onClick={() => navigate(`/patients/${p.id}`)}>
+                <tr
+                  key={p.id}
+                  className="clickable"
+                  onClick={() => navigate(`/patients/${p.id}`)}
+                >
                   <td>
-                    <b>{p.fullName}</b>
+                    <div className="patient-identity">
+                      <ProfileAvatar
+                        name={p.fullName ?? 'Patient'}
+                        photoUrl={p.profilePhotoUrl}
+                      />
+                      <b>{p.fullName}</b>
+                    </div>
                   </td>
                   <td>
                     {p.age != null ? `${p.age} y, ` : ''}

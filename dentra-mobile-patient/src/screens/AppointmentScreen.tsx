@@ -219,7 +219,7 @@ export function AppointmentScreen({
             <View style={ui.row}>
               <Avatar
                 name={a.dentistName}
-                photoUrl={dentist?.profilePhotoUrl}
+                photoUrl={a.dentistPhotoUrl ?? dentist?.profilePhotoUrl}
                 large
               />
               <View style={[ui.grow, ui.stack]}>

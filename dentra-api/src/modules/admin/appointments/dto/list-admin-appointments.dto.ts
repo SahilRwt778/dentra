@@ -4,12 +4,17 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsUUID,
   Matches,
   Max,
   Min,
 } from 'class-validator';
 
 export class ListAdminAppointmentsDto {
+  @IsOptional()
+  @IsUUID()
+  patientId?: string;
+
   @IsOptional()
   @IsIn(['all', 'today', 'upcoming', 'past'])
   filter?: 'all' | 'today' | 'upcoming' | 'past';

@@ -4,6 +4,7 @@ import type { ToothFinding } from './dental-chart';
 export type PatientSummary = {
   id: string;
   fullName: string;
+  profilePhotoUrl?: string | null;
   age: number | null;
   gender: string | null;
   mobile: string;
@@ -26,6 +27,7 @@ export type PatientAppointment = {
 export type PatientRecord = {
   id: string;
   fullName: string;
+  profilePhotoUrl?: string | null;
   mobile: string;
   age: number | null;
   dateOfBirth: string;

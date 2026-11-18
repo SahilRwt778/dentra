@@ -1,8 +1,9 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -20,6 +21,17 @@ export type ConversationFilter = 'all' | 'open' | 'closed';
 export class ConsultationCasesQueryDto {
   @Type(() => Number) @IsInt() @Min(1) @Max(100000) page = 1;
   @IsOptional() @IsIn(['all', 'open', 'closed']) filter?: ConversationFilter;
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  unreadOnly?: boolean;
 }
 
 export class FollowUpBookingDto {

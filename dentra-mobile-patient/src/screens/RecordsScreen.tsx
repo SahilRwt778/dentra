@@ -6,9 +6,9 @@ import { FileText, FolderHeart } from 'lucide-react-native';
 import { useConsultationQuery, useAppointmentQuery } from '@/api/appointments';
 import { useDentalChartQuery } from '@/api/patients';
 import { AppointmentCard } from '@/components/appointment-card';
+import { DentistAvatar } from '@/components/dentist-avatar';
 import { DentalChart } from '@/components/dental-chart';
 import {
-  Avatar,
   Badge,
   Button,
   Card,
@@ -119,7 +119,11 @@ export function RecordsScreen({
               onPress={() => nav.navigate('Visit', { appointmentId: a.id! })}
             >
               <View style={ui.row}>
-                <Avatar name={a.dentistName} />
+                <DentistAvatar
+                  dentistId={a.dentistId}
+                  name={a.dentistName}
+                  photoUrl={a.dentistPhotoUrl}
+                />
                 <View style={ui.grow}>
                   <Text style={ui.heading}>{a.dentistName}</Text>
                   <Text style={ui.muted}>{formatDate(a.date)}</Text>
@@ -252,7 +256,11 @@ export function VisitScreen({
         <>
           <Card>
             <View style={ui.row}>
-              <Avatar name={a.dentistName} />
+              <DentistAvatar
+                dentistId={a.dentistId}
+                name={a.dentistName}
+                photoUrl={a.dentistPhotoUrl}
+              />
               <View style={ui.grow}>
                 <Text style={ui.heading}>{a.dentistName}</Text>
                 <Text style={ui.muted}>

@@ -33,7 +33,13 @@ export class ConsultationCasesController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ConsultationCasesQueryDto,
   ) {
-    return this.cases.list(user, query.page, query.filter);
+    return this.cases.list(
+      user,
+      query.page,
+      query.filter,
+      query.search,
+      query.unreadOnly,
+    );
   }
   @Get(':caseId')
   @Header('Cache-Control', 'private, no-store')

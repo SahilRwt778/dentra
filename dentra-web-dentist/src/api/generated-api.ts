@@ -245,6 +245,8 @@ const injectedRtkApi = api
           params: {
             page: queryArg.page,
             filter: queryArg.filter,
+            search: queryArg.search,
+            unreadOnly: queryArg.unreadOnly,
           },
         }),
         providesTags: ["Consultation Cases"],
@@ -718,6 +720,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/admin/appointments`,
           params: {
+            patientId: queryArg.patientId,
             filter: queryArg.filter,
             from: queryArg["from"],
             to: queryArg.to,
@@ -727,6 +730,28 @@ const injectedRtkApi = api
             limit: queryArg.limit,
           },
         }),
+        providesTags: ["Admin"],
+      }),
+      getAdminPatients: build.query<
+        GetAdminPatientsApiResponse,
+        GetAdminPatientsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/admin/patients`,
+          params: {
+            search: queryArg.search,
+            status: queryArg.status,
+            page: queryArg.page,
+            limit: queryArg.limit,
+          },
+        }),
+        providesTags: ["Admin"],
+      }),
+      getAdminPatientsByPatientId: build.query<
+        GetAdminPatientsByPatientIdApiResponse,
+        GetAdminPatientsByPatientIdApiArg
+      >({
+        query: (queryArg) => ({ url: `/admin/patients/${queryArg.patientId}` }),
         providesTags: ["Admin"],
       }),
       getAdminDentists: build.query<
@@ -1350,6 +1375,10 @@ export type GetConsultationCasesApiArg = {
   page?: number;
   /** Open includes conversations where the authenticated user can currently send messages; closed includes read-only conversations. */
   filter?: "all" | "open" | "closed";
+  /** Literal, case-insensitive search across the other participant's name and consultation concern. Applied before pagination. */
+  search?: string;
+  /** Only conversations with unread incoming messages. Applied before pagination and combined with search and Open/Closed filters. */
+  unreadOnly?: boolean;
 };
 export type GetConsultationCaseApiResponse =
   /** status 200 Current server-checked pass */ ConsultationCase;
@@ -1614,6 +1643,8 @@ export type RejectAdminPayoutRequestApiArg = {
 export type GetAdminAppointmentsApiResponse =
   /** status 200 OK */ AdminAppointmentPage;
 export type GetAdminAppointmentsApiArg = {
+  /** Limit to this patient's appointments, newest first. */
+  patientId?: string;
   filter?: "all" | "today" | "upcoming" | "past";
   from?: string;
   to?: string;
@@ -1621,6 +1652,20 @@ export type GetAdminAppointmentsApiArg = {
   type?: AppointmentType;
   page?: number;
   limit?: number;
+};
+export type GetAdminPatientsApiResponse =
+  /** status 200 Registered patients and matching total */ AdminPatientPage;
+export type GetAdminPatientsApiArg = {
+  /** Literal case-insensitive search by patient name, mobile number or email. */
+  search?: string;
+  status?: "active" | "locked" | "deleted";
+  page?: number;
+  limit?: number;
+};
+export type GetAdminPatientsByPatientIdApiResponse =
+  /** status 200 Patient profile, guardian information and visit counts */ AdminPatientDetail;
+export type GetAdminPatientsByPatientIdApiArg = {
+  patientId: string;
 };
 export type GetAdminDentistsApiResponse = /** status 200 OK */ {
   items?: Dentist[];
@@ -2092,10 +2137,14 @@ export type Appointment = {
   id?: string;
   patientId?: string;
   patientName?: string;
+  /** Expiring profile image link. Null when no photo is set. */
+  patientPhotoUrl?: string | null;
   patientAge?: number | null;
   patientGender?: string | null;
   dentistId?: string;
   dentistName?: string;
+  /** Expiring profile image link. Null when no photo is set. */
+  dentistPhotoUrl?: string | null;
   clinicId?: string | null;
   clinicName?: string | null;
   type?: AppointmentType;
@@ -2621,6 +2670,40 @@ export type AdminAppointmentPage = {
     paidAmountPaise: number;
   };
 };
+export type AdminPatient = {
+  id: string;
+  fullName: string;
+  /** Expiring profile image link. */
+  profilePhotoUrl: string | null;
+  mobile: string;
+  email: string | null;
+  dateOfBirth: string;
+  age: number;
+  gender: string | null;
+  city: string | null;
+  status: "active" | "locked" | "deleted";
+  registeredAt: string;
+  /** All appointments including cancelled bookings. */
+  appointmentCount: number;
+  completedCount: number;
+  lastVisitDate: string | null;
+};
+export type AdminPatientPage = {
+  items: AdminPatient[];
+  total: number;
+  page: number;
+  limit: number;
+  nextPage: number | null;
+};
+export type AdminPatientDetail = AdminPatient & {
+  preferredLanguage: string;
+  emergencyContact: string | null;
+  guardian: {
+    name: string;
+    relationship: string | null;
+    mobile: string | null;
+  } | null;
+};
 export type AdminCreateDentist = {
   fullName: string;
   mobile: string;
@@ -2745,6 +2828,8 @@ export type DentistPayments = {
 export type DentistPatientSummary = {
   id?: string;
   fullName?: string;
+  /** Expiring profile image link. Null when no photo is set. */
+  profilePhotoUrl?: string | null;
   age?: number | null;
   gender?: string | null;
   mobile?: string;
@@ -2758,6 +2843,8 @@ export type DentistPatientSummary = {
 export type DentistPatientRecord = {
   id?: string;
   fullName?: string;
+  /** Expiring profile image link. Null when no photo is set. */
+  profilePhotoUrl?: string | null;
   mobile?: string;
   dateOfBirth?: string;
   age?: number | null;
@@ -2963,6 +3050,8 @@ export const {
   useApproveAdminPayoutRequestMutation,
   useRejectAdminPayoutRequestMutation,
   useGetAdminAppointmentsQuery,
+  useGetAdminPatientsQuery,
+  useGetAdminPatientsByPatientIdQuery,
   useGetAdminDentistsQuery,
   usePostAdminDentistsMutation,
   useGetAdminDentistsByDentistIdQuery,

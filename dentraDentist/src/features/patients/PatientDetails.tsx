@@ -23,7 +23,11 @@ export function PatientDetails({ patient }: { patient: PatientRecord }) {
     <>
       <Card style={patientStyles.card}>
         <View style={styles.identityRow}>
-          <PatientAvatar name={patient.fullName} large />
+          <PatientAvatar
+            name={patient.fullName}
+            photoUrl={patient.profilePhotoUrl}
+            large
+          />
           <View style={styles.identity}>
             <Text accessibilityRole="header" style={patientStyles.heading}>
               {patient.fullName}

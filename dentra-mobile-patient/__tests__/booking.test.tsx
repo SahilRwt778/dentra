@@ -1,7 +1,7 @@
 import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 import { BookingScreen } from '../src/screens/BookingScreen';
-import { Button, Card, Checkbox, Choice } from '../src/components/ui';
+import { Button, Card, Checkbox, Choice, Field } from '../src/components/ui';
 import type { PatientScreenProps } from '../src/navigation/types';
 import { launchImageLibrary } from 'react-native-image-picker';
 
@@ -186,6 +186,51 @@ test('booking sends uploaded attachment IDs with the consented appointment', asy
     'uploaded-photo',
   ]);
   expect(mockBook.mock.calls[0][0].bookAppointment.photoUrls).toBeUndefined();
+});
+
+async function openFromEducation(concern: string) {
+  await act(async () => {
+    tree = Renderer.create(
+      <BookingScreen
+        route={
+          { params: { concern } } as PatientScreenProps<'Booking'>['route']
+        }
+        navigation={
+          navigation as unknown as PatientScreenProps<'Booking'>['navigation']
+        }
+      />,
+    );
+  });
+}
+test('an education booking reason is preselected and the patient can change it', async () => {
+  await openFromEducation('Bleeding gums');
+  expect(
+    tree.root
+      .findAllByType(Choice)
+      .find(choice => choice.props.title === 'Bleeding gums')?.props.selected,
+  ).toBe(true);
+  expect(tree.root.findByType(Button).props.disabled).toBe(false);
+  await choose('Bleeding gums');
+  expect(tree.root.findByType(Button).props.disabled).toBe(true);
+  await choose('Toothache');
+  expect(tree.root.findByType(Button).props.disabled).toBe(false);
+});
+test('custom education reasons use editable Other without bypassing booking validation', async () => {
+  await openFromEducation('Missing Tooth');
+  expect(
+    tree.root
+      .findAllByType(Choice)
+      .find(choice => choice.props.title === 'Other')?.props.selected,
+  ).toBe(true);
+  expect(tree.root.findByType(Field).props.value).toBe('Missing Tooth');
+  await act(async () => tree.root.findByType(Field).props.onChangeText(''));
+  expect(tree.root.findByType(Button).props.disabled).toBe(true);
+  await act(async () =>
+    tree.root
+      .findByType(Field)
+      .props.onChangeText('I want to discuss a missing tooth'),
+  );
+  expect(tree.root.findByType(Button).props.disabled).toBe(false);
 });
 
 jest.mock('../src/api/files', () => ({

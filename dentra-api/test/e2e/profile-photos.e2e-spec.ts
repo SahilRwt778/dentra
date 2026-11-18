@@ -420,6 +420,113 @@ describe('Registration profile photos (e2e)', () => {
       .expect(200);
   });
 
+  it('shares current profile photos through owned appointments and the treating dentist roster', async () => {
+    const patient = await account();
+    await register(patient.token).expect(201);
+    const dentist = await account('dentist');
+    await request(app.getHttpServer())
+      .post('/dentists/applications')
+      .set('Authorization', `Bearer ${dentist.token}`)
+      .field('details', JSON.stringify(dentistDetails))
+      .attach('profilePhoto', png, 'dentist.png')
+      .expect(201);
+    await pool.query(
+      "update dentists set status = 'verified' where user_id = $1",
+      [dentist.id],
+    );
+    const { rows } = await pool.query(
+      `insert into appointments(patient_id, dentist_id, type, scheduled_date, scheduled_time, concern_summary)
+       values ($1, $2, 'video', current_date, '10:00', 'Photo test') returning id`,
+      [patient.id, dentist.id],
+    );
+    const appointmentId = rows[0].id;
+    const get = (path: string, token: string) =>
+      request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', `Bearer ${token}`);
+    const visit = await get(
+      `/appointments/${appointmentId}`,
+      patient.token,
+    ).expect(200);
+    expect(visit.body.patientPhotoUrl).toMatch(
+      new RegExp(`^/profile-photos/patient/${patient.id}\\?`),
+    );
+    expect(visit.body.dentistPhotoUrl).toMatch(
+      new RegExp(`^/profile-photos/dentist/${dentist.id}\\?`),
+    );
+    // The response contains signed image links, never private storage object paths.
+    expect(visit.body.patientPhotoUrl).not.toContain('.png');
+    for (const url of [visit.body.patientPhotoUrl, visit.body.dentistPhotoUrl])
+      await request(app.getHttpServer())
+        .get(url)
+        .expect('Content-Type', /image\/png/)
+        .expect(200);
+    for (const owner of [patient, dentist]) {
+      const list = await get('/appointments', owner.token).expect(200);
+      expect(
+        list.body.items.find(
+          (item: { id: string }) => item.id === appointmentId,
+        ),
+      ).toMatchObject({
+        patientPhotoUrl: visit.body.patientPhotoUrl,
+        dentistPhotoUrl: visit.body.dentistPhotoUrl,
+      });
+    }
+    const roster = await get('/dentists/me/patients', dentist.token).expect(
+      200,
+    );
+    expect(
+      roster.body.find((item: { id: string }) => item.id === patient.id),
+    ).toMatchObject({ profilePhotoUrl: visit.body.patientPhotoUrl });
+    const record = await get(
+      `/dentists/me/patients/${patient.id}`,
+      dentist.token,
+    ).expect(200);
+    expect(record.body.profilePhotoUrl).toBe(visit.body.patientPhotoUrl);
+    const unrelated = await account('dentist');
+    await request(app.getHttpServer())
+      .post('/dentists/applications')
+      .set('Authorization', `Bearer ${unrelated.token}`)
+      .send(dentistDetails)
+      .expect(201);
+    await pool.query(
+      "update dentists set status = 'verified' where user_id = $1",
+      [unrelated.id],
+    );
+    await get(`/dentists/me/patients/${patient.id}`, unrelated.token).expect(
+      404,
+    );
+    await get(`/appointments/${appointmentId}`, unrelated.token).expect(404);
+    expect(
+      (await get('/dentists/me/patients', unrelated.token).expect(200)).body,
+    ).toEqual([]);
+    await request(app.getHttpServer())
+      .patch('/patients/me')
+      .set('Authorization', `Bearer ${patient.token}`)
+      .send({ removeProfilePhoto: true })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch('/dentists/me')
+      .set('Authorization', `Bearer ${dentist.token}`)
+      .send({ removeProfilePhoto: true })
+      .expect(200);
+    const refreshed = await get(
+      `/appointments/${appointmentId}`,
+      dentist.token,
+    ).expect(200);
+    expect(refreshed.body).toMatchObject({
+      patientPhotoUrl: null,
+      dentistPhotoUrl: null,
+    });
+    expect(
+      (
+        await get(`/dentists/me/patients/${patient.id}`, dentist.token).expect(
+          200,
+        )
+      ).body.profilePhotoUrl,
+    ).toBeNull();
+  }, 120000);
+
   it('stops serving a photo when its account is deactivated', async () => {
     const owner = await account();
     const created = await register(owner.token).expect(201);

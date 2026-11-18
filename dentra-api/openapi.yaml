@@ -526,6 +526,14 @@ paths:
           in: query
           description: Open includes conversations where the authenticated user can currently send messages; closed includes read-only conversations.
           schema: { type: string, enum: [all, open, closed], default: all }
+        - name: search
+          in: query
+          description: Literal, case-insensitive search across the other participant's name and consultation concern. Applied before pagination.
+          schema: { type: string, maxLength: 100 }
+        - name: unreadOnly
+          in: query
+          description: Only conversations with unread incoming messages. Applied before pagination and combined with search and Open/Closed filters.
+          schema: { type: boolean, default: false }
       responses:
         "200":
           description: Owned cases, including read-only history
@@ -1403,6 +1411,10 @@ paths:
       summary: Platform-wide appointments, across every dentist and clinic
       description: Admin-only visibility across the platform. Filters and pagination apply on the server. Today, upcoming and past use calendar dates in Asia/Kolkata; past excludes today. Date-range bounds are inclusive. Summary totals cover every matching appointment, independently of the current page.
       parameters:
+        - name: patientId
+          in: query
+          description: Limit to this patient's appointments, newest first.
+          schema: { type: string, format: uuid }
         - name: filter
           in: query
           schema: { type: string, enum: [all, today, upcoming, past] }
@@ -1433,6 +1445,55 @@ paths:
                 $ref: "#/components/schemas/AdminAppointmentPage"
         "400": { description: Invalid filters, date range, page or limit }
         "403": { description: Admin role required }
+
+  /admin/patients:
+    get:
+      tags: [Admin]
+      summary: Browse registered patients across the platform
+      description: Admin-only patient directory. Search and account-status filtering apply before pagination. Newest registrations appear first.
+      parameters:
+        - name: search
+          in: query
+          description: Literal case-insensitive search by patient name, mobile number or email.
+          schema: { type: string, maxLength: 100 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, locked, deleted] }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Registered patients and matching total
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPatientPage" }
+        "400": { description: Invalid search, status, page or limit }
+        "401": { description: Authentication required }
+        "403": { description: Admin role required }
+
+  /admin/patients/{patientId}:
+    get:
+      tags: [Admin]
+      summary: View a patient's profile and contact details
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Patient profile, guardian information and visit counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPatientDetail" }
+        "400": { description: Invalid patient ID }
+        "401": { description: Authentication required }
+        "403": { description: Admin role required }
+        "404": { description: No such patient }
 
   /admin/dentists:
     get:
@@ -2647,6 +2708,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         fullName: { type: string }
+        profilePhotoUrl: { type: string, nullable: true, description: "Expiring profile image link. Null when no photo is set." }
         age: { type: integer, nullable: true }
         gender: { type: string, nullable: true }
         mobile: { type: string }
@@ -2660,6 +2722,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         fullName: { type: string }
+        profilePhotoUrl: { type: string, nullable: true, description: "Expiring profile image link. Null when no photo is set." }
         mobile: { type: string }
         dateOfBirth: { type: string, format: date }
         age: { type: integer, nullable: true }
@@ -2989,10 +3052,12 @@ components:
         id: { type: string, format: uuid }
         patientId: { type: string, format: uuid }
         patientName: { type: string }
+        patientPhotoUrl: { type: string, nullable: true, description: "Expiring profile image link. Null when no photo is set." }
         patientAge: { type: integer, nullable: true }
         patientGender: { type: string, nullable: true }
         dentistId: { type: string, format: uuid }
         dentistName: { type: string }
+        dentistPhotoUrl: { type: string, nullable: true, description: "Expiring profile image link. Null when no photo is set." }
         clinicId: { type: string, format: uuid, nullable: true }
         clinicName: { type: string, nullable: true }
         type: { $ref: "#/components/schemas/AppointmentType" }
@@ -3424,6 +3489,52 @@ components:
           items: { $ref: "#/components/schemas/AdminPayment" }
         page: { type: integer }
         pageSize: { type: integer }
+        nextPage: { type: integer, nullable: true }
+
+    AdminPatient:
+      type: object
+      required: [id, fullName, profilePhotoUrl, mobile, email, dateOfBirth, age, gender, city, status, registeredAt, appointmentCount, completedCount, lastVisitDate]
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+        profilePhotoUrl: { type: string, nullable: true, description: Expiring profile image link. }
+        mobile: { type: string }
+        email: { type: string, nullable: true }
+        dateOfBirth: { type: string, format: date }
+        age: { type: integer }
+        gender: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        status: { type: string, enum: [active, locked, deleted] }
+        registeredAt: { type: string, format: date-time }
+        appointmentCount: { type: integer, description: All appointments including cancelled bookings. }
+        completedCount: { type: integer }
+        lastVisitDate: { type: string, format: date, nullable: true }
+
+    AdminPatientDetail:
+      allOf:
+        - $ref: "#/components/schemas/AdminPatient"
+        - type: object
+          required: [preferredLanguage, emergencyContact, guardian]
+          properties:
+            preferredLanguage: { type: string }
+            emergencyContact: { type: string, nullable: true }
+            guardian:
+              type: object
+              nullable: true
+              required: [name, relationship, mobile]
+              properties:
+                name: { type: string }
+                relationship: { type: string, nullable: true }
+                mobile: { type: string, nullable: true }
+
+    AdminPatientPage:
+      type: object
+      required: [items, total, page, limit, nextPage]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AdminPatient" } }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
         nextPage: { type: integer, nullable: true }
 
     AdminAppointmentPage:

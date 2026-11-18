@@ -1,4 +1,5 @@
 import React from 'react';
+import FastImage from 'react-native-fast-image';
 import { FlatList, Linking, Text, TextInput } from 'react-native';
 import Renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
@@ -11,6 +12,8 @@ import { PatientRecordScreen } from '../src/features/patients/PatientRecordScree
 import { PatientCard } from '../src/features/patients/PatientCard';
 import { PatientVisitCard } from '../src/features/patients/PatientVisitCard';
 import { PatientProfileLink } from '../src/features/patients/PatientProfileLink';
+import { PatientAvatar } from '../src/features/patients/PatientAvatar';
+import { AppointmentOverview } from '../src/features/appointments/AppointmentOverview';
 import { ConsultationScreen } from '../src/features/consultation/ConsultationScreen';
 import { Button } from '../src/components/ui/Button';
 import { ToothIcon } from '../src/components/icons/ToothIcon';
@@ -312,6 +315,44 @@ test('loads the roster through Axios/Redux and searches names and formatted phon
   expect(mockNavigate).toHaveBeenCalledWith('PatientRecord', {
     patientId: patient.id,
   });
+});
+
+test('shows the API profile photo on the roster, patient record and appointment overview', async () => {
+  const photo = '/profile-photos/patient/test?signature=synthetic';
+  roster[0] = { ...patient, profilePhotoUrl: photo };
+  records[patient.id] = { ...records[patient.id], profilePhotoUrl: photo };
+  await render(<PatientsScreen />);
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(photo);
+  await render(recordScreen());
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(photo);
+  await render(
+    <AppointmentOverview
+      appointment={{ ...appointment, patientPhotoUrl: photo }}
+    >
+      {null}
+    </AppointmentOverview>,
+  );
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(photo);
+});
+
+test('falls back to initials for unavailable photos and retries a replaced photo', async () => {
+  await render(<PatientAvatar name="Synthetic Patient" />);
+  expect(text()).toContain('SP');
+  await render(
+    <PatientAvatar name="Synthetic Patient" photoUrl="/profile-photos/first" />,
+  );
+  await act(async () => tree.root.findByType(FastImage).props.onError({}));
+  expect(tree.root.findAllByType(FastImage)).toHaveLength(0);
+  expect(text()).toContain('SP');
+  await render(
+    <PatientAvatar
+      name="Synthetic Patient"
+      photoUrl="/profile-photos/replaced"
+    />,
+  );
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(
+    '/profile-photos/replaced',
+  );
 });
 
 test('shows request failures, retries, and an honest empty roster', async () => {

@@ -3,6 +3,7 @@ import {
   coveredFollowUp,
 } from '@common/utils/consultation-pass';
 import { ConsultationCasesService } from '../cases/consultation-cases.service';
+import { ProfilePhotosService } from '@modules/identity/profile-photos/profile-photos.service';
 import type { FollowUpBookingDto } from '../cases/consultation-cases.dto';
 import {
   BadRequestException,
@@ -57,9 +58,9 @@ const APPOINTMENT_WITH_PAYMENT = `
              or not exists(select 1 from users pu where pu.id=c.patient_id and pu.status='active')
              or not exists(select 1 from users du where du.id=c.dentist_id and du.status='active') then 'revoked'
            when c.expires_at<=clock_timestamp() then 'expired' else 'active' end as case_status,
-         p.full_name as patient_name, p.gender as patient_gender,
+         p.full_name as patient_name, p.gender as patient_gender, p.profile_photo_url as patient_photo,
          extract(year from age(p.date_of_birth))::int as patient_age,
-         d.full_name as dentist_name, dc.name as clinic_name, ${CLINIC_PAYMENT_COLUMNS}
+         d.full_name as dentist_name, d.profile_photo_url as dentist_photo, dc.name as clinic_name, ${CLINIC_PAYMENT_COLUMNS}
   from appointments a
   left join transactions t on t.appointment_id = a.id
   left join clinic_payment_collections cp on cp.transaction_id = t.id
@@ -74,10 +75,12 @@ export interface AppointmentResponse {
   id: string;
   patientId: string;
   patientName: string;
+  patientPhotoUrl: string | null;
   patientAge: number | null;
   patientGender: string | null;
   dentistId: string;
   dentistName: string;
+  dentistPhotoUrl: string | null;
   clinicId: string | null;
   clinicName: string | null;
   type: 'video' | 'clinic';
@@ -126,6 +129,7 @@ export class AppointmentsService {
     private readonly availability: AvailabilityService,
     private readonly paymentReconciliation: PaymentReconciliationService,
     private readonly cases: ConsultationCasesService,
+    private readonly photos: ProfilePhotosService,
   ) {}
 
   async bookFollowUp(
@@ -328,7 +332,7 @@ export class AppointmentsService {
             gatewayRef,
             dto.paymentMethod === 'pay_at_clinic'
               ? null
-              : walletPolicy?.fee_bps ?? null,
+              : (walletPolicy?.fee_bps ?? null),
           ],
         );
       }
@@ -687,10 +691,20 @@ export class AppointmentsService {
       id: row.id,
       patientId: row.patient_id,
       patientName: row.patient_name,
+      patientPhotoUrl: this.photos.url(
+        'patient',
+        row.patient_id,
+        row.patient_photo,
+      ),
       patientAge: row.patient_age ?? null,
       patientGender: row.patient_gender ?? null,
       dentistId: row.dentist_id,
       dentistName: row.dentist_name,
+      dentistPhotoUrl: this.photos.url(
+        'dentist',
+        row.dentist_id,
+        row.dentist_photo,
+      ),
       clinicId: row.clinic_id,
       clinicName: row.clinic_name ?? null,
       type: row.type,
@@ -726,17 +740,17 @@ export class AppointmentsService {
             collection: null,
           }
         : row.payment_method
-        ? {
-            method: row.payment_method,
-            amountPaise: row.payment_amount,
-            status: row.payment_status,
-            gatewayOrderId: row.payment_gateway_ref ?? null,
-            // Publish only the checkout key id. The signing secret stays on the API.
-            gatewayKeyId: row.payment_gateway_ref ? this.gateway.keyId : null,
-            expiresAt: row.payment_expires_at ?? null,
-            collection: clinicPaymentReceipt(row as ClinicPaymentColumns),
-          }
-        : null,
+          ? {
+              method: row.payment_method,
+              amountPaise: row.payment_amount,
+              status: row.payment_status,
+              gatewayOrderId: row.payment_gateway_ref ?? null,
+              // Publish only the checkout key id. The signing secret stays on the API.
+              gatewayKeyId: row.payment_gateway_ref ? this.gateway.keyId : null,
+              expiresAt: row.payment_expires_at ?? null,
+              collection: clinicPaymentReceipt(row as ClinicPaymentColumns),
+            }
+          : null,
       bookedAt: row.booked_at,
       completedAt: row.completed_at,
       cancelledAt: row.cancelled_at,

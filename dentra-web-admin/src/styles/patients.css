@@ -1,0 +1,132 @@
+.patient-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.patient-search {
+  display: flex;
+  align-items: end;
+  flex: 1 1 360px;
+  gap: 10px;
+  min-width: 0;
+}
+.patient-search .field {
+  flex: 1;
+  min-width: 0;
+}
+.patient-filters > .field {
+  flex: 0 1 180px;
+}
+.patient-row {
+  cursor: pointer;
+}
+.patient-table {
+  min-width: 960px;
+}
+.patient-history table {
+  min-width: 900px;
+}
+.patient-row:hover,
+.patient-row:focus-within {
+  background: var(--surface-2);
+}
+.patient-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.patient-identity > div:not(.avatar) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.patient-identity .avatar {
+  flex: none;
+}
+.patient-name,
+.patient-back-link {
+  color: var(--accent-deep);
+}
+.patient-name:hover,
+.patient-back-link:hover {
+  text-decoration: underline;
+}
+.patient-mobile {
+  white-space: nowrap;
+}
+.patient-empty {
+  text-align: center;
+  padding: 32px 16px;
+}
+.patient-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.patient-summary,
+.patient-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.patient-summary .avatar {
+  width: 64px;
+  height: 64px;
+  font-size: 22px;
+}
+.patient-detail-grid,
+.patient-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+.patient-stats .card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.patient-stats b {
+  font-size: 22px;
+}
+.patient-fields {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+.patient-fields dt {
+  font-size: 13px;
+  color: var(--muted);
+}
+.patient-fields dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.patient-pagination {
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+.patient-pagination > .row {
+  flex-wrap: wrap;
+}
+.patient-history-actions {
+  align-items: end;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .patient-filters > .field {
+    flex: 1 1 130px;
+  }
+  .patient-search {
+    flex-basis: 100%;
+  }
+  .patient-history-actions {
+    width: 100%;
+  }
+}

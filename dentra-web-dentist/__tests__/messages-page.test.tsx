@@ -1,7 +1,10 @@
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { ConsultationCase } from '../src/api/generated-api';
+import type {
+  ConsultationCase,
+  GetConsultationCasesApiArg,
+} from '../src/api/generated-api';
 import type { ChatMessage } from '@dentra/call-core';
 import { MessagesPage } from '../src/pages/messages-page';
 import { ChatComposer } from '../src/components/messages/chat-composer';
@@ -49,18 +52,34 @@ const cases: ConsultationCase[] = [
     latestMessageAt: '2026-11-16T10:00:00Z',
   },
 ];
+const laterPageCase: ConsultationCase = {
+  ...cases[1],
+  id: 'case-later',
+  patientId: 'patient-later',
+  patientName: 'Farah Rao',
+  concern: 'Crown follow-up',
+};
 vi.mock('../src/api/generated-api', () => ({
-  useGetConsultationCasesQuery: (query: { page: number; filter?: string }) => {
+  useGetConsultationCasesQuery: (query: GetConsultationCasesApiArg) => {
     mocks.inbox(query);
     return {
       currentData: {
-        items: cases.filter((item) =>
-          !mocks.unfilteredInbox && query.filter === 'closed'
-            ? !item.canMessage
-            : !mocks.unfilteredInbox && query.filter === 'open'
-              ? item.canMessage
-              : true,
-        ),
+        items: (query.search ? [...cases, laterPageCase] : cases)
+          .filter((item) =>
+            !mocks.unfilteredInbox && query.filter === 'closed'
+              ? !item.canMessage
+              : !mocks.unfilteredInbox && query.filter === 'open'
+                ? item.canMessage
+                : true,
+          )
+          .filter(
+            (item) =>
+              !query.search ||
+              `${item.patientName} ${item.concern}`
+                .toLowerCase()
+                .includes(query.search.toLowerCase()),
+          )
+          .filter((item) => !query.unreadOnly || item.unreadCount > 0),
         unreadCount: 1,
         nextPage: query.page === 1 ? 2 : null,
       },
@@ -161,8 +180,13 @@ test('search and the unread filter help find a patient conversation', async () =
   expect(links()).toEqual(['/messages/case-a', '/messages/case-b']);
   await act(async () =>
     tree.root
-      .findByProps({ 'aria-label': 'Search conversations on this page' })
+      .findByProps({ 'aria-label': 'Search conversations' })
       .props.onChange({ target: { value: 'Rohan' } }),
+  );
+  expect(mocks.inbox.mock.calls.some(([query]) => query.search)).toBe(false);
+  await act(async () => vi.advanceTimersByTimeAsync(300));
+  expect(mocks.inbox).toHaveBeenLastCalledWith(
+    expect.objectContaining({ page: 1, search: 'Rohan' }),
   );
   expect(links()).toEqual(['/messages/case-b']);
   await act(async () =>
@@ -174,7 +198,101 @@ test('search and the unread filter help find a patient conversation', async () =
       .find((node) => node.children.includes('Unread'))!
       .props.onClick(),
   );
+  expect(mocks.inbox).toHaveBeenLastCalledWith(
+    expect.objectContaining({ page: 1, unreadOnly: true }),
+  );
   expect(links()).toEqual(['/messages/case-a']);
+});
+
+test('search finds a patient outside the loaded page, resets pagination and keeps the selected chat open', async () => {
+  await mount();
+  const links = () =>
+    tree.root.findAllByType('a').map((node) => node.props.href);
+  expect(links()).not.toContain('/messages/case-later');
+  await act(async () =>
+    tree.root
+      .findByProps({ 'aria-label': 'More conversations' })
+      .props.onClick(),
+  );
+  expect(mocks.inbox).toHaveBeenLastCalledWith({ page: 2, filter: 'all' });
+  await act(async () =>
+    tree.root
+      .findByProps({ 'aria-label': 'Search conversations' })
+      .props.onChange({ target: { value: ' Farah ' } }),
+  );
+  await act(async () => vi.advanceTimersByTimeAsync(300));
+  expect(mocks.inbox).toHaveBeenLastCalledWith({
+    page: 1,
+    filter: 'all',
+    search: 'Farah',
+  });
+  expect(links()).toEqual(['/messages/case-later']);
+  expect(
+    tree.root.findByProps({ 'aria-label': 'Consultation chat' }),
+  ).toBeDefined();
+  await act(async () =>
+    tree.root
+      .findByProps({ 'aria-label': 'More conversations' })
+      .props.onClick(),
+  );
+  expect(mocks.inbox).toHaveBeenLastCalledWith({
+    page: 2,
+    filter: 'all',
+    search: 'Farah',
+  });
+  expect(
+    tree.root.findByProps({ 'aria-label': 'Search conversations' }).props.value,
+  ).toBe(' Farah ');
+  await act(async () =>
+    tree.root.findByProps({ 'aria-label': 'Clear search' }).props.onClick(),
+  );
+  expect(mocks.inbox).toHaveBeenLastCalledWith(
+    expect.objectContaining({ page: 1, search: undefined }),
+  );
+});
+
+test('typing debounce cancels old terms and combines the final search with Unread filtering', async () => {
+  await mount('/messages');
+  const search = async (value: string) =>
+    act(async () =>
+      tree.root
+        .findByProps({ 'aria-label': 'Search conversations' })
+        .props.onChange({ target: { value } }),
+    );
+  await search('As');
+  await act(async () => vi.advanceTimersByTimeAsync(150));
+  await search('Asha');
+  await act(async () => vi.advanceTimersByTimeAsync(299));
+  expect(mocks.inbox.mock.calls.some(([query]) => query.search)).toBe(false);
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  expect(mocks.inbox).toHaveBeenLastCalledWith({
+    page: 1,
+    filter: 'all',
+    search: 'Asha',
+  });
+  await act(async () =>
+    tree.root
+      .findAllByType('button')
+      .find((node) => node.children.includes('Unread'))!
+      .props.onClick(),
+  );
+  expect(mocks.inbox).toHaveBeenLastCalledWith({
+    page: 1,
+    filter: 'all',
+    search: 'Asha',
+    unreadOnly: true,
+  });
+  await act(async () =>
+    tree.root
+      .findByProps({ 'aria-label': 'More conversations' })
+      .props.onClick(),
+  );
+  expect(mocks.inbox).toHaveBeenLastCalledWith({
+    page: 2,
+    filter: 'all',
+    search: 'Asha',
+    unreadOnly: true,
+  });
 });
 test('Open and Closed filter the complete inbox, preserve a selected conversation and reset pagination', async () => {
   mocks.unfilteredInbox = true;

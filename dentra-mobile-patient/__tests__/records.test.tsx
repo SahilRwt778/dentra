@@ -1,4 +1,5 @@
 import React from 'react';
+import FastImage from 'react-native-fast-image';
 import Renderer, { act } from 'react-test-renderer';
 import { Share, Text } from 'react-native';
 import { RecordsScreen, VisitScreen } from '../src/screens/RecordsScreen';
@@ -8,11 +9,17 @@ import type { PatientScreenProps } from '../src/navigation/types';
 
 const mockNavigate = jest.fn();
 const mockDownloadDocument = jest.fn();
-jest.mock('../src/api/care-documents', () => ({ useDownloadCareDocument: () => mockDownloadDocument }));
+jest.mock('../src/api/care-documents', () => ({
+  useDownloadCareDocument: () => mockDownloadDocument,
+}));
 const mockAppointment = {
   id: 'visit-1',
   dentistId: 'dentist-1',
   dentistName: 'Dr. Test',
+  dentistPhotoUrl: '/profile-photos/dentist/test?signature=synthetic' as
+    | string
+    | null
+    | undefined,
   status: 'completed',
   date: '2026-10-17',
   concern: 'Test concern',
@@ -23,8 +30,16 @@ const mockSummary = {
   treatmentDone: 'Test treatment',
   plan: 'Test follow-up plan',
   planItems: [
-    { procedure: 'Test planned procedure', teeth: ['36', '37'], estimatedCostPaise: 12345 },
-    { procedure: 'Test general procedure', teeth: [], estimatedCostPaise: null },
+    {
+      procedure: 'Test planned procedure',
+      teeth: ['36', '37'],
+      estimatedCostPaise: 12345,
+    },
+    {
+      procedure: 'Test general procedure',
+      teeth: [],
+      estimatedCostPaise: null,
+    },
   ],
   followUpDate: '2026-10-30',
   prescription: {
@@ -43,6 +58,11 @@ const mockSummary = {
 };
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
+}));
+jest.mock('../src/api/dentists', () => ({
+  useDentistQuery: () => ({
+    currentData: { profilePhotoUrl: '/profile-photos/dentist/profile-lookup' },
+  }),
 }));
 jest.mock('../src/hooks/use-appointments', () => ({
   useAppointments: () => ({
@@ -88,6 +108,8 @@ function screenText() {
 afterEach(async () => {
   await act(async () => tree?.unmount());
   mockAppointment.status = 'completed';
+  mockAppointment.dentistPhotoUrl =
+    '/profile-photos/dentist/test?signature=synthetic';
   jest.restoreAllMocks();
   jest.clearAllMocks();
 });
@@ -98,10 +120,38 @@ test('records lists completed visits and opens the matching visit summary', asyn
   });
   const visits = tree.root.findAllByType(AppointmentCard);
   expect(visits).toHaveLength(1);
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(
+    mockAppointment.dentistPhotoUrl,
+  );
   await act(async () => visits[0].props.onPress());
   expect(mockNavigate).toHaveBeenCalledWith('Visit', {
     appointmentId: 'visit-1',
   });
+});
+
+test('shows the dentist photo from the appointment in the visit summary', async () => {
+  await act(async () => {
+    tree = Renderer.create(<VisitScreen {...props} />);
+  });
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(
+    mockAppointment.dentistPhotoUrl,
+  );
+});
+
+test('loads the dentist profile photo for an older appointment response in records and visit summary', async () => {
+  mockAppointment.dentistPhotoUrl = undefined;
+  await act(async () => {
+    tree = Renderer.create(<RecordsScreen />);
+  });
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(
+    '/profile-photos/dentist/profile-lookup',
+  );
+  await act(async () => {
+    tree.update(<VisitScreen {...props} />);
+  });
+  expect(tree.root.findByType(FastImage).props.source.uri).toContain(
+    '/profile-photos/dentist/profile-lookup',
+  );
 });
 
 test('a completed visit shows the saved plan and signed prescription, and shares the same details', async () => {
@@ -130,7 +180,13 @@ test('a completed visit shows the saved plan and signed prescription, and shares
       message: expect.stringContaining('Test medicine Test strength'),
     }),
   );
-  expect(share).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Test planned procedure\nTeeth: 36, 37\nEstimated cost: ₹123.45') }));
+  expect(share).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: expect.stringContaining(
+        'Test planned procedure\nTeeth: 36, 37\nEstimated cost: ₹123.45',
+      ),
+    }),
+  );
   await act(async () =>
     tree.root
       .findAllByType(Button)
@@ -157,10 +213,12 @@ test('an unfinished appointment never displays or shares a draft consultation', 
   ).toBe(false);
 });
 
-
 jest.mock('../src/api/files', () => ({
   useAppointmentFilesQuery: () => ({ data: [], refetch: jest.fn() }),
-  usePatientFilesQuery: () => ({ currentData: { items: [], nextPage: null }, refetch: jest.fn() }),
+  usePatientFilesQuery: () => ({
+    currentData: { items: [], nextPage: null },
+    refetch: jest.fn(),
+  }),
   useUploadPatientFile: () => jest.fn(),
   useDownloadPatientFile: () => jest.fn(),
   useRemovePatientFile: () => jest.fn(),

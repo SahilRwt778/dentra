@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, LockKeyhole, MessagesSquare } from 'lucide-react';
 import {
   consultationDeadline,
@@ -8,6 +8,7 @@ import {
 import {
   useGetConsultationCaseQuery,
   useGetConsultationCasesQuery,
+  type GetConsultationCasesApiArg,
 } from '@/api/generated-api';
 import { PageHead } from '@/components/page-head';
 import { CallChat } from '@/components/call-chat';
@@ -17,16 +18,33 @@ const ignoreUnread = () => undefined;
 export function MessagesPage() {
   const { caseId } = useParams();
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState<ConversationFilter>('all');
-  const inbox = useGetConsultationCasesQuery(
-    { page, filter },
-    {
-      pollingInterval: 10000,
-      skipPollingIfUnfocused: true,
-      refetchOnMountOrArgChange: true,
-    },
-  );
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState<GetConsultationCasesApiArg>({
+    page: 1,
+    filter: 'all',
+  });
+  const page = query.page ?? 1;
+  const filter = query.filter ?? 'all';
+  const searching = search.trim() !== (query.search ?? '');
+  useEffect(() => {
+    const term = search.trim();
+    if (term === (query.search ?? '')) return;
+    const timer = setTimeout(
+      () =>
+        setQuery((current) => ({
+          ...current,
+          page: 1,
+          search: term || undefined,
+        })),
+      300,
+    );
+    return () => clearTimeout(timer);
+  }, [search, query.search]);
+  const inbox = useGetConsultationCasesQuery(query, {
+    pollingInterval: 10000,
+    skipPollingIfUnfocused: true,
+    refetchOnMountOrArgChange: true,
+  });
   const selected = useGetConsultationCaseQuery(
     { caseId: caseId! },
     { skip: !caseId, refetchOnMountOrArgChange: true },
@@ -34,6 +52,14 @@ export function MessagesPage() {
   function back() {
     navigate('/messages');
     inbox.refetch();
+  }
+  function changeFilter(value: ConversationFilter, unreadOnly = false) {
+    setQuery({
+      page: 1,
+      filter: value,
+      search: search.trim() || undefined,
+      unreadOnly: unreadOnly || undefined,
+    });
   }
   return (
     <>
@@ -44,18 +70,28 @@ export function MessagesPage() {
       >
         <ConversationList
           filter={filter}
-          onFilter={(value) => {
-            setFilter(value);
-            setPage(1);
+          onFilter={changeFilter}
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            if (!value.trim())
+              setQuery((current) => ({
+                ...current,
+                page: 1,
+                search: undefined,
+              }));
           }}
-          items={inbox.currentData?.items ?? []}
+          unreadOnly={!!query.unreadOnly}
+          items={searching ? [] : (inbox.currentData?.items ?? [])}
           selectedId={caseId}
-          loading={inbox.isFetching}
-          error={!!inbox.error}
+          loading={searching || inbox.isFetching}
+          error={!searching && !!inbox.error}
           page={page}
           nextPage={inbox.currentData?.nextPage}
           unreadCount={inbox.currentData?.unreadCount ?? 0}
-          onPage={setPage}
+          onPage={(value) =>
+            setQuery((current) => ({ ...current, page: value }))
+          }
           onRefresh={inbox.refetch}
         />
         <div className="messages-chat-pane">

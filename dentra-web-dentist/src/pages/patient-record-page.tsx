@@ -2,18 +2,28 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useGetDentistsMePatientsByPatientIdQuery } from '@/api/generated-api';
 import { PageHead } from '@/components/page-head';
-import { DentalChart, ChartLegend, type ChartState } from '@/components/dental-chart';
+import { ProfileAvatar } from '@/components/profile-avatar';
+import {
+  DentalChart,
+  ChartLegend,
+  type ChartState,
+} from '@/components/dental-chart';
 import { statusBadge } from '@/lib/status';
 import { formatDate, age } from '@/lib/date';
 
 export function PatientRecordPage() {
   const { patientId } = useParams<{ patientId: string }>();
-  const { data: patient, isLoading } = useGetDentistsMePatientsByPatientIdQuery({ patientId: patientId! });
+  const { data: patient, isLoading } = useGetDentistsMePatientsByPatientIdQuery(
+    { patientId: patientId! },
+  );
 
   if (isLoading || !patient) {
     return (
       <>
-        <PageHead title="Patient record" subtitle="View patient details and visit history." />
+        <PageHead
+          title="Patient record"
+          subtitle="View patient details and visit history."
+        />
         <p className="muted">Loading…</p>
       </>
     );
@@ -34,6 +44,12 @@ export function PatientRecordPage() {
       </Link>
       <PageHead
         title={patient.fullName ?? ''}
+        avatar={
+          <ProfileAvatar
+            name={patient.fullName ?? 'Patient'}
+            photoUrl={patient.profilePhotoUrl}
+          />
+        }
         subtitle={`${patientAge != null ? `${patientAge} y, ` : ''}${patient.gender ?? ''} · ${patient.mobile ?? ''} · ${patient.city ?? ''}`}
       />
       <div className="two-col">

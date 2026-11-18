@@ -32,7 +32,11 @@ export function AppointmentOverview({
   return (
     <>
       <Card style={[styles.card, styles.row]}>
-        <PatientAvatar name={appointment.patientName} large />
+        <PatientAvatar
+          name={appointment.patientName}
+          photoUrl={appointment.patientPhotoUrl}
+          large
+        />
         <View style={styles.grow}>
           <Text accessibilityRole="header" style={styles.heading}>
             {appointment.patientName}

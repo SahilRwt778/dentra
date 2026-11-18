@@ -12,6 +12,8 @@ import { AdminPaymentsController } from './payments/admin-payments.controller';
 import { AdminPaymentsService } from './payments/admin-payments.service';
 import { AdminSettingsController } from './settings/admin-settings.controller';
 import { AdminSettingsService } from './settings/admin-settings.service';
+import { AdminPatientsController } from './patients/admin-patients.controller';
+import { AdminPatientsService } from './patients/admin-patients.service';
 
 /**
  * Dentist review (approve/reject/disable/enable), platform-wide
@@ -22,7 +24,22 @@ import { AdminSettingsService } from './settings/admin-settings.service';
  */
 @Module({
   imports: [IdentityModule, AuditModule],
-  controllers: [AdminDentistsController, AdminAppointmentsController, AdminPaymentsController, AdminSettingsController, AuditLogController, PrivacyController],
-  providers: [AdminDentistsService, AdminAppointmentsService, AdminPaymentsService, AdminSettingsService, PrivacyService],
+  controllers: [
+    AdminDentistsController,
+    AdminPatientsController,
+    AdminAppointmentsController,
+    AdminPaymentsController,
+    AdminSettingsController,
+    AuditLogController,
+    PrivacyController,
+  ],
+  providers: [
+    AdminDentistsService,
+    AdminPatientsService,
+    AdminAppointmentsService,
+    AdminPaymentsService,
+    AdminSettingsService,
+    PrivacyService,
+  ],
 })
 export class AdminModule {}

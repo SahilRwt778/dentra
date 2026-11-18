@@ -208,6 +208,112 @@ describe('72-hour consultation passes and messages', () => {
         .status,
     ).toBe('revoked');
   });
+  it('searches names, concerns and unread messages before pagination without exposing other dentists conversations', async () => {
+    const t = await fixture();
+    const olderPatient = await account('patient');
+    const outsider = await account('dentist');
+    await pool.query(
+      "update patients set full_name='Beyond Page Patient' where user_id=$1",
+      [olderPatient.id],
+    );
+    const { rows } = await pool.query(
+      `with visits as (
+        insert into appointments(patient_id,dentist_id,type,scheduled_date,scheduled_time,status,concern_summary)
+        select $1::uuid,$2::uuid,'video'::appointment_type,current_date-day,'09:00'::time,'completed'::appointment_status,'Routine follow-up'
+        from generate_series(1,21) as day
+        union all select $3::uuid,$2::uuid,'video'::appointment_type,current_date-30,'09:00'::time,'completed'::appointment_status,'Unusual crown issue %_'
+        returning id,patient_id,dentist_id
+      ), paid as (
+        insert into transactions(appointment_id,idempotency_key,amount_paise,method,status)
+        select id,id::text,1000,'card','paid' from visits returning appointment_id
+      ), cases as (
+        insert into consultation_cases(original_appointment_id,patient_id,dentist_id,activated_at,expires_at)
+        select v.id,v.patient_id,v.dentist_id,
+          now()-case when v.patient_id=$3 then interval '8 hours' else interval '1 hour' end,
+          now()+interval '48 hours'
+        from visits v join paid p on p.appointment_id=v.id
+        returning id,original_appointment_id,patient_id
+      ) select original_appointment_id as id,patient_id,id as consultation_case_id from cases`,
+      [t.patient.id, t.dentist.id, olderPatient.id],
+    );
+    await pool.query(
+      `update appointments a set consultation_case_id=c.id from consultation_cases c
+        where a.id=c.original_appointment_id and a.id=any($1::uuid[])`,
+      [rows.map((row) => row.id)],
+    );
+    const older = rows.find((row) => row.patient_id === olderPatient.id)!;
+    const inbox = (query: Record<string, string>, token = t.dentist.token) =>
+      request(app.getHttpServer())
+        .get('/consultation-cases')
+        .query(query)
+        .set('Authorization', `Bearer ${token}`);
+    const first = await inbox({}).expect(200);
+    expect(first.body.items).toHaveLength(20);
+    expect(
+      first.body.items.some(
+        (item: { id: string }) => item.id === older.consultation_case_id,
+      ),
+    ).toBe(false);
+    const second = await inbox({ page: '2' }).expect(200);
+    expect(
+      second.body.items.some(
+        (item: { id: string }) => item.id === older.consultation_case_id,
+      ),
+    ).toBe(true);
+
+    const name = await inbox({ search: '  bEYOND pAGE  ' }).expect(200);
+    expect(name.body.items.map((item: { id: string }) => item.id)).toEqual([
+      older.consultation_case_id,
+    ]);
+    expect(name.body.nextPage).toBeNull();
+    const concern = await inbox({
+      search: 'crown issue',
+      filter: 'open',
+    }).expect(200);
+    expect(concern.body.items.map((item: { id: string }) => item.id)).toEqual([
+      older.consultation_case_id,
+    ]);
+    const literal = await inbox({ search: '%_' }).expect(200);
+    expect(literal.body.items.map((item: { id: string }) => item.id)).toEqual([
+      older.consultation_case_id,
+    ]);
+    const routine = await inbox({ search: 'Routine', page: '1' }).expect(200);
+    expect(routine.body.items).toHaveLength(20);
+    expect(routine.body.nextPage).toBe(2);
+    const routineMore = await inbox({ search: 'Routine', page: '2' }).expect(
+      200,
+    );
+    expect(routineMore.body.items).toHaveLength(1);
+    expect(routineMore.body.nextPage).toBeNull();
+
+    await send(olderPatient.token, older.id, 'Synthetic unread message').expect(
+      201,
+    );
+    const unread = await inbox({ unreadOnly: 'true' }).expect(200);
+    expect(unread.body.items.map((item: { id: string }) => item.id)).toEqual([
+      older.consultation_case_id,
+    ]);
+    const combined = await inbox({
+      unreadOnly: 'true',
+      search: 'Beyond',
+      filter: 'closed',
+    }).expect(200);
+    expect(combined.body.items).toEqual([]);
+    const privateResults = await inbox(
+      { search: 'Beyond' },
+      outsider.token,
+    ).expect(200);
+    expect(privateResults.body.items).toEqual([]);
+    const patientResults = await inbox(
+      { search: 'CASE DENTIST' },
+      olderPatient.token,
+    ).expect(200);
+    expect(
+      patientResults.body.items.map((item: { id: string }) => item.id),
+    ).toEqual([older.consultation_case_id]);
+    await inbox({ search: 'x'.repeat(101) }).expect(400);
+    await inbox({ unreadOnly: 'invalid' }).expect(400);
+  });
   it('uses the same messaging permission for inbox filters and ongoing consultation chat', async () => {
     const t = await fixture();
     await send(

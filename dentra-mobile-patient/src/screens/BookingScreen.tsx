@@ -30,8 +30,12 @@ export function BookingScreen({
   navigation,
 }: PatientScreenProps<'Booking'>) {
   const [step, setStep] = useState(1);
-  const [concerns, setConcerns] = useState<string[]>([]);
-  const [other, setOther] = useState('');
+  const initialConcern = route.params?.concern?.trim();
+  const knownConcern = initialConcern && CONCERNS.includes(initialConcern);
+  const [concerns, setConcerns] = useState<string[]>(
+    initialConcern ? [knownConcern ? initialConcern : 'Other'] : [],
+  );
+  const [other, setOther] = useState(knownConcern ? '' : initialConcern ?? '');
   const [area, setArea] = useState('');
   const [since, setSince] = useState('');
   const [pain, setPain] = useState<number>();

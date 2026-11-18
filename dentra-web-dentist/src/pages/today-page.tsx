@@ -1,7 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CalendarX } from 'lucide-react';
-import { useGetAppointmentsQuery, useGetDentistsMeQuery } from '@/api/generated-api';
+import {
+  useGetAppointmentsQuery,
+  useGetDentistsMeQuery,
+} from '@/api/generated-api';
 import { PageHead } from '@/components/page-head';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { todayIso, formatTime, dayLabel, formatDate } from '@/lib/date';
 import { statusBadge, isFlagged } from '@/lib/status';
 
@@ -75,16 +79,28 @@ export function TodayPage() {
                           <b>{formatTime(a.time)}</b>
                         </td>
                         <td>
-                          {a.patientName}
-                          <div className="tiny muted">
-                            {a.patientAge != null ? `${a.patientAge} y, ` : ''}
-                            {a.patientGender}
+                          <div className="patient-identity">
+                            <ProfileAvatar
+                              name={a.patientName ?? 'Patient'}
+                              photoUrl={a.patientPhotoUrl}
+                            />
+                            <div>
+                              {a.patientName}
+                              <div className="tiny muted">
+                                {a.patientAge != null
+                                  ? `${a.patientAge} y, `
+                                  : ''}
+                                {a.patientGender}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td>{a.type === 'video' ? 'Video' : 'In-clinic'}</td>
                         <td>
                           {a.concern}
-                          {a.symptomArea && <div className="tiny muted">{a.symptomArea}</div>}
+                          {a.symptomArea && (
+                            <div className="tiny muted">{a.symptomArea}</div>
+                          )}
                         </td>
                         <td>
                           {a.painScore != null ? `${a.painScore}/10` : '—'}
@@ -98,13 +114,20 @@ export function TodayPage() {
                         <td>
                           <span className={badge.className}>{badge.label}</span>
                         </td>
-                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                        <td
+                          style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <button
                             type="button"
                             className={`btn${a.status === 'completed' ? '' : ' btn-primary'}`}
                             onClick={() => navigate(`/consult/${a.id}`)}
                           >
-                            {a.status === 'completed' ? 'View' : a.status === 'in_consult' ? 'Continue' : 'Start consultation'}
+                            {a.status === 'completed'
+                              ? 'View'
+                              : a.status === 'in_consult'
+                                ? 'Continue'
+                                : 'Start consultation'}
                           </button>
                         </td>
                       </tr>

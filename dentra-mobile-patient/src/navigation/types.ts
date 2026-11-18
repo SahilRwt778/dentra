@@ -13,7 +13,11 @@ export type PatientStackParams = {
   Main: { tab?: TabName; prescriptions?: boolean } | undefined;
   Dentists: undefined;
   Dentist: { dentistId: string };
-  Booking: { dentistId?: string; type?: 'video' | 'clinic' } | undefined;
+  Booking:
+    | { dentistId?: string; type?: 'video' | 'clinic'; concern?: string }
+    | undefined;
+  DentalEducation: undefined;
+  EducationArticle: { articleId: string };
   Appointment: {
     appointmentId: string;
     justBooked?: boolean;

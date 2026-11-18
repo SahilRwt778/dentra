@@ -1,3 +1,4 @@
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { consultationDeadline } from '@dentra/call-core';
 import { AppointmentPaymentCard } from '@/components/payments/appointment-payment-card';
 import { lazy, Suspense, useEffect, useState } from 'react';
@@ -28,11 +29,7 @@ import {
   type ChartState,
 } from '@/components/dental-chart';
 import { statusBadge } from '@/lib/status';
-import {
-  formatDate,
-  formatTime,
-  todayIso,
-} from '@/lib/date';
+import { formatDate, formatTime, todayIso } from '@/lib/date';
 
 const MED_PRESETS: PrescriptionItemInput[] = [
   {
@@ -105,7 +102,7 @@ function errorMessage(err: unknown, fallback: string): string {
   const message = (
     err as { data?: { message?: string | string[] } } | undefined
   )?.data?.message;
-  return Array.isArray(message) ? message.join('. ') : message ?? fallback;
+  return Array.isArray(message) ? message.join('. ') : (message ?? fallback);
 }
 
 export function ConsultPage() {
@@ -426,6 +423,12 @@ export function ConsultPage() {
       )}
       <PageHead
         title={appt.patientName ?? ''}
+        avatar={
+          <ProfileAvatar
+            name={appt.patientName ?? 'Patient'}
+            photoUrl={appt.patientPhotoUrl}
+          />
+        }
         subtitle={`${appt.patientAge != null ? `${appt.patientAge} y, ` : ''}${
           appt.patientGender ?? ''
         } · ${formatTime(appt.time)}, ${
@@ -694,10 +697,10 @@ export function ConsultPage() {
               {appt.status === 'waiting'
                 ? 'The patient is waiting.'
                 : future
-                ? `This appointment is on ${formatDate(appt.date)}.`
-                : appt.type === 'video'
-                ? "The patient hasn't joined the call yet."
-                : "The patient hasn't checked in yet."}
+                  ? `This appointment is on ${formatDate(appt.date)}.`
+                  : appt.type === 'video'
+                    ? "The patient hasn't joined the call yet."
+                    : "The patient hasn't checked in yet."}
             </p>
             <div className="row" style={{ justifyContent: 'center' }}>
               {future ? (
@@ -1166,10 +1169,10 @@ export function ConsultPage() {
               {isRequestingCode
                 ? 'Sending…'
                 : resendSeconds > 0
-                ? `Resend in ${resendSeconds}s`
-                : signingOtpId
-                ? 'Resend signing code'
-                : 'Send signing code'}
+                  ? `Resend in ${resendSeconds}s`
+                  : signingOtpId
+                    ? 'Resend signing code'
+                    : 'Send signing code'}
             </button>
             {signingOtpId && (
               <label className="field">

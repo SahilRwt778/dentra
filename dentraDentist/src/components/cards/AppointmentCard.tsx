@@ -9,6 +9,7 @@ import {
 import type { Appointment, AppointmentStatus } from '../../common/types/api';
 import { colors, layout } from '../../common/theme/theme';
 import { formatTime } from '../../common/utils/date';
+import { PatientAvatar } from '../../features/patients/PatientAvatar';
 export const statusLabels: Record<AppointmentStatus, string> = {
   booked: 'Booked',
   waiting: 'Waiting',
@@ -57,6 +58,10 @@ export function AppointmentCard({
         <StatusBadge status={appointment.status} />
       </View>
       <View style={layout.between}>
+        <PatientAvatar
+          name={appointment.patientName}
+          photoUrl={appointment.patientPhotoUrl}
+        />
         <View style={styles.patient}>
           <Text style={layout.heading}>{appointment.patientName}</Text>
           <Text style={layout.muted}>

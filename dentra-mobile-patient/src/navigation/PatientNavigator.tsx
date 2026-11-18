@@ -24,6 +24,8 @@ import {
   RescheduleScreen,
 } from '@/screens/AppointmentScreen';
 import { HelpScreen } from '@/screens/SupportScreen';
+import { DentalEducationScreen } from '@/screens/DentalEducationScreen';
+import { EducationArticleScreen } from '@/screens/EducationArticleScreen';
 import { NotificationsScreen } from '@/screens/NotificationsScreen';
 import { VideoCallProvider } from '@/video/video-call-provider';
 import { PatientPushProvider } from '@/notifications/push-provider';
@@ -128,6 +130,14 @@ export function PatientNavigator() {
           <Stack.Screen name="Chat" component={ChatScreen} />
           <Stack.Screen name="FollowUp" component={FollowUpScreen} />
           <Stack.Screen name="Help" component={HelpScreen} />
+          <Stack.Screen
+            name="DentalEducation"
+            component={DentalEducationScreen}
+          />
+          <Stack.Screen
+            name="EducationArticle"
+            component={EducationArticleScreen}
+          />
         </Stack.Navigator>
       </VideoCallProvider>
     </PatientPushProvider>

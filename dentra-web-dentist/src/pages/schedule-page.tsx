@@ -1,3 +1,4 @@
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetAppointmentsQuery } from '@/api/generated-api';
@@ -27,13 +28,22 @@ function AppointmentRows({
 }) {
   const [page, setPage] = useState(1);
 
-  const { currentData: data, isFetching, error, refetch } = useGetAppointmentsQuery(
+  const {
+    currentData: data,
+    isFetching,
+    error,
+    refetch,
+  } = useGetAppointmentsQuery(
     {
       date,
       status: status || undefined,
       page,
     },
-    { refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true },
+    {
+      refetchOnMountOrArgChange: true,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    },
   );
 
   // Client-side patient name filter
@@ -50,9 +60,18 @@ function AppointmentRows({
 
   if (error) {
     return (
-      <div className="row wrap between" role="alert" style={{ padding: '16px 0' }}>
+      <div
+        className="row wrap between"
+        role="alert"
+        style={{ padding: '16px 0' }}
+      >
         <span>Could not load appointments.</span>
-        <button type="button" className="btn" disabled={isFetching} onClick={() => refetch()}>
+        <button
+          type="button"
+          className="btn"
+          disabled={isFetching}
+          onClick={() => refetch()}
+        >
           {isFetching ? 'Retrying…' : 'Try again'}
         </button>
       </div>
@@ -93,7 +112,9 @@ function AppointmentRows({
               <th scope="col">Reason</th>
               <th scope="col">Status</th>
               <th scope="col">
-                <span className="schedule-action-label">Appointment details</span>
+                <span className="schedule-action-label">
+                  Appointment details
+                </span>
               </th>
             </tr>
           </thead>
@@ -106,21 +127,35 @@ function AppointmentRows({
                     <b>{formatTime(appointment.time)}</b>
                   </td>
                   <td>
-                    {appointment.patientName || '—'}
-                    <div className="tiny muted">
-                      {[
-                        appointment.patientAge != null ? `${appointment.patientAge} y` : null,
-                        appointment.patientGender,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
+                    <div className="patient-identity">
+                      <ProfileAvatar
+                        name={appointment.patientName ?? 'Patient'}
+                        photoUrl={appointment.patientPhotoUrl}
+                      />
+                      <div>
+                        {appointment.patientName || '—'}
+                        <div className="tiny muted">
+                          {[
+                            appointment.patientAge != null
+                              ? `${appointment.patientAge} y`
+                              : null,
+                            appointment.patientGender,
+                          ]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </div>
+                      </div>
                     </div>
                   </td>
-                  <td>{appointment.type === 'video' ? 'Video' : 'In-clinic'}</td>
+                  <td>
+                    {appointment.type === 'video' ? 'Video' : 'In-clinic'}
+                  </td>
                   <td className="schedule-reason">
                     {appointment.concern || '—'}
                     {appointment.symptomArea && (
-                      <div className="tiny muted">{appointment.symptomArea}</div>
+                      <div className="tiny muted">
+                        {appointment.symptomArea}
+                      </div>
                     )}
                   </td>
                   <td>
@@ -177,15 +212,24 @@ function AppointmentRows({
 
 export function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState(todayIso);
-  const [selectedStatus, setSelectedStatus] = useState<AppointmentStatus | ''>('');
+  const [selectedStatus, setSelectedStatus] = useState<AppointmentStatus | ''>(
+    '',
+  );
   const [search, setSearch] = useState('');
 
   return (
     <>
-      <PageHead title="Schedule" subtitle="Browse appointments by date, status, or patient name." />
+      <PageHead
+        title="Schedule"
+        subtitle="Browse appointments by date, status, or patient name."
+      />
 
       {/* ── Filter bar ── */}
-      <div className="schedule-filters" role="search" aria-label="Appointment filters">
+      <div
+        className="schedule-filters"
+        role="search"
+        aria-label="Appointment filters"
+      >
         {/* Date picker */}
         <div className="schedule-filter-group">
           <label htmlFor="schedule-date-pick" className="schedule-filter-label">
@@ -203,14 +247,19 @@ export function SchedulePage() {
 
         {/* Status filter */}
         <div className="schedule-filter-group">
-          <label htmlFor="schedule-status-pick" className="schedule-filter-label">
+          <label
+            htmlFor="schedule-status-pick"
+            className="schedule-filter-label"
+          >
             Status
           </label>
           <select
             id="schedule-status-pick"
             className="schedule-filter-input"
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value as AppointmentStatus | '')}
+            onChange={(e) =>
+              setSelectedStatus(e.target.value as AppointmentStatus | '')
+            }
             aria-label="Filter by status"
           >
             {STATUS_OPTIONS.map((opt) => (
@@ -223,7 +272,10 @@ export function SchedulePage() {
 
         {/* Patient name search */}
         <div className="schedule-filter-group schedule-filter-search">
-          <label htmlFor="schedule-patient-search" className="schedule-filter-label">
+          <label
+            htmlFor="schedule-patient-search"
+            className="schedule-filter-label"
+          >
             Patient
           </label>
           <input
@@ -238,7 +290,11 @@ export function SchedulePage() {
         </div>
 
         {/* Active-date chip */}
-        <div className="schedule-filter-date-chip" aria-live="polite" aria-atomic="true">
+        <div
+          className="schedule-filter-date-chip"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           <span className="small muted">
             Showing:{' '}
             <strong>

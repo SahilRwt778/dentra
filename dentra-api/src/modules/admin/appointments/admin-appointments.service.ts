@@ -55,13 +55,16 @@ export class AdminAppointmentsService {
       conditions.push(`a.scheduled_date <= ${bind(filters.to)}::date`);
     if (filters.status) conditions.push(`a.status = ${bind(filters.status)}`);
     if (filters.type) conditions.push(`a.type = ${bind(filters.type)}`);
+    if (filters.patientId)
+      conditions.push(`a.patient_id = ${bind(filters.patientId)}`);
 
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     const offset = (page - 1) * limit;
     const limitParam = bind(limit);
     const offsetParam = bind(offset);
-    const direction = filters.filter === 'past' ? 'desc' : 'asc';
+    const direction =
+      filters.filter === 'past' || filters.patientId ? 'desc' : 'asc';
 
     // One snapshot keeps totals and the visible page consistent as bookings change.
     // A payment retry must not duplicate an appointment or consume another page row.

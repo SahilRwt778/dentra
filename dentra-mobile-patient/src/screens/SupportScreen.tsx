@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Linking, Text } from 'react-native';
+import { BookOpen } from 'lucide-react-native';
 import { Button, Card, ErrorState, Field, Screen } from '@/components/ui';
 import type { PatientScreenProps } from '@/navigation/types';
 import { SUPPORT_EMAIL } from '@/config';
@@ -48,6 +49,18 @@ export function HelpScreen({ navigation }: PatientScreenProps<'Help'>) {
       <Text style={ui.muted}>
         Find an answer or get in touch with our team.
       </Text>
+      <Card>
+        <Text style={ui.heading}>Learn about dental care</Text>
+        <Text style={ui.muted}>
+          Read about daily habits, dental conditions and common treatments.
+        </Text>
+        <Button
+          title="Explore dental education"
+          icon={BookOpen}
+          variant="secondary"
+          onPress={() => navigation.navigate('DentalEducation')}
+        />
+      </Card>
       {questions.map(([title, answer], i) => (
         <Card
           key={title}

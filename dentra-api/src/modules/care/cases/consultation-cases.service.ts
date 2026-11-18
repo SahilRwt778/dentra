@@ -132,6 +132,8 @@ export class ConsultationCasesService {
     user: AuthenticatedUser,
     page = 1,
     filter: ConversationFilter = 'all',
+    search = '',
+    unreadOnly = false,
   ) {
     const { rows } = await this.pool.query<ConsultationCaseRow>(
       `with conversations as (
@@ -147,7 +149,9 @@ export class ConsultationCasesService {
       where c.${user.role === 'dentist' ? 'dentist_id' : 'patient_id'}=$1
         and (c.activated_at is not null or latest.created_at is not null)
       ) select *, sum(unread_count) over()::int as total_unread from conversations
-      where $6='all' or ($6='open' and can_message) or ($6='closed' and not can_message)
+      where ($6='all' or ($6='open' and can_message) or ($6='closed' and not can_message))
+        and ($7='' or strpos(lower(${user.role === 'dentist' ? 'patient_name' : 'dentist_name'} || ' ' || coalesce(concern_summary,'')),lower($7))>0)
+        and (not $8::boolean or unread_count>0)
       order by coalesce(latest_message_at,activated_at,booked_at) desc,id desc limit 21 offset $2`,
       [
         user.userId,
@@ -156,6 +160,8 @@ export class ConsultationCasesService {
         user.deviceId ?? null,
         this.video.isEnabled(),
         filter,
+        search.trim(),
+        unreadOnly,
       ],
     );
     return {

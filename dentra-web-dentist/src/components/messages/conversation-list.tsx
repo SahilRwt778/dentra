@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -29,6 +28,9 @@ export function ConversationList({
   onRefresh,
   filter,
   onFilter,
+  search,
+  onSearch,
+  unreadOnly,
 }: {
   items: ConsultationCase[];
   selectedId?: string;
@@ -40,25 +42,14 @@ export function ConversationList({
   onPage(page: number): void;
   onRefresh(): void;
   filter: ConversationFilter;
-  onFilter(filter: ConversationFilter): void;
+  onFilter(filter: ConversationFilter, unreadOnly?: boolean): void;
+  search: string;
+  onSearch(value: string): void;
+  unreadOnly: boolean;
 }) {
-  const [search, setSearch] = useState('');
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  const term = search.trim().toLocaleLowerCase();
-  const matches = items.filter(
-    (item) =>
-      matchesConversationFilter(item, filter) &&
-      (!unreadOnly || item.unreadCount > 0) &&
-      (!term ||
-        `${item.patientName} ${item.concern}`
-          .toLocaleLowerCase()
-          .includes(term)),
+  const matches = items.filter((item) =>
+    matchesConversationFilter(item, filter),
   );
-  function changePage(value: number) {
-    setSearch('');
-    setUnreadOnly(false);
-    onPage(value);
-  }
   return (
     <aside className="messages-sidebar" aria-label="Conversations">
       <header className="messages-list-header">
@@ -85,17 +76,18 @@ export function ConversationList({
         <Search size={17} aria-hidden="true" />
         <input
           type="search"
-          aria-label="Search conversations on this page"
+          aria-label="Search conversations"
           placeholder="Search patient or concern"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          maxLength={100}
+          onChange={(event) => onSearch(event.target.value)}
         />
         {search && (
           <button
             type="button"
             className="messages-icon-button"
             aria-label="Clear search"
-            onClick={() => setSearch('')}
+            onClick={() => onSearch('')}
           >
             <X size={15} />
           </button>
@@ -112,7 +104,6 @@ export function ConversationList({
             type="button"
             aria-pressed={!unreadOnly && filter === option.value}
             onClick={() => {
-              setUnreadOnly(false);
               onFilter(option.value);
             }}
           >
@@ -123,8 +114,7 @@ export function ConversationList({
           type="button"
           aria-pressed={unreadOnly}
           onClick={() => {
-            setUnreadOnly(true);
-            onFilter('all');
+            onFilter('all', true);
           }}
         >
           Unread
@@ -216,7 +206,7 @@ export function ConversationList({
             className="messages-icon-button"
             aria-label="Previous conversations"
             disabled={page <= 1 || loading}
-            onClick={() => changePage(page - 1)}
+            onClick={() => onPage(page - 1)}
           >
             <ChevronLeft size={18} />
           </button>
@@ -226,7 +216,7 @@ export function ConversationList({
             className="messages-icon-button"
             aria-label="More conversations"
             disabled={!nextPage || loading}
-            onClick={() => nextPage && changePage(nextPage)}
+            onClick={() => nextPage && onPage(nextPage)}
           >
             <ChevronRight size={18} />
           </button>

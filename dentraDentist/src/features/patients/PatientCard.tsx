@@ -22,7 +22,10 @@ export function PatientCard({
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <PatientAvatar name={patient.fullName} />
+      <PatientAvatar
+        name={patient.fullName}
+        photoUrl={patient.profilePhotoUrl}
+      />
       <View style={styles.details}>
         <Text style={styles.name}>{patient.fullName}</Text>
         <Text numberOfLines={1} style={styles.meta}>

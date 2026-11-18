@@ -1213,3 +1213,5 @@ button.lg:hover {
 
 .profile-avatar { overflow: hidden; flex-shrink: 0; }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.page-identity, .patient-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.page-identity > div { min-width: 0; }

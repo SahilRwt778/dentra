@@ -11,6 +11,7 @@ import { Tooth } from '@/components/tooth-icon';
 import { useNotificationsQuery } from '@/api/notifications';
 import { usePatientQuery } from '@/api/patients';
 import { AppointmentCard } from '@/components/appointment-card';
+import { FeaturedEducation } from '@/components/education/featured-education';
 import {
   Button,
   Empty,
@@ -146,6 +147,7 @@ export function HomeScreen() {
           />
         </Section>
       ) : null}
+      <FeaturedEducation />
     </Screen>
   );
 }

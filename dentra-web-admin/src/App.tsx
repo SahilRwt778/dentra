@@ -10,6 +10,8 @@ import { AppointmentsPage } from '@/pages/appointments-page';
 import { DentistReviewPage } from '@/pages/dentist-review-page';
 import { DentistsPage } from '@/pages/dentists-page';
 import { DentistDetailPage } from '@/pages/dentist-detail-page';
+import { PatientsPage } from '@/pages/patients-page';
+import { PatientDetailPage } from '@/pages/patient-detail-page';
 import { PayoutReviewPage } from '@/pages/payout-review-page';
 import { PayoutBatchesPage } from '@/pages/payout-batches-page';
 import { WithdrawalsPage } from '@/pages/withdrawals-page';
@@ -54,12 +56,23 @@ function AppRoutes() {
           <Route path="/dentists/review" element={<DentistReviewPage />} />
           <Route path="/dentists" element={<DentistsPage />} />
           <Route path="/dentists/:dentistId" element={<DentistDetailPage />} />
+          <Route path="/patients" element={<PatientsPage />} />
+          <Route path="/patients/:patientId" element={<PatientDetailPage />} />
           <Route path="/payouts" element={<PayoutReviewPage />} />
           <Route path="/withdrawals" element={<WithdrawalsPage />} />
-          <Route path="/withdrawals/:withdrawalId" element={<WithdrawalDetailPage />} />
+          <Route
+            path="/withdrawals/:withdrawalId"
+            element={<WithdrawalDetailPage />}
+          />
           <Route path="/payout-batches" element={<PayoutBatchesPage />} />
-          <Route path="/payout-batches/new" element={<Navigate to="/withdrawals" replace />} />
-          <Route path="/payout-batches/:batchId" element={<PayoutBatchDetailPage />} />
+          <Route
+            path="/payout-batches/new"
+            element={<Navigate to="/withdrawals" replace />}
+          />
+          <Route
+            path="/payout-batches/:batchId"
+            element={<PayoutBatchDetailPage />}
+          />
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

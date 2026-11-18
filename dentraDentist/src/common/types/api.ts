@@ -95,6 +95,8 @@ export type Appointment = {
   id: string;
   patientId: string;
   patientName: string;
+  patientPhotoUrl?: string | null;
+  dentistPhotoUrl?: string | null;
   patientAge: number | null;
   patientGender: string | null;
   dentistId?: string;

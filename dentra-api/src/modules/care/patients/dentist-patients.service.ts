@@ -1,10 +1,16 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG_POOL } from '@database/database.module';
+import { ProfilePhotosService } from '@modules/identity/profile-photos/profile-photos.service';
 
 function hasAllergies(value: string | null) {
   const text = value?.trim();
-  return !!text && !/^(none(?: known)?|no known(?: drug)? allergies|nkda|nil|n\/a)$/i.test(text);
+  return (
+    !!text &&
+    !/^(none(?: known)?|no known(?: drug)? allergies|nkda|nil|n\/a)$/i.test(
+      text,
+    )
+  );
 }
 
 /**
@@ -18,12 +24,15 @@ function hasAllergies(value: string | null) {
  */
 @Injectable()
 export class DentistPatientsService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly photos: ProfilePhotosService,
+  ) {}
 
   async list(dentistId: string) {
     const { rows } = await this.pool.query(
       `select
-         p.user_id, p.full_name, p.gender,
+         p.user_id, p.full_name, p.gender, p.profile_photo_url,
          extract(year from age(p.date_of_birth))::int as age,
          u.mobile, p.allergies,
          to_char((select max(a.scheduled_date) from appointments a where a.patient_id = p.user_id and a.dentist_id = $1 and a.status = 'completed'), 'YYYY-MM-DD') as last_visit_date,
@@ -38,6 +47,11 @@ export class DentistPatientsService {
     return rows.map((r) => ({
       id: r.user_id,
       fullName: r.full_name,
+      profilePhotoUrl: this.photos.url(
+        'patient',
+        r.user_id,
+        r.profile_photo_url,
+      ),
       age: r.age,
       gender: r.gender,
       mobile: r.mobile,
@@ -80,6 +94,11 @@ export class DentistPatientsService {
     return {
       id: patient.user_id,
       fullName: patient.full_name,
+      profilePhotoUrl: this.photos.url(
+        'patient',
+        patient.user_id,
+        patient.profile_photo_url,
+      ),
       mobile: patient.mobile,
       dateOfBirth: patient.birth_date,
       age: patient.age,

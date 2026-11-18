@@ -161,6 +161,8 @@ const injectedRtkApi = api
           params: {
             page: queryArg.page,
             filter: queryArg.filter,
+            search: queryArg.search,
+            unreadOnly: queryArg.unreadOnly,
           },
         }),
         providesTags: ["Consultation Cases"],
@@ -443,6 +445,10 @@ export type GetConsultationCasesApiArg = {
   page?: number;
   /** Open includes conversations where the authenticated user can currently send messages; closed includes read-only conversations. */
   filter?: "all" | "open" | "closed";
+  /** Literal, case-insensitive search across the other participant's name and consultation concern. Applied before pagination. */
+  search?: string;
+  /** Only conversations with unread incoming messages. Applied before pagination and combined with search and Open/Closed filters. */
+  unreadOnly?: boolean;
 };
 export type GetConsultationCaseApiResponse =
   /** status 200 Current server-checked pass */ ConsultationCase;
@@ -754,10 +760,14 @@ export type Appointment = {
   id?: string;
   patientId?: string;
   patientName?: string;
+  /** Expiring profile image link. Null when no photo is set. */
+  patientPhotoUrl?: string | null;
   patientAge?: number | null;
   patientGender?: string | null;
   dentistId?: string;
   dentistName?: string;
+  /** Expiring profile image link. Null when no photo is set. */
+  dentistPhotoUrl?: string | null;
   clinicId?: string | null;
   clinicName?: string | null;
   type?: AppointmentType;
