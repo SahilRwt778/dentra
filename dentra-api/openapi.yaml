@@ -2260,6 +2260,137 @@ paths:
         "410": { description: Signing code has expired }
         "423": { description: Signing code locked after five incorrect attempts }
 
+  /payments/appointments/{appointmentId}/checkout:
+    post:
+      tags: [Payments]
+      summary: Prepare server-owned PayU checkout parameters for an unpaid appointment
+      description: Patient only. Reconciles existing payment first, validates ownership and the checkout hold, and uses the saved profile email and mobile. Never returns a merchant salt.
+      parameters:
+        - { name: appointmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Checkout prepared
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayuCheckout' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { description: Authentication required }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Checkout is unavailable }
+  /payments/appointments/{appointmentId}/hash:
+    post:
+      tags: [Payments]
+      summary: Sign an allowed SDK hash for this patient's active checkout
+      parameters:
+        - { name: appointmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hashName, hashString]
+              properties:
+                hashName: { type: string, minLength: 1, maxLength: 80 }
+                hashString: { type: string, minLength: 1, maxLength: 16000 }
+                hashType: { type: string, enum: [V1, V2] }
+                postSalt: { type: string, maxLength: 1000 }
+      responses:
+        '200':
+          description: Server-generated hash
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hash]
+                properties:
+                  hash: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { description: Authentication required }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Checkout is unavailable }
+  /payments/payu/webhook:
+    post:
+      tags: [Payments]
+      security: []
+      summary: PayU payment webhook with reverse-hash verification and server reconciliation
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Received }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /payments/payu/callback:
+    post:
+      tags: [Payments]
+      security: []
+      summary: PayU success and failure redirect used by the mobile SDK
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Return to Dentra
+          content:
+            text/html:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /payments/payu/callback/success:
+    post:
+      tags: [Payments]
+      security: []
+      summary: PayU success redirect used by the mobile SDK
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Return to Dentra
+          content:
+            text/html:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /payments/payu/callback/failure:
+    post:
+      tags: [Payments]
+      security: []
+      summary: PayU failure redirect used by the mobile SDK
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Return to Dentra
+          content:
+            text/html:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /payments/payu/refund-webhook:
+    post:
+      tags: [Payments]
+      security: []
+      summary: Reconcile a refund of a known PayU payment through an authenticated provider read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_id]
+              properties:
+                request_id: { type: string }
+                mihpayid: { type: string, description: "Known payment reference, also used to reconcile dashboard refunds." }
+      responses:
+        '200': { description: Received }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /payments/webhook:
     post:
       tags: [Payments]
@@ -3045,6 +3176,31 @@ components:
         paymentMethod: { type: string, enum: [upi, card, netbanking, pay_at_clinic] }
         idempotencyKey: { type: string, description: One per booking attempt, generated client-side. }
 
+    PayuCheckout:
+      type: object
+      required: [provider, payUPaymentParams]
+      properties:
+        provider: { type: string, enum: [payu] }
+        payUPaymentParams:
+          type: object
+          required: [key, transactionId, amount, productInfo, firstName, email, phone, environment, userCredential, android_surl, android_furl, ios_surl, ios_furl, additionalParam]
+          properties:
+            key: { type: string }
+            transactionId: { type: string, maxLength: 25 }
+            amount: { type: string, description: "INR amount with exactly two decimal places." }
+            productInfo: { type: string }
+            firstName: { type: string }
+            email: { type: string, format: email }
+            phone: { type: string }
+            environment: { type: string, enum: ['0', '1'] }
+            userCredential: { type: string }
+            android_surl: { type: string }
+            android_furl: { type: string }
+            ios_surl: { type: string }
+            ios_furl: { type: string }
+            additionalParam:
+              type: object
+              additionalProperties: { type: string }
     Appointment:
       description: The other party's name (and, for the dentist's view, the patient's age/gender) is always safe to include — the caller is always either the patient or the dentist on the row.
       type: object
@@ -3082,8 +3238,9 @@ components:
             amountPaise: { type: integer }
             status: { type: string, enum: [pending, paid, due_at_clinic, refund_pending, refund_failed, refunded, cancelled, failed, covered, coverage_revoked] }
             expiresAt: { type: string, format: date-time, nullable: true, description: "New online bookings hold the slot for 15 minutes. Legacy and pay-at-clinic bookings have no checkout deadline." }
-            gatewayOrderId: { type: string, nullable: true, description: "Razorpay order id. Null for pay_at_clinic bookings, which never create a gateway order." }
-            gatewayKeyId: { type: string, nullable: true, description: "Public Razorpay checkout key id. Never the API signing secret." }
+            provider: { type: string, enum: [payu, razorpay], nullable: true, description: "The original provider for this transaction. Null for clinic payments and covered follow-ups." }
+            gatewayOrderId: { type: string, nullable: true, description: "Provider order or merchant transaction id. Null for clinic payments." }
+            gatewayKeyId: { type: string, nullable: true, description: "Public checkout merchant key. Never the signing secret or salt." }
         bookedAt: { type: string, format: date-time }
         completedAt: { type: string, format: date-time, nullable: true }
         cancelledAt: { type: string, format: date-time, nullable: true }
@@ -3412,6 +3569,7 @@ components:
         method: { $ref: "#/components/schemas/PaymentMethod" }
         status: { $ref: "#/components/schemas/PaymentStatus" }
         collection: { $ref: "#/components/schemas/ClinicPaymentReceipt" }
+        gatewayProvider: { type: string, enum: [payu, razorpay], nullable: true }
         gatewayOrderId: { type: string, nullable: true }
         gatewayPaymentId: { type: string, nullable: true }
         gatewayRefundId: { type: string, nullable: true }
@@ -3455,6 +3613,7 @@ components:
         amountPaise: { type: integer }
         method: { $ref: "#/components/schemas/PaymentMethod" }
         status: { $ref: "#/components/schemas/PaymentStatus" }
+        gatewayProvider: { type: string, enum: [payu, razorpay], nullable: true }
         gatewayOrderId: { type: string, nullable: true }
         gatewayPaymentId: { type: string, nullable: true }
         gatewayRefundId: { type: string, nullable: true }
@@ -3469,7 +3628,7 @@ components:
           type: object
           required: [provider, mode, checkoutConfigured, webhookConfigured]
           properties:
-            provider: { type: string, enum: [razorpay] }
+            provider: { type: string, enum: [payu, razorpay] }
             mode: { type: string, enum: [test, live, unconfigured] }
             checkoutConfigured: { type: boolean }
             webhookConfigured: { type: boolean }

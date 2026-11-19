@@ -394,7 +394,7 @@ export function BookingScreen({
           <Text style={ui.small}>
             {paymentMethod === 'pay_at_clinic'
               ? `Pay ${rupees(fee)} at the clinic when you arrive.`
-              : 'Complete payment securely with Razorpay. Your booking updates after payment is verified.'}
+              : 'Complete payment securely with PayU. Your booking updates after payment is verified.'}
           </Text>
           <Checkbox
             title={`I agree to share these details with ${selected.fullName}${

@@ -26,6 +26,7 @@ type PaymentRow = ClinicPaymentColumns & {
   source: 'online' | 'clinic';
   method: string;
   status: string;
+  gateway_provider: 'payu' | 'razorpay';
   gateway_order_id: string | null;
   gateway_payment_id: string | null;
   gateway_refund_id: string | null;
@@ -47,7 +48,7 @@ type ReportRow = {
 // Always scope the base relation by the authenticated dentist. Client filters
 // never choose an owner, and both list and detail use this exact relation.
 const OWN_PAYMENTS = `select t.id, t.appointment_id, t.amount_paise, t.method, t.status,
-  t.created_at, t.updated_at, t.gateway_ref as gateway_order_id,
+  t.created_at, t.updated_at, t.gateway_provider, t.gateway_ref as gateway_order_id,
   t.gateway_payment_ref as gateway_payment_id, r.gateway_ref as gateway_refund_id,
   p.full_name as patient_name, to_char(a.scheduled_date, 'YYYY-MM-DD') as appointment_date,
   to_char(a.scheduled_time, 'HH24:MI') as appointment_time, a.type as appointment_type,
@@ -167,6 +168,7 @@ export class DentistPaymentsService {
       method: row.method,
       status: row.status,
       collection: clinicPaymentReceipt(row),
+      gatewayProvider: row.gateway_order_id ? row.gateway_provider : null,
       gatewayOrderId: row.gateway_order_id,
       gatewayPaymentId: row.gateway_payment_id,
       gatewayRefundId: row.gateway_refund_id,

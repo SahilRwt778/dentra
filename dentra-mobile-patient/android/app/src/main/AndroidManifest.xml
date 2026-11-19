@@ -25,6 +25,7 @@
       android:roundIcon="@mipmap/ic_launcher_round"
       android:allowBackup="false"
       android:theme="@style/AppTheme"
+      tools:replace="android:theme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
       <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="dentra_appointments" tools:replace="android:value" />

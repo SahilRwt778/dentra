@@ -35,6 +35,18 @@ services:
         value: 30d
       - key: CORS_ORIGINS
         sync: false
+      # Supply PayU credentials before enabling new online checkout.
+      - key: PAYMENT_PROVIDER
+        value: payu
+      - key: PAYU_ENVIRONMENT
+        sync: false
+      - key: PAYU_MERCHANT_KEY
+        sync: false
+      - key: PAYU_MERCHANT_SALT
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      # Preserve access to historical Razorpay payments and refunds.
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET

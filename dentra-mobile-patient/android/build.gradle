@@ -20,3 +20,19 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+// Required by the PayU Checkout Pro PhonePe intent integration.
+allprojects {
+    repositories {
+        maven { url "https://phonepe.mycloudrepo.io/public/repositories/phonepe-intentsdk-android" }
+    }
+}
+
+// PayU declares its wrapper version as a BuildConfig field.
+subprojects { subproject ->
+    if (subproject.name == "payu-non-seam-less-react") {
+        subproject.plugins.withId("com.android.library") {
+            subproject.android.buildFeatures.buildConfig = true
+        }
+    }
+}

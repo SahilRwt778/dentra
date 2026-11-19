@@ -20,7 +20,7 @@ import { PG_POOL } from '@database/database.module';
 import type { AuthenticatedUser } from '@common/decorators/current-user.decorator';
 import { slotHasPassed } from '@common/utils/slots.util';
 import { resolveHours } from '@common/utils/dentist-availability.util';
-import { RazorpayGatewayService } from '@modules/payments/razorpay-gateway.service';
+import { PaymentGatewayService, type PaymentProvider } from '@modules/payments/payment-gateway.service';
 import { RefundsService } from '@modules/payments/refunds.service';
 import { PaymentReconciliationService } from '@modules/payments/payment-reconciliation.service';
 import { NotificationsService } from '@modules/notifications/notifications.service';
@@ -49,7 +49,7 @@ const FEE_FIELD = {
 // to show per row.
 const APPOINTMENT_WITH_PAYMENT = `
   select a.*, t.method as payment_method, t.amount_paise as payment_amount, t.status as payment_status,
-         t.gateway_ref as payment_gateway_ref, t.gateway_payment_ref,
+         t.gateway_ref as payment_gateway_ref, t.gateway_provider, t.gateway_payment_ref,
          t.payment_expires_at, ${coveredFollowUp('a')} as follow_up_covered,
          c.original_appointment_id as case_original_id,c.activated_at as case_activated_at,c.expires_at as case_expires_at,
          case when c.activated_at is null then 'pending'
@@ -107,6 +107,7 @@ export interface AppointmentResponse {
     method: string;
     amountPaise: number;
     status: string;
+    provider: PaymentProvider | null;
     gatewayOrderId: string | null;
     gatewayKeyId: string | null;
     expiresAt: string | null;
@@ -122,7 +123,7 @@ export interface AppointmentResponse {
 export class AppointmentsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly gateway: RazorpayGatewayService,
+    private readonly gateway: PaymentGatewayService,
     private readonly notifications: NotificationsService,
     private readonly refunds: RefundsService,
     private readonly files: PatientFilesService,
@@ -300,7 +301,7 @@ export class AppointmentsService {
       );
 
       // pay_at_clinic takes no payment now, matching the prototype's
-      // rule. Online methods create a real Razorpay order; the
+      // rule. Online methods create a provider payment reference; the
       // transaction sits at 'pending' until the payment.captured
       // webhook confirms it — never marked 'paid' synchronously here.
       if (!caseId) {
@@ -319,10 +320,10 @@ export class AppointmentsService {
           gatewayRef = order.orderId;
         }
         await client.query(
-          `insert into transactions (appointment_id, idempotency_key, amount_paise, method, status, gateway_ref, payment_expires_at, next_payment_check_at, platform_fee_bps)
+          `insert into transactions (appointment_id, idempotency_key, amount_paise, method, status, gateway_ref, payment_expires_at, next_payment_check_at, platform_fee_bps, gateway_provider)
            values ($1,$2,$3,$4::payment_method,$5,$6,
              case when $4::payment_method = 'pay_at_clinic' then null else now() + interval '15 minutes' end,
-             case when $4::payment_method = 'pay_at_clinic' then null else now() + interval '30 seconds' end, $7)`,
+             case when $4::payment_method = 'pay_at_clinic' then null else now() + interval '30 seconds' end, $7, $8)`,
           [
             appointmentId,
             dto.idempotencyKey,
@@ -333,6 +334,7 @@ export class AppointmentsService {
             dto.paymentMethod === 'pay_at_clinic'
               ? null
               : (walletPolicy?.fee_bps ?? null),
+            this.gateway.provider,
           ],
         );
       }
@@ -413,7 +415,7 @@ export class AppointmentsService {
     ) {
       try {
         await this.paymentReconciliation.reconcileOrder(
-          row.payment_gateway_ref,
+          row.payment_gateway_ref, row.gateway_provider,
         );
       } catch {
         throw new ServiceUnavailableException(
@@ -734,6 +736,7 @@ export class AppointmentsService {
             method: 'follow_up',
             amountPaise: 0,
             status: row.follow_up_covered ? 'covered' : 'coverage_revoked',
+            provider: null,
             gatewayOrderId: null,
             gatewayKeyId: null,
             expiresAt: null,
@@ -746,7 +749,8 @@ export class AppointmentsService {
               status: row.payment_status,
               gatewayOrderId: row.payment_gateway_ref ?? null,
               // Publish only the checkout key id. The signing secret stays on the API.
-              gatewayKeyId: row.payment_gateway_ref ? this.gateway.keyId : null,
+              provider: row.payment_gateway_ref ? row.gateway_provider : null,
+              gatewayKeyId: row.payment_gateway_ref ? this.gateway.publicKey(row.gateway_provider) : null,
               expiresAt: row.payment_expires_at ?? null,
               collection: clinicPaymentReceipt(row as ClinicPaymentColumns),
             }

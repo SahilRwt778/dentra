@@ -18,6 +18,7 @@ type PaymentRow = ClinicPaymentColumns & {
   amount_paise: number;
   method: string;
   status: string;
+  gateway_provider: 'razorpay' | 'payu';
   gateway_ref: string | null;
   gateway_payment_ref: string | null;
   created_at: string;
@@ -60,7 +61,7 @@ export class AdminPaymentsService {
     }>(
       `with filtered as (
          select t.id, t.appointment_id, t.amount_paise, t.method, t.status,
-                t.gateway_ref, t.gateway_payment_ref, t.created_at, t.updated_at,
+                t.gateway_provider, t.gateway_ref, t.gateway_payment_ref, t.created_at, t.updated_at,
                 p.full_name as patient_name, d.full_name as dentist_name,
                 a.scheduled_date, a.scheduled_time, r.gateway_ref as refund_id, ${CLINIC_PAYMENT_COLUMNS}
          from transactions t
@@ -86,16 +87,18 @@ export class AdminPaymentsService {
     );
     const result = rows[0];
     const total = Number(result.total);
-    const gateway = this.config.get('razorpay', { infer: true })!;
-    const mode = gateway.keyId.startsWith('rzp_test_') ? 'test'
-      : gateway.keyId.startsWith('rzp_live_') ? 'live' : 'unconfigured';
-
+    const provider = this.config.get('payments', { infer: true })!.provider;
+    const payu = this.config.get('payu', { infer: true })!;
+    const razorpay = this.config.get('razorpay', { infer: true })!;
+    const mode = provider === 'payu' ? (payu.key && payu.salt ? payu.environment : 'unconfigured')
+      : razorpay.keyId.startsWith('rzp_test_') ? 'test'
+      : razorpay.keyId.startsWith('rzp_live_') ? 'live' : 'unconfigured';
     return {
       gateway: {
-        provider: 'razorpay',
+        provider,
         mode,
-        checkoutConfigured: mode !== 'unconfigured' && !!gateway.keySecret,
-        webhookConfigured: !!gateway.webhookSecret,
+        checkoutConfigured: provider === 'payu' ? !!(payu.key && payu.salt && payu.publicApiUrl) : mode !== 'unconfigured' && !!razorpay.keySecret,
+        webhookConfigured: provider === 'payu' ? !!(payu.key && payu.salt && payu.publicApiUrl) : !!razorpay.webhookSecret,
       },
       summary: {
         totalTransactions: total,
@@ -117,6 +120,7 @@ export class AdminPaymentsService {
         method: row.method,
         collection: clinicPaymentReceipt(row),
         status: row.status,
+        gatewayProvider: row.gateway_ref ? row.gateway_provider : null,
         gatewayOrderId: row.gateway_ref,
         gatewayPaymentId: row.gateway_payment_ref,
         gatewayRefundId: row.refund_id,

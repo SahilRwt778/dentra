@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } f
 import { ConfigService } from '@nestjs/config';
 import type { Pool } from 'pg';
 import { PG_POOL } from '@database/database.module';
-import { RazorpayGatewayService } from './razorpay-gateway.service';
+import { PaymentGatewayService, type PaymentProvider } from './payment-gateway.service';
 import { PaymentsWebhookService } from './payments-webhook.service';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class PaymentReconciliationService implements OnApplicationBootstrap, OnM
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly gateway: RazorpayGatewayService,
+    private readonly gateway: PaymentGatewayService,
     private readonly payments: PaymentsWebhookService,
     private readonly config: ConfigService
   ) {}
@@ -39,18 +39,18 @@ export class PaymentReconciliationService implements OnApplicationBootstrap, OnM
   }
 
   async runOnce() {
-    const { rows } = await this.pool.query<{ gateway_ref: string }>(
+    const { rows } = await this.pool.query<{ gateway_ref: string; gateway_provider: PaymentProvider }>(
       `with due as (
          select id from transactions where next_payment_check_at <= now()
            and status in ('pending', 'failed', 'cancelled') and gateway_ref is not null
            and gateway_payment_ref is null and created_at > now() - interval '7 days'
          order by next_payment_check_at, id limit 20 for update skip locked
        ) update transactions t set next_payment_check_at = now() + interval '1 minute'
-         from due where t.id = due.id returning t.gateway_ref`
+         from due where t.id = due.id returning t.gateway_ref, t.gateway_provider`
     );
     for (const row of rows) {
       try {
-        await this.reconcileOrder(row.gateway_ref);
+        await this.reconcileOrder(row.gateway_ref, row.gateway_provider);
       } catch {
         this.logger.warn('Could not reconcile a payment order; retrying later.');
       }
@@ -59,15 +59,15 @@ export class PaymentReconciliationService implements OnApplicationBootstrap, OnM
   }
 
   /** Both checkout refresh and the worker read the provider; neither trusts a client success flag. */
-  async reconcileOrder(orderId: string) {
-    const payments = await this.gateway.fetchOrderPayments(orderId);
+  async reconcileOrder(orderId: string, provider: PaymentProvider = 'razorpay') {
+    const payments = await this.gateway.fetchOrderPayments(provider, orderId);
     for (const payment of payments) {
       if (payment.order_id !== orderId || payment.status !== 'captured') continue;
       // Reuse webhook amount/currency checks and cancellation/refund locking.
       await this.payments.handle({
         event: 'payment.captured',
         payload: { payment: { entity: payment } },
-      });
+      }, provider);
     }
   }
 }

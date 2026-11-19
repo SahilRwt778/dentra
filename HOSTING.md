@@ -52,6 +52,11 @@ Render builds from GitHub, so uncommitted local changes are not deployed.
 | `SUPABASE_URL` | Your Supabase project HTTPS URL |
 | `SUPABASE_SECRET_KEY` | The server secret used for the private bucket |
 | `CORS_ORIGINS` | Initially `http://localhost:5174,http://localhost:5175`; replace/add the actual portal HTTPS URLs in step 4 |
+| `PAYMENT_PROVIDER` | `payu` for new bookings; retain `razorpay` during app rollout |
+| `PAYU_ENVIRONMENT` | `test` initially |
+| `PAYU_MERCHANT_KEY` | PayU test merchant key |
+| `PAYU_MERCHANT_SALT` | PayU test merchant salt, server only |
+| `PUBLIC_API_URL` | Public HTTPS origin of the API, used by PayU callbacks |
 | `RAZORPAY_KEY_ID` | Your Razorpay **test** key ID |
 | `RAZORPAY_KEY_SECRET` | The corresponding test key secret |
 | `RAZORPAY_WEBHOOK_SECRET` | The secret you choose for the hosted Razorpay webhook |
@@ -89,7 +94,7 @@ The static-site builds run from the repository root so the dentist portal can re
 Video is enabled in `render.yaml` for the configured LiveKit Cloud deployment; its project settings are supplied through Render. The phone push enable switch is supplied through Render (`sync: false`), so later Blueprint syncs preserve your choice. Leave it disabled until the Firebase secret file is installed.
 
 - **Video:** add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` to the API service and set `VIDEO_ENABLED=true`. Use a reachable secure Cloud URL, not a local LiveKit server. Set the LiveKit webhook to `https://YOUR-API.onrender.com/video/webhook` with the matching signing key. See [LIVEKIT_SETUP.md](LIVEKIT_SETUP.md).
-- **Payments:** configure the Razorpay test webhook at `https://YOUR-API.onrender.com/payments/webhook` with the same `RAZORPAY_WEBHOOK_SECRET`. Follow [PAYMENTS.md](PAYMENTS.md) for events, signatures, checkout and refund verification.
+- **Payments:** follow [PAYU_SETUP.md](PAYU_SETUP.md) to configure PayU and rebuild Patient Mobile before switching new bookings. Preserve historical Razorpay credentials and configure the Razorpay test webhook at `https://YOUR-API.onrender.com/payments/webhook` with the same `RAZORPAY_WEBHOOK_SECRET`. Follow [PAYMENTS.md](PAYMENTS.md) for events, signatures, checkout and refund verification.
 - **Push:** upload the existing Firebase service-account JSON as Render **Secret File** `firebase-service-account.json`. Set `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/firebase-service-account.json`, `FIREBASE_PROJECT_ID=dentra-a5c03`, and `PUSH_ENABLED=true`, then save/deploy. The Blueprint defines the project and mounted path; the credential contents are installed through Render's Environment page. Do not copy the local computer's credential path to Render. Follow the hosted activation and phone test in [PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md).
 
 Real SMS remains deferred. For testing, generated OTPs still appear in the API's private logs.

@@ -8,6 +8,7 @@ export const addTagTypes = [
   "Appointments",
   "Patients",
   "Dentists",
+  "Payments",
   "Privacy",
 ] as const;
 const injectedRtkApi = api
@@ -329,6 +330,27 @@ const injectedRtkApi = api
         }),
         providesTags: ["Consultations"],
       }),
+      postPaymentsAppointmentsByAppointmentIdCheckout: build.mutation<
+        PostPaymentsAppointmentsByAppointmentIdCheckoutApiResponse,
+        PostPaymentsAppointmentsByAppointmentIdCheckoutApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/appointments/${queryArg.appointmentId}/checkout`,
+          method: "POST",
+        }),
+        invalidatesTags: ["Payments"],
+      }),
+      postPaymentsAppointmentsByAppointmentIdHash: build.mutation<
+        PostPaymentsAppointmentsByAppointmentIdHashApiResponse,
+        PostPaymentsAppointmentsByAppointmentIdHashApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/appointments/${queryArg.appointmentId}/hash`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Payments"],
+      }),
       postPrivacyRequests: build.mutation<
         PostPrivacyRequestsApiResponse,
         PostPrivacyRequestsApiArg
@@ -545,6 +567,24 @@ export type GetAppointmentsByAppointmentIdConsultationApiResponse =
   /** status 200 OK */ Consultation;
 export type GetAppointmentsByAppointmentIdConsultationApiArg = {
   appointmentId: string;
+};
+export type PostPaymentsAppointmentsByAppointmentIdCheckoutApiResponse =
+  /** status 200 Checkout prepared */ PayuCheckout;
+export type PostPaymentsAppointmentsByAppointmentIdCheckoutApiArg = {
+  appointmentId: string;
+};
+export type PostPaymentsAppointmentsByAppointmentIdHashApiResponse =
+  /** status 200 Server-generated hash */ {
+    hash: string;
+  };
+export type PostPaymentsAppointmentsByAppointmentIdHashApiArg = {
+  appointmentId: string;
+  body: {
+    hashName: string;
+    hashString: string;
+    hashType?: "V1" | "V2";
+    postSalt?: string;
+  };
 };
 export type PostPrivacyRequestsApiResponse =
   /** status 201 Filed, with an SLA due date set from the statutory response window */ PrivacyRequest;
@@ -801,9 +841,11 @@ export type Appointment = {
       | "coverage_revoked";
     /** New online bookings hold the slot for 15 minutes. Legacy and pay-at-clinic bookings have no checkout deadline. */
     expiresAt?: string | null;
-    /** Razorpay order id. Null for pay_at_clinic bookings, which never create a gateway order. */
+    /** The original provider for this transaction. Null for clinic payments and covered follow-ups. */
+    provider?: ("payu" | "razorpay") | null;
+    /** Provider order or merchant transaction id. Null for clinic payments. */
     gatewayOrderId?: string | null;
-    /** Public Razorpay checkout key id. Never the API signing secret. */
+    /** Public checkout merchant key. Never the signing secret or salt. */
     gatewayKeyId?: string | null;
   };
   bookedAt?: string;
@@ -958,6 +1000,28 @@ export type Consultation = {
     items?: PrescriptionItemInput[];
   } | null;
 };
+export type PayuCheckout = {
+  provider: "payu";
+  payUPaymentParams: {
+    key: string;
+    transactionId: string;
+    /** INR amount with exactly two decimal places. */
+    amount: string;
+    productInfo: string;
+    firstName: string;
+    email: string;
+    phone: string;
+    environment: "0" | "1";
+    userCredential: string;
+    android_surl: string;
+    android_furl: string;
+    ios_surl: string;
+    ios_furl: string;
+    additionalParam: {
+      [key: string]: string;
+    };
+  };
+};
 export type PrivacyRequestType = "export" | "erase";
 export type PrivacyRequestStatus = "open" | "resolved";
 export type PrivacyRequest = {
@@ -1017,5 +1081,7 @@ export const {
   usePostAppointmentsByAppointmentIdRescheduleMutation,
   useGetAppointmentsByAppointmentIdConsultationQuery,
   useLazyGetAppointmentsByAppointmentIdConsultationQuery,
+  usePostPaymentsAppointmentsByAppointmentIdCheckoutMutation,
+  usePostPaymentsAppointmentsByAppointmentIdHashMutation,
   usePostPrivacyRequestsMutation,
 } = injectedRtkApi;

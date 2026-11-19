@@ -1,3 +1,4 @@
+import { openPayuCheckout } from './payu-checkout';
 import RazorpayCheckout from 'react-native-razorpay';
 import type { Appointment, Patient } from '@/api/types';
 import { activeAppointment } from '@/lib/patient';
@@ -32,6 +33,11 @@ export async function openCheckout(
 ) {
   const reason = checkoutUnavailableReason(appointment);
   if (reason) throw new CheckoutUnavailableError(reason);
+  if (appointment.payment?.provider === 'payu') {
+    if (!appointment.id)
+      throw new CheckoutUnavailableError('Missing appointment reference.');
+    return openPayuCheckout(appointment.id);
+  }
   const payment = appointment.payment!;
   return RazorpayCheckout.open({
     key: payment.gatewayKeyId!,

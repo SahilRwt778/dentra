@@ -1141,6 +1141,82 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["Consultations"],
       }),
+      postPaymentsAppointmentsByAppointmentIdCheckout: build.mutation<
+        PostPaymentsAppointmentsByAppointmentIdCheckoutApiResponse,
+        PostPaymentsAppointmentsByAppointmentIdCheckoutApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/appointments/${queryArg.appointmentId}/checkout`,
+          method: "POST",
+        }),
+        invalidatesTags: ["Payments"],
+      }),
+      postPaymentsAppointmentsByAppointmentIdHash: build.mutation<
+        PostPaymentsAppointmentsByAppointmentIdHashApiResponse,
+        PostPaymentsAppointmentsByAppointmentIdHashApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/appointments/${queryArg.appointmentId}/hash`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Payments"],
+      }),
+      postPaymentsPayuWebhook: build.mutation<
+        PostPaymentsPayuWebhookApiResponse,
+        PostPaymentsPayuWebhookApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/payu/webhook`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Payments"],
+      }),
+      postPaymentsPayuCallback: build.mutation<
+        PostPaymentsPayuCallbackApiResponse,
+        PostPaymentsPayuCallbackApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/payu/callback`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Payments"],
+      }),
+      postPaymentsPayuCallbackSuccess: build.mutation<
+        PostPaymentsPayuCallbackSuccessApiResponse,
+        PostPaymentsPayuCallbackSuccessApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/payu/callback/success`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Payments"],
+      }),
+      postPaymentsPayuCallbackFailure: build.mutation<
+        PostPaymentsPayuCallbackFailureApiResponse,
+        PostPaymentsPayuCallbackFailureApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/payu/callback/failure`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Payments"],
+      }),
+      postPaymentsPayuRefundWebhook: build.mutation<
+        PostPaymentsPayuRefundWebhookApiResponse,
+        PostPaymentsPayuRefundWebhookApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/payments/payu/refund-webhook`,
+          method: "POST",
+          body: queryArg.body,
+        }),
+        invalidatesTags: ["Payments"],
+      }),
       postPaymentsWebhook: build.mutation<
         PostPaymentsWebhookApiResponse,
         PostPaymentsWebhookApiArg
@@ -1883,6 +1959,59 @@ export type PostAppointmentsByAppointmentIdPrescriptionSignApiArg = {
     allergyOverrideAck?: boolean;
   };
 };
+export type PostPaymentsAppointmentsByAppointmentIdCheckoutApiResponse =
+  /** status 200 Checkout prepared */ PayuCheckout;
+export type PostPaymentsAppointmentsByAppointmentIdCheckoutApiArg = {
+  appointmentId: string;
+};
+export type PostPaymentsAppointmentsByAppointmentIdHashApiResponse =
+  /** status 200 Server-generated hash */ {
+    hash: string;
+  };
+export type PostPaymentsAppointmentsByAppointmentIdHashApiArg = {
+  appointmentId: string;
+  body: {
+    hashName: string;
+    hashString: string;
+    hashType?: "V1" | "V2";
+    postSalt?: string;
+  };
+};
+export type PostPaymentsPayuWebhookApiResponse = unknown;
+export type PostPaymentsPayuWebhookApiArg = {
+  body: {
+    [key: string]: any;
+  };
+};
+export type PostPaymentsPayuCallbackApiResponse =
+  /** status 200 Return to Dentra */ string;
+export type PostPaymentsPayuCallbackApiArg = {
+  body: {
+    [key: string]: any;
+  };
+};
+export type PostPaymentsPayuCallbackSuccessApiResponse =
+  /** status 200 Return to Dentra */ string;
+export type PostPaymentsPayuCallbackSuccessApiArg = {
+  body: {
+    [key: string]: any;
+  };
+};
+export type PostPaymentsPayuCallbackFailureApiResponse =
+  /** status 200 Return to Dentra */ string;
+export type PostPaymentsPayuCallbackFailureApiArg = {
+  body: {
+    [key: string]: any;
+  };
+};
+export type PostPaymentsPayuRefundWebhookApiResponse = unknown;
+export type PostPaymentsPayuRefundWebhookApiArg = {
+  body: {
+    request_id: string;
+    /** Known payment reference, also used to reconcile dashboard refunds. */
+    mihpayid?: string;
+  };
+};
 export type PostPaymentsWebhookApiResponse = unknown;
 export type PostPaymentsWebhookApiArg = {
   body: object;
@@ -2178,9 +2307,11 @@ export type Appointment = {
       | "coverage_revoked";
     /** New online bookings hold the slot for 15 minutes. Legacy and pay-at-clinic bookings have no checkout deadline. */
     expiresAt?: string | null;
-    /** Razorpay order id. Null for pay_at_clinic bookings, which never create a gateway order. */
+    /** The original provider for this transaction. Null for clinic payments and covered follow-ups. */
+    provider?: ("payu" | "razorpay") | null;
+    /** Provider order or merchant transaction id. Null for clinic payments. */
     gatewayOrderId?: string | null;
-    /** Public Razorpay checkout key id. Never the API signing secret. */
+    /** Public checkout merchant key. Never the signing secret or salt. */
     gatewayKeyId?: string | null;
   };
   bookedAt?: string;
@@ -2387,6 +2518,7 @@ export type AdminPayment = {
   amountPaise: number;
   method: PaymentMethod;
   status: PaymentStatus;
+  gatewayProvider?: ("payu" | "razorpay") | null;
   gatewayOrderId: string | null;
   gatewayPaymentId: string | null;
   gatewayRefundId: string | null;
@@ -2395,7 +2527,7 @@ export type AdminPayment = {
 };
 export type AdminPayments = {
   gateway: {
-    provider: "razorpay";
+    provider: "payu" | "razorpay";
     mode: "test" | "live" | "unconfigured";
     checkoutConfigured: boolean;
     webhookConfigured: boolean;
@@ -2812,6 +2944,7 @@ export type DentistPayment = {
   method: PaymentMethod;
   status: PaymentStatus;
   collection: ClinicPaymentReceipt;
+  gatewayProvider?: ("payu" | "razorpay") | null;
   gatewayOrderId: string | null;
   gatewayPaymentId: string | null;
   gatewayRefundId: string | null;
@@ -2946,6 +3079,28 @@ export type ConsultationDraft = {
     status?: ToothStatus;
   }[];
   prescriptionItems?: PrescriptionItemInput[];
+};
+export type PayuCheckout = {
+  provider: "payu";
+  payUPaymentParams: {
+    key: string;
+    transactionId: string;
+    /** INR amount with exactly two decimal places. */
+    amount: string;
+    productInfo: string;
+    firstName: string;
+    email: string;
+    phone: string;
+    environment: "0" | "1";
+    userCredential: string;
+    android_surl: string;
+    android_furl: string;
+    ios_surl: string;
+    ios_furl: string;
+    additionalParam: {
+      [key: string]: string;
+    };
+  };
 };
 export type PrivacyRequestType = "export" | "erase";
 export type PrivacyRequestStatus = "open" | "resolved";
@@ -3089,6 +3244,13 @@ export const {
   usePostAppointmentsByAppointmentIdConsultationCompleteMutation,
   usePostAppointmentsByAppointmentIdPrescriptionOtpMutation,
   usePostAppointmentsByAppointmentIdPrescriptionSignMutation,
+  usePostPaymentsAppointmentsByAppointmentIdCheckoutMutation,
+  usePostPaymentsAppointmentsByAppointmentIdHashMutation,
+  usePostPaymentsPayuWebhookMutation,
+  usePostPaymentsPayuCallbackMutation,
+  usePostPaymentsPayuCallbackSuccessMutation,
+  usePostPaymentsPayuCallbackFailureMutation,
+  usePostPaymentsPayuRefundWebhookMutation,
   usePostPaymentsWebhookMutation,
   useGetPrivacyRequestsQuery,
   usePostPrivacyRequestsMutation,

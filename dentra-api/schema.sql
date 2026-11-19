@@ -393,8 +393,10 @@ order by patient_id, tooth_number, recorded_at desc;
 create table transactions (
   id               uuid primary key default gen_random_uuid(),
   appointment_id   uuid not null references appointments(id) on delete restrict,
-  gateway_ref         text,              -- the Razorpay order id, set at booking time
-  gateway_payment_ref text,              -- the Razorpay payment id, only known once payment.captured fires; refunds operate on payment id, not order id
+  gateway_provider text not null default 'razorpay' check (gateway_provider in ('razorpay', 'payu')),
+  gateway_checkout_data jsonb,           -- server-owned PayU checkout snapshot; never contains salt
+  gateway_ref         text,              -- provider order / merchant transaction id
+  gateway_payment_ref text,              -- provider payment id; refunds use this, not the merchant transaction id
   payment_expires_at timestamptz,        -- new online bookings hold their slot for 15 minutes
   next_payment_check_at timestamptz,     -- reconcile new online orders when a payment webhook is delayed
   idempotency_key  text not null,        -- one per booking attempt, from the client
@@ -404,6 +406,7 @@ create table transactions (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
+create unique index transactions_provider_ref_uidx on transactions (gateway_provider, gateway_ref) where gateway_ref is not null;
 create unique index transactions_idempotency_uidx on transactions (idempotency_key);
 create index transactions_appointment_idx on transactions (appointment_id);
 

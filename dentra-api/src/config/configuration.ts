@@ -38,6 +38,13 @@ export interface AppConfig {
     apiKey: string;
     apiSecret: string;
   };
+  payments: { provider: 'payu' | 'razorpay' };
+  payu: {
+    key: string;
+    salt: string;
+    environment: 'test' | 'live';
+    publicApiUrl: string;
+  };
   razorpay: {
     keyId: string;
     keySecret: string;
@@ -92,13 +99,20 @@ export default (): AppConfig => ({
     apiKey: process.env.LIVEKIT_API_KEY ?? '',
     apiSecret: process.env.LIVEKIT_API_SECRET ?? '',
   },
+  payments: { provider: paymentProvider() },
+  payu: {
+    key: process.env.PAYU_MERCHANT_KEY ?? '',
+    salt: process.env.PAYU_MERCHANT_SALT ?? '',
+    environment: payuEnvironment(),
+    publicApiUrl: (process.env.PUBLIC_API_URL ?? '').replace(/\/$/, ''),
+  },
   razorpay: {
-    keyId: required('RAZORPAY_KEY_ID'),
-    keySecret: required('RAZORPAY_KEY_SECRET'),
+    keyId: process.env.RAZORPAY_KEY_ID ?? '',
+    keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
     // Separate from keySecret: signs the Checkout handshake vs. signs
     // webhook deliveries — rotating one independently of the other
     // (e.g. after a webhook URL change) shouldn't touch order creation.
-    webhookSecret: required('RAZORPAY_WEBHOOK_SECRET'),
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
   },
 });
 
@@ -123,7 +137,7 @@ function storageConfiguration(): AppConfig['storage'] {
   if (provider === 'supabase') {
     if (!url || !secretKey)
       throw new Error(
-        'Supabase storage requires SUPABASE_URL and SUPABASE_SECRET_KEY.'
+        'Supabase storage requires SUPABASE_URL and SUPABASE_SECRET_KEY.',
       );
     const endpoint = new URL(url);
     if (
@@ -136,8 +150,21 @@ function storageConfiguration(): AppConfig['storage'] {
       throw new Error('SUPABASE_URL must be the HTTPS project URL.');
     if (secretKey.startsWith('sb_publishable_'))
       throw new Error(
-        'SUPABASE_SECRET_KEY must be a server secret key, not a publishable key.'
+        'SUPABASE_SECRET_KEY must be a server secret key, not a publishable key.',
       );
   }
   return { provider, url, secretKey, bucket };
+}
+
+function paymentProvider(): 'payu' | 'razorpay' {
+  const provider = process.env.PAYMENT_PROVIDER || 'payu';
+  if (provider !== 'payu' && provider !== 'razorpay')
+    throw new Error('PAYMENT_PROVIDER must be payu or razorpay.');
+  return provider;
+}
+function payuEnvironment(): 'test' | 'live' {
+  const environment = process.env.PAYU_ENVIRONMENT || 'test';
+  if (environment !== 'test' && environment !== 'live')
+    throw new Error('PAYU_ENVIRONMENT must be test or live.');
+  return environment;
 }

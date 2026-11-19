@@ -18,6 +18,10 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(async () => null),
   setItem: jest.fn(async () => undefined),
 }));
+jest.mock('payu-non-seam-less-react', () => ({
+  openCheckoutScreen: jest.fn(), hashGenerated: jest.fn(), makeHttpRequest: jest.fn(),
+  addListener: jest.fn(), removeListeners: jest.fn(),
+}));
 jest.mock('react-native-razorpay', () => ({
   open: jest.fn(async () => ({ razorpay_payment_id: 'test' })),
 }));

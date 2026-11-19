@@ -4,6 +4,8 @@ import type { Pool } from 'pg';
 import { PG_POOL } from '@database/database.module';
 import { RefundsService } from './refunds.service';
 
+import type { PaymentProvider } from './payment-gateway.service';
+
 type Entity = Record<string, unknown>;
 function object(value: unknown): Entity {
   return value !== null && typeof value === 'object' ? (value as Entity) : {};
@@ -23,7 +25,7 @@ function amount(value: unknown): number {
 export class PaymentsWebhookService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool, private readonly refunds: RefundsService) {}
 
-  async handle(body: unknown): Promise<void> {
+  async handle(body: unknown, provider: PaymentProvider = 'razorpay'): Promise<void> {
     const event = object(body);
     const payload = object(event.payload);
     if (event.event === 'payment.captured' || event.event === 'payment.failed') {
@@ -32,7 +34,7 @@ export class PaymentsWebhookService {
       const paymentId = requiredString(payment.id);
       const paidAmount = amount(payment.amount);
       if (payment.currency !== 'INR') throw new BadRequestException('Invalid payment currency.');
-      await this.payment(orderId, paymentId, paidAmount, event.event === 'payment.captured');
+      await this.payment(orderId, paymentId, paidAmount, event.event === 'payment.captured', provider);
     } else if (['refund.created', 'refund.processed', 'refund.failed'].includes(String(event.event))) {
       const refund = object(object(payload.refund).entity);
       await this.refunds.apply({
@@ -46,17 +48,17 @@ export class PaymentsWebhookService {
             : event.event === 'refund.failed'
             ? 'failed'
             : 'pending',
-      });
+      }, provider);
     }
   }
 
-  private async payment(orderId: string, paymentId: string, paidAmount: number, captured: boolean) {
+  private async payment(orderId: string, paymentId: string, paidAmount: number, captured: boolean, provider: PaymentProvider) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const { rows: matches } = await client.query<{ appointment_id: string }>(
-        'select appointment_id from transactions where gateway_ref = $1',
-        [orderId]
+        'select appointment_id from transactions where gateway_ref = $1 and gateway_provider = $2',
+        [orderId, provider]
       );
       const appointmentId = matches[0]?.appointment_id;
       if (!appointmentId) {
@@ -74,8 +76,8 @@ export class PaymentsWebhookService {
         amount_paise: number;
         gateway_payment_ref: string | null;
       }>(
-        'select id, status, amount_paise, gateway_payment_ref from transactions where gateway_ref = $1 for update',
-        [orderId]
+        'select id, status, amount_paise, gateway_payment_ref from transactions where gateway_ref = $1 and gateway_provider = $2 for update',
+        [orderId, provider]
       );
       const txn = rows[0];
       if (txn.amount_paise !== paidAmount)

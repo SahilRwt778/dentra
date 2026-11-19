@@ -18,6 +18,20 @@ end
 $RNFirebaseDisableSPM = true
 $RNFirebaseAsStaticFramework = true
 
+# PayU ships binary dynamic frameworks; Firebase and React Native remain static.
+pre_install do |installer|
+  dynamic_pods = ['PayUAssetLibraryKit', 'PayUBizCoreKit', 'PayUCheckoutProBaseKit', 'PayUCheckoutProKit',
+    'PayUCustomBrowser', 'PayULoggerKit', 'PayUNetworkingKit', 'PayUUPICoreKit', 'Socket.IO-Client-Swift',
+    'Starscream', 'PayUParamsKit', 'PayUCrashReporter', 'PayUNetworkReachability']
+  installer.pod_targets.each do |pod|
+    if dynamic_pods.include?(pod.name)
+      def pod.build_type
+        Pod::BuildType.dynamic_framework
+      end
+    end
+  end
+end
+
 target 'DentraMobilePatient' do
   use_frameworks! :linkage => :static
   config = use_native_modules!

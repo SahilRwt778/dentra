@@ -1,6 +1,6 @@
 # Payment confirmation and refunds
 
-Razorpay is the payment provider. The API creates the order; checkout's client result never marks a booking paid. A signed `payment.captured` webhook or an authenticated provider status read must confirm the exact INR amount.
+PayU is the provider for new online payments. See [PAYU_SETUP.md](PAYU_SETUP.md) for the new merchant setup and rollout steps. Historical Razorpay transactions retain their original provider; the Razorpay-specific testing and webhook notes below apply to those legacy payments. The API creates the order; checkout's client result never marks a booking paid. A signed `payment.captured` webhook or an authenticated provider status read must confirm the exact INR amount.
 
 After successful native checkout, Patient Mobile calls `POST /appointments/{appointmentId}/payment/refresh`. The API verifies ownership, reads payments for the order stored on that appointment, and applies only a matching captured payment through the same locked transitions as webhooks. It accepts no client success flag or payment reference. Already settled and pay-at-clinic payments need no gateway read. A provider failure returns a safe 503 without changing the payment. A capture racing cancellation queues a refund instead of reopening the slot.
 

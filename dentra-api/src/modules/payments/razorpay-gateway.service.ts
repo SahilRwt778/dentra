@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 // razorpay is a CJS `export =` module; without esModuleInterop (not set
 // project-wide), a default import compiles to `.default`, which is
@@ -21,23 +21,17 @@ export type GatewayPayment = {
   status: string;
 };
 
-/**
- * The one file that should change if the gateway vendor ever changes
- * (see payments.module.ts) — nothing else in the app talks to Razorpay
- * directly. Test mode vs. live mode is purely a property of which key
- * pair is in .env (`rzp_test_...` vs `rzp_live_...`); nothing here
- * branches on it.
- */
+/** Legacy Razorpay payments keep this adapter for confirmation and refunds after the PayU rollout. */
 @Injectable()
 export class RazorpayGatewayService {
-  private readonly client: Razorpay;
+  private readonly client: Razorpay | null;
   readonly keyId: string;
   private readonly webhookSecret: string;
   private readonly authorization: string;
 
   constructor(@Inject(ConfigService) config: ConfigService<AppConfig>) {
     const razorpay = config.get('razorpay', { infer: true })!;
-    this.client = new Razorpay({ key_id: razorpay.keyId, key_secret: razorpay.keySecret });
+    this.client = razorpay.keyId && razorpay.keySecret ? new Razorpay({ key_id: razorpay.keyId, key_secret: razorpay.keySecret }) : null;
     this.keyId = razorpay.keyId;
     this.webhookSecret = razorpay.webhookSecret;
     this.authorization = `Basic ${Buffer.from(`${razorpay.keyId}:${razorpay.keySecret}`).toString('base64')}`;
@@ -45,6 +39,7 @@ export class RazorpayGatewayService {
 
   /** amountPaise matches schema.sql's transactions.amount_paise — Razorpay's `amount` is paise too, not rupees. */
   async createOrder(amountPaise: number, receipt: string): Promise<{ orderId: string }> {
+    if (!this.client) throw new ServiceUnavailableException('Legacy Razorpay checkout is not configured.');
     const order = await this.client.orders.create({ amount: amountPaise, currency: 'INR', receipt });
     return { orderId: order.id };
   }
@@ -98,6 +93,7 @@ export class RazorpayGatewayService {
   }
 
   private async request<T>(path: string, options: RequestInit): Promise<T> {
+    if (!this.client) throw new ServiceUnavailableException('Legacy Razorpay access is not configured.');
     const response = await fetch(`https://api.razorpay.com/v1${path}`, {
       ...options,
       headers: { Authorization: this.authorization, 'Content-Type': 'application/json', ...options.headers },
@@ -119,7 +115,7 @@ export class RazorpayGatewayService {
    * req.rawBody instead of the parsed req.body.
    */
   verifyWebhookSignature(rawBody: Buffer, signature: string | undefined): boolean {
-    if (!signature) return false;
+    if (!signature || !this.webhookSecret) return false;
     return Razorpay.validateWebhookSignature(rawBody.toString('utf8'), signature, this.webhookSecret);
   }
 }

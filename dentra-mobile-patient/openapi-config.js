@@ -29,6 +29,8 @@ const config = {
     'postAppointments',
     'getAppointmentsByAppointmentId',
     'postAppointmentsByAppointmentIdPaymentRefresh',
+    'postPaymentsAppointmentsByAppointmentIdCheckout',
+    'postPaymentsAppointmentsByAppointmentIdHash',
     'postAppointmentsByAppointmentIdCancel',
     'postAppointmentsByAppointmentIdReschedule',
     'getAppointmentsByAppointmentIdConsultation',

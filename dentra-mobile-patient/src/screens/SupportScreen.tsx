@@ -17,7 +17,7 @@ const questions = [
   ],
   [
     'How do online payments work?',
-    'Razorpay handles checkout. Your appointment shows Paid only after our server verifies the payment. If the status does not update after a debit, contact support with your appointment reference.',
+    'PayU handles new online payments. Your appointment shows Paid only after our server verifies the payment. If the status does not update after a debit, contact support with your appointment reference.',
   ],
   [
     'Are video calls available?',

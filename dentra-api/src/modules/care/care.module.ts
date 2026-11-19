@@ -40,7 +40,7 @@ import { DentistPaymentsService } from './payments/dentist-payments.service';
  * separately. DentistPatientsService lives here rather than under
  * identity/patients because its access control is entirely about the
  * appointment relationship, which is this module's domain. PaymentsModule
- * is imported so AppointmentsService can create Razorpay orders and
+ * is imported so AppointmentsService can create provider payment references and
  * queue full refunds atomically with appointment cancellations.
  */
 @Module({

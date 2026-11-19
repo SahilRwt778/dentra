@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '@database/database.module';
+import type { PaymentProvider } from './payment-gateway.service';
 import type { GatewayRefund } from './razorpay-gateway.service';
 
 @Injectable()
@@ -24,14 +25,14 @@ export class RefundsService {
   }
 
   /** Both signed webhooks and authenticated provider reads use these same monotonic transitions. */
-  async apply(refund: GatewayRefund) {
+  async apply(refund: GatewayRefund, provider: PaymentProvider = 'razorpay') {
     if (!refund.refundId || !refund.paymentId || refund.currency !== 'INR' || refund.amountPaise <= 0) return;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const { rows } = await client.query<{ id: string; status: string; amount_paise: number }>(
-        `select id, status, amount_paise from transactions where gateway_payment_ref = $1 for update`,
-        [refund.paymentId]
+        `select id, status, amount_paise from transactions where gateway_payment_ref = $1 and gateway_provider = $2 for update`,
+        [refund.paymentId, provider]
       );
       const transaction = rows[0];
       // A partial refund must never be reported as a full refund.

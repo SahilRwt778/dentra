@@ -124,8 +124,8 @@ export function PaymentsPage() {
               }`}
             >
               {data.gateway.checkoutConfigured
-                ? `Razorpay · ${data.gateway.mode === 'live' ? 'Live' : 'Test'} mode`
-                : 'Razorpay configuration incomplete'}
+                ? `${data.gateway.provider === 'payu' ? 'PayU' : 'Razorpay'} · ${data.gateway.mode === 'live' ? 'Live' : 'Test'} mode`
+                : `${data.gateway.provider === 'payu' ? 'PayU' : 'Razorpay'} configuration incomplete`}
             </span>
             <span className={`badge ${data.gateway.webhookConfigured ? 'green' : 'amber'}`}>
               {data.gateway.webhookConfigured ? 'Webhook configured' : 'Webhook configuration required'}

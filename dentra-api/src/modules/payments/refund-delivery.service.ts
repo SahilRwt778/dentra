@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { PG_POOL } from '@database/database.module';
-import { RazorpayGatewayService } from './razorpay-gateway.service';
+import { PaymentGatewayService, type PaymentProvider } from './payment-gateway.service';
 import { RefundsService } from './refunds.service';
 
 @Injectable()
@@ -14,7 +14,7 @@ export class RefundDeliveryService implements OnApplicationBootstrap, OnModuleDe
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly gateway: RazorpayGatewayService,
+    private readonly gateway: PaymentGatewayService,
     private readonly refunds: RefundsService,
     private readonly config: ConfigService
   ) {}
@@ -50,6 +50,7 @@ export class RefundDeliveryService implements OnApplicationBootstrap, OnModuleDe
         id: string;
         transaction_id: string;
         payment_ref: string;
+        gateway_provider: PaymentProvider;
         amount_paise: number;
         gateway_ref: string | null;
         attempts: number;
@@ -59,15 +60,15 @@ export class RefundDeliveryService implements OnApplicationBootstrap, OnModuleDe
              and (lease_until is null or lease_until < now())
            order by next_attempt_at, id limit 1 for update skip locked
          ) update payment_refunds r set lease_token = $1, lease_until = now() + interval '1 minute',
-           attempts = attempts + 1 from due where r.id = due.id returning r.*`,
+           attempts = attempts + 1 from due where r.id = due.id returning r.*, (select gateway_provider from transactions where id=r.transaction_id) as gateway_provider`,
         [lease]
       );
       const job = rows[0];
       if (!job) break;
       try {
         const refund = job.gateway_ref
-          ? await this.gateway.fetchRefund(job.gateway_ref)
-          : await this.gateway.refund(job.payment_ref, job.amount_paise, job.id);
+          ? await this.gateway.fetchRefund(job.gateway_provider, job.gateway_ref)
+          : await this.gateway.refund(job.gateway_provider, job.payment_ref, job.amount_paise, job.id);
         if (
           refund.paymentId !== job.payment_ref ||
           (job.gateway_ref !== null && refund.refundId !== job.gateway_ref) ||
@@ -76,7 +77,7 @@ export class RefundDeliveryService implements OnApplicationBootstrap, OnModuleDe
         ) {
           throw new Error('Refund response does not match the saved request.');
         }
-        await this.refunds.apply(refund);
+        await this.refunds.apply(refund, job.gateway_provider);
       } catch (error) {
         const httpStatus = (error as { statusCode?: number })?.statusCode;
         const code = Number.isInteger(httpStatus) ? `gateway-http-${httpStatus}` : 'gateway-request-error';

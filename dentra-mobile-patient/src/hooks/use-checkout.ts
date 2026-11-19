@@ -9,7 +9,18 @@ export function useCheckout() {
   return useCallback(
     async (appointment: Appointment, patient?: Patient) => {
       if (!appointment.id) throw new Error('Missing appointment reference.');
-      await openCheckout(appointment, patient);
+      try {
+        await openCheckout(appointment, patient);
+      } catch (error) {
+        // A failure/cancel callback can race a successful provider capture.
+        if (appointment.payment?.provider === 'payu') {
+          const current = await refreshPayment(appointment.id).catch(
+            () => null,
+          );
+          if (current?.payment?.status === 'paid') return current;
+        }
+        throw error;
+      }
 
       try {
         return await refreshPayment(appointment.id);
