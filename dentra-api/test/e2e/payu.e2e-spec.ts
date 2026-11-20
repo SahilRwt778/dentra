@@ -192,7 +192,7 @@ describe('PayU checkout, verified callbacks and provider ownership', () => {
     }).expect(409);
   });
 
-  test('accepts all four concurrent Android SDK initialization hashes without exposing a general signer', async () => {
+  test('accepts Android SDK initialization and card lookup hashes without exposing a general signer', async () => {
     const f = await fixture();
     const prepared = await prepare(f).expect(200);
     const data = prepared.body.payUPaymentParams;
@@ -239,6 +239,32 @@ describe('PayU checkout, verified callbacks and provider ownership', () => {
       ...requests[3],
       hashString: requests[3].hashString.replace('400.5', '1.00'),
     }).expect(400);
+    const card = {
+      cardNumber: '5123456789012346',
+      amount: data.amount,
+      txnId: data.transactionId,
+      merchantKey: data.key,
+      isPricingCFEnable: false,
+      source: 'ANDROID_SDK',
+      isSITxn: false,
+      disableConvFeeCompounding: false,
+    };
+    const cardRequest = {
+      hashName: 'binBaseDetails',
+      hashString: `${JSON.stringify(card)}|${date}|`,
+    };
+    const signedCard = await hash(f, cardRequest).expect(200);
+    expect(signedCard.body.hash).toBe(
+      createHash('sha512')
+        .update(cardRequest.hashString + process.env.PAYU_MERCHANT_SALT!)
+        .digest('hex'),
+    );
+    await hash(f, cardRequest, randomUUID()).expect(404);
+    await hash(f, {
+      ...cardRequest,
+      hashString: `${JSON.stringify({ ...card, txnId: 'another-order' })}|${date}|`,
+    }).expect(400);
+    expect((await prepare(f).expect(200)).body).toEqual(prepared.body);
   });
   test('callbacks require a valid reverse hash and authenticated capture before marking paid', async () => {
     const f = await fixture();

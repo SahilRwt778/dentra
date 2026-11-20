@@ -106,6 +106,8 @@ Deploy the updated API hash handler before testing the updated mobile JavaScript
 
 This fix requires an API redeployment and a patient app JavaScript reload. It needs no new database migration or native SDK installation if PayU 4.3.0 is already built into the app. If the native SDK itself has not been installed yet, follow step 5 above.
 
+After a card number is entered, the same SDK also requests `binBaseDetails` using the JSON/date signing format. The API validates its merchant, transaction, amount and card-lookup fields before signing. An API version without this handler can open the payment options but fails at card entry with `Unsupported checkout hash request.` Deploy this handler before testing card payments; card details are not added to the saved checkout snapshot.
+
 ## 7. Go live when ready
 
 After PayU activates the merchant account and test checkout/refunds work, replace the test key/salt with live credentials and set `PAYU_ENVIRONMENT=live` on the API. The backend supplies the correct SDK environment; no salt belongs in the app. Confirm the live webhook registration and run an authorized low-value payment/refund test.

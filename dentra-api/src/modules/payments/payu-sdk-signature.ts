@@ -4,6 +4,7 @@ import type { PayuCheckoutData, PayuHashRequest } from './payu-gateway.service';
 export const SDK_SIGNATURE_COMMANDS = new Set([
   'get_all_offer_details',
   'quickPayEvent',
+  'binBaseDetails',
 ]);
 
 /** PayU 3.4 sends these read requests as JSON|HTTP-date|, without the key/command prefix. */
@@ -35,7 +36,9 @@ export function validatePayuSdkSignature(
   }
   // Do not sign an arbitrary JSON payload: the signature is reusable at PayU.
   // These schemas allow only checkout reads for the saved amount and customer.
-  if (request.hashName === 'quickPayEvent') {
+  if (request.hashName === 'binBaseDetails') {
+    validateCardDetails(body, checkout);
+  } else if (request.hashName === 'quickPayEvent') {
     onlyFields(body, [
       'amount',
       'userToken',
@@ -86,6 +89,57 @@ export function validatePayuSdkSignature(
     Number(body.amount) !== Number(checkout.amount)
   )
     invalid();
+}
+
+/** Card lookup is a read, but its signature must still belong to this checkout. */
+function validateCardDetails(
+  body: Record<string, unknown>,
+  checkout: PayuCheckoutData,
+) {
+  onlyFields(body, [
+    'cardNumber',
+    'amount',
+    'txnId',
+    'merchantKey',
+    'source',
+    'isPricingCFEnable',
+    'isSITxn',
+    'disableConvFeeCompounding',
+    'additionalCharges',
+    'percentageAdditionalCharges',
+    'compoundingPercentage',
+  ]);
+  if (
+    body.txnId !== checkout.transactionId ||
+    body.merchantKey !== checkout.key ||
+    typeof body.cardNumber !== 'string' ||
+    !/^\d{6,19}$/.test(body.cardNumber) ||
+    !['ANDROID_SDK', 'IOS_SDK'].includes(String(body.source))
+  )
+    invalid();
+  // Dentra only supports one-time payments for the saved consultation fee.
+  for (const field of ['isPricingCFEnable', 'isSITxn']) {
+    if (body[field] != null && body[field] !== false) invalid();
+  }
+  if (
+    body.disableConvFeeCompounding != null &&
+    typeof body.disableConvFeeCompounding !== 'boolean'
+  )
+    invalid();
+  for (const field of [
+    'additionalCharges',
+    'percentageAdditionalCharges',
+    'compoundingPercentage',
+  ]) {
+    const value = body[field];
+    if (
+      value != null &&
+      value !== '' &&
+      (!['string', 'number'].includes(typeof value) ||
+        !/^0+(?:\.0{1,2})?$/.test(String(value)))
+    )
+      invalid();
+  }
 }
 
 function record(value: unknown): Record<string, unknown> {

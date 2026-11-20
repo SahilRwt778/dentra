@@ -189,6 +189,52 @@ test('SDK JSON signing cannot sign other amounts, customers, encrypted bodies or
     ),
   ).toThrow('does not match');
 });
+test('signs the card lookup sent by Checkout Pro after entering a card number', () => {
+  const data = checkout();
+  const body = {
+    cardNumber: '5123456789012346',
+    amount: data.amount,
+    txnId: data.transactionId,
+    merchantKey: data.key,
+    isPricingCFEnable: false,
+    source: 'ANDROID_SDK',
+    isSITxn: false,
+    disableConvFeeCompounding: false,
+  };
+  const request = {
+    hashName: 'binBaseDetails',
+    hashString: `${JSON.stringify(body)}|${new Date().toUTCString()}|`,
+  };
+  expect(gateway().sdkHash(request, data)).toBe(
+    createHash('sha512')
+      .update(request.hashString + salt)
+      .digest('hex'),
+  );
+  for (const changed of [
+    { ...body, amount: '1.00' },
+    { ...body, txnId: 'another-transaction' },
+    { ...body, merchantKey: 'another-merchant' },
+    { ...body, cardNumber: 'not-a-card' },
+    { ...body, cardNumber: '12345' },
+    { ...body, source: 'refund' },
+    { ...body, isSITxn: true },
+    { ...body, isPricingCFEnable: true },
+    { ...body, additionalCharges: '10.00' },
+    { ...body, percentageAdditionalCharges: '1.00' },
+    { ...body, compoundingPercentage: '1.00' },
+    { ...body, cvv: '123' },
+    { ...body, refundId: '12345' },
+  ])
+    expect(() =>
+      gateway().sdkHash(
+        {
+          ...request,
+          hashString: `${JSON.stringify(changed)}|${new Date().toUTCString()}|`,
+        },
+        data,
+      ),
+    ).toThrow('does not match');
+});
 test('validates PayU reverse hashes and rejects tampered or additional-charge callbacks', () => {
   const body = {
     key: 'synthetic-key',
