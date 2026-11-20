@@ -39,9 +39,17 @@ const payButton = () =>
   tree.root
     .findAllByType(Button)
     .find(button => button.props.title === 'Pay ₹10');
-async function mount() {
+async function mount(paymentError?: string) {
   await act(async () => {
-    tree = Renderer.create(<AppointmentScreen {...props} />);
+    tree = Renderer.create(
+      <AppointmentScreen
+        {...props}
+        route={{
+          ...props.route,
+          params: { ...props.route.params, paymentError },
+        }}
+      />,
+    );
   });
 }
 async function pay() {
@@ -149,6 +157,16 @@ test('a failed status refresh does not charge using cached appointment data', as
   expect(tree.root.findByType(ErrorState).props.message).toMatch(
     /Could not refresh payment status/,
   );
+});
+
+test('shows the checkout reason on the saved appointment and clears it after retry succeeds', async () => {
+  await mount('Synthetic PayU error (PayU 47)');
+  expect(tree.root.findByType(ErrorState).props.message).toBe(
+    'Synthetic PayU error (PayU 47)',
+  );
+  expect(payButton()).toBeDefined();
+  await pay();
+  expect(tree.root.findAllByType(ErrorState)).toHaveLength(0);
 });
 
 jest.mock('../src/api/files', () => ({

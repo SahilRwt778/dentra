@@ -22,6 +22,7 @@ export type PatientStackParams = {
     appointmentId: string;
     justBooked?: boolean;
     paymentSubmitted?: boolean;
+    paymentError?: string;
   };
   Reschedule: { appointmentId: string };
   Visit: { appointmentId: string };

@@ -89,6 +89,18 @@ test('rejects provider failures and errors without treating them as successful c
     expect(await rejection).toBeInstanceOf(Error);
   }
 });
+test('keeps the PayU initialization error and code instead of replacing them with a generic message', async () => {
+  const payment = openPayuCheckout('appointment');
+  const rejection = payment.catch(error => error);
+  await tick();
+  DeviceEventEmitter.emit('onError', {
+    errorCode: '47',
+    errorMsg: 'Synthetic checkout initialization error',
+  });
+  expect((await rejection).message).toBe(
+    'Synthetic checkout initialization error (PayU 47)',
+  );
+});
 test('a rejected hash unblocks the SDK without exposing an error payload or leaving stale listeners', async () => {
   const payment = openPayuCheckout('appointment');
   const rejection = payment.catch(error => error);
@@ -104,6 +116,76 @@ test('a rejected hash unblocks the SDK without exposing an error payload or leav
   expect(sdk.hashGenerated).toHaveBeenCalledWith({ payment: '' });
   DeviceEventEmitter.emit('onError', {});
   expect(await rejection).toBeInstanceOf(Error);
+});
+
+test('answers all concurrent initialization hashes even when one request fails', async () => {
+  const payment = openPayuCheckout('appointment');
+  const rejection = payment.catch(error => error);
+  await tick();
+  let resolveCheckoutDetails!: (response: string) => void;
+  (sdk.makeHttpRequest as jest.Mock)
+    .mockReturnValueOnce(
+      new Promise<string>(resolve => {
+        resolveCheckoutDetails = resolve;
+      }),
+    )
+    .mockResolvedValueOnce(
+      JSON.stringify({
+        code: 'BAD_REQUEST',
+        message: 'Synthetic checkout verification failure',
+      }),
+    );
+  DeviceEventEmitter.emit('generateHash', {
+    hashName: 'get_checkout_details',
+    hashString: 'synthetic SDK request',
+  });
+  DeviceEventEmitter.emit('generateHash', {
+    hashName: 'quickPayEvent',
+    hashString: 'synthetic SDK signature',
+  });
+  await tick();
+  DeviceEventEmitter.emit('onError', {
+    errorMsg: 'quickPayEvent Hash cannot be null or empty',
+    errorCode: 'null',
+  });
+  expect(DeviceEventEmitter.listenerCount('generateHash')).toBeGreaterThan(0);
+  resolveCheckoutDetails(JSON.stringify({ hash: 'b'.repeat(128) }));
+  expect((await rejection).message).toBe(
+    'Synthetic checkout verification failure',
+  );
+  expect(sdk.hashGenerated).toHaveBeenCalledWith({
+    get_checkout_details: 'b'.repeat(128),
+  });
+  expect(DeviceEventEmitter.listenerCount('generateHash')).toBe(0);
+});
+
+test('serves the four Android initialization hashes and waits for an actual payment result', async () => {
+  const payment = openPayuCheckout('appointment');
+  await tick();
+  (sdk.makeHttpRequest as jest.Mock).mockResolvedValue(
+    JSON.stringify({ hash: 'c'.repeat(128) }),
+  );
+  const names = [
+    'get_checkout_details',
+    'get_sdk_configuration',
+    'get_all_offer_details',
+    'quickPayEvent',
+  ];
+  names.forEach(hashName =>
+    DeviceEventEmitter.emit('generateHash', {
+      hashName,
+      hashString: 'synthetic SDK initialization request',
+    }),
+  );
+  await tick();
+  names.forEach(name =>
+    expect(sdk.hashGenerated).toHaveBeenCalledWith({ [name]: 'c'.repeat(128) }),
+  );
+  expect(DeviceEventEmitter.listenerCount('onPaymentSuccess')).toBeGreaterThan(
+    0,
+  );
+  DeviceEventEmitter.emit('onPaymentSuccess', {});
+  await expect(payment).resolves.toBeUndefined();
 });
 test('prevents concurrent checkouts and resets after a preparation failure', async () => {
   const first = openPayuCheckout('appointment');

@@ -73,7 +73,9 @@ export function AppointmentScreen({
   const refreshPayment = useRefreshAppointmentPayment();
   const [cancel, { isLoading: cancelling }] = useCancelAppointmentMutation();
   const [paying, setPaying] = useState(false);
-  const [actionError, setActionError] = useState<string>();
+  const [actionError, setActionError] = useState<string | undefined>(
+    route.params.paymentError,
+  );
   const clinic = dentist?.clinics?.find(c => c.id === a?.clinicId);
   const active = a ? activeAppointment(a) : false;
   const pending = ['pending', 'failed'].includes(a?.payment?.status ?? '');
@@ -82,8 +84,14 @@ export function AppointmentScreen({
     a && active && pending ? checkoutUnavailableReason(a) : undefined;
   const canPay = active && pending && !checkoutProblem;
   useEffect(() => {
-    setActionError(undefined);
-  }, [appointmentId, a?.status, a?.payment?.status, a?.payment?.expiresAt]);
+    setActionError(active && pending ? route.params.paymentError : undefined);
+  }, [
+    appointmentId,
+    route.params.paymentError,
+    active,
+    pending,
+    a?.payment?.expiresAt,
+  ]);
   useEffect(() => {
     if (a && !pending) setSubmittedPaymentId(undefined);
   }, [a, pending]);

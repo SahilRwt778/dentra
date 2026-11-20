@@ -123,17 +123,12 @@ export function BookingScreen({
     try {
       const result = await book(payload, me);
       if (!result) return;
-      const { appointment, paymentCancelled, paymentSubmitted } = result;
-      if (paymentCancelled) {
-        Alert.alert(
-          'Payment not confirmed',
-          'Your appointment is saved. You can retry payment from its details.',
-        );
-      }
+      const { appointment, paymentError, paymentSubmitted } = result;
       navigation.replace('Appointment', {
         appointmentId: appointment.id,
         justBooked: true,
         ...(paymentSubmitted ? { paymentSubmitted: true } : {}),
+        ...(paymentError ? { paymentError } : {}),
       });
     } catch (err) {
       setError(

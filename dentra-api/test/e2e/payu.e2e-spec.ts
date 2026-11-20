@@ -191,6 +191,55 @@ describe('PayU checkout, verified callbacks and provider ownership', () => {
       hashString: payuPaymentHashString(result.body.payUPaymentParams),
     }).expect(409);
   });
+
+  test('accepts all four concurrent Android SDK initialization hashes without exposing a general signer', async () => {
+    const f = await fixture();
+    const prepared = await prepare(f).expect(200);
+    const data = prepared.body.payUPaymentParams;
+    const date = new Date().toUTCString();
+    const requests = [
+      {
+        hashName: 'get_checkout_details',
+        hashString: `${data.key}|get_checkout_details|${JSON.stringify({
+          transactionDetails: { amount: data.amount },
+          customerDetails: { mobile: data.phone },
+        })}|`,
+      },
+      {
+        hashName: 'get_sdk_configuration',
+        hashString: `${data.key}|get_sdk_configuration|default|`,
+      },
+      {
+        hashName: 'get_all_offer_details',
+        hashString: `${JSON.stringify({ amount: 400.5 })}|${date}|`,
+      },
+      {
+        hashName: 'quickPayEvent',
+        hashString: `${JSON.stringify({
+          amount: 400.5,
+          phone: data.phone,
+          userCredential: data.userCredential,
+          requestId: f.order + Date.now(),
+          requestType: 'quickpay',
+          deviceId: 'synthetic-sdk-device',
+        })}|${date}|`,
+      },
+    ];
+    const results = await Promise.all(
+      requests.map((body) => hash(f, body).expect(200)),
+    );
+    for (let index = 0; index < requests.length; index++)
+      expect(results[index].body.hash).toBe(
+        createHash('sha512')
+          .update(requests[index].hashString + process.env.PAYU_MERCHANT_SALT!)
+          .digest('hex'),
+      );
+    await hash(f, requests[3], randomUUID()).expect(404);
+    await hash(f, {
+      ...requests[3],
+      hashString: requests[3].hashString.replace('400.5', '1.00'),
+    }).expect(400);
+  });
   test('callbacks require a valid reverse hash and authenticated capture before marking paid', async () => {
     const f = await fixture();
     await request(app.getHttpServer())

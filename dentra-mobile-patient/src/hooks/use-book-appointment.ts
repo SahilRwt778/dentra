@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import uuid from 'react-native-uuid';
 import { useBookAppointmentMutation } from '@/api/appointments';
 import type { BookAppointment, Patient } from '@/api/types';
+import { errorMessage } from '@/api/errors';
 import { useCheckout } from './use-checkout';
 
 export function useBookAppointment() {
@@ -35,6 +36,7 @@ export function useBookAppointment() {
 
       let paymentCancelled = false;
       let paymentSubmitted = false;
+      let paymentError: string | undefined;
       if (
         booking.paymentMethod !== 'pay_at_clinic' &&
         appointment.payment?.status === 'pending'
@@ -42,14 +44,19 @@ export function useBookAppointment() {
         try {
           appointment = await checkout(appointment, patient);
           paymentSubmitted = true;
-        } catch {
+        } catch (error) {
           paymentCancelled = true;
+          paymentError = errorMessage(
+            error,
+            'Payment was not confirmed. You can retry from this appointment.',
+          );
         }
       }
       return {
         appointment: { ...appointment, id: appointmentId },
         paymentCancelled,
         paymentSubmitted,
+        paymentError,
       };
     } finally {
       submitting.current = false;

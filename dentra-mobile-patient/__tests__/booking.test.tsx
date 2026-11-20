@@ -1,9 +1,11 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import Renderer, { act } from 'react-test-renderer';
 import { BookingScreen } from '../src/screens/BookingScreen';
 import { Button, Card, Checkbox, Choice, Field } from '../src/components/ui';
 import type { PatientScreenProps } from '../src/navigation/types';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { openCheckout } from '../src/lib/checkout';
 
 const mockBook = jest.fn();
 const mockUploadFile = jest.fn();
@@ -159,6 +161,29 @@ test('retrying after a timeout reuses the booking idempotency key', async () => 
   expect(mockBook.mock.calls[0][0].bookAppointment.idempotencyKey).toBe(
     mockBook.mock.calls[1][0].bookAppointment.idempotencyKey,
   );
+});
+
+test('a checkout error opens the saved appointment with its reason instead of an alert over checkout', async () => {
+  const alert = jest.spyOn(Alert, 'alert');
+  mockBook.mockReturnValue({
+    unwrap: async () => ({
+      id: 'appointment-1',
+      payment: { status: 'pending' },
+    }),
+  });
+  (openCheckout as jest.Mock).mockRejectedValueOnce(
+    new Error('Synthetic PayU error (PayU 47)'),
+  );
+  await fillBooking();
+  await choose('Card');
+  await press('Pay ₹500 and confirm');
+  expect(alert).not.toHaveBeenCalled();
+  expect(navigation.replace).toHaveBeenCalledWith('Appointment', {
+    appointmentId: 'appointment-1',
+    justBooked: true,
+    paymentError: 'Synthetic PayU error (PayU 47)',
+  });
+  alert.mockRestore();
 });
 
 test('booking sends uploaded attachment IDs with the consented appointment', async () => {

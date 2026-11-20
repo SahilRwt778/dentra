@@ -102,6 +102,93 @@ test('only permits SDK read commands, binds saved cards to the owner, and suppor
     gateway().sdkHash({ ...request, postSalt: '12.00' }, data),
   ).toThrow('not enabled');
 });
+
+test("signs the SDK JSON offer and Quick Pay initialization requests using PayU's date protocol", () => {
+  const data = checkout();
+  const date = new Date().toUTCString();
+  const requests = [
+    {
+      hashName: 'get_all_offer_details',
+      body: { amount: 400.5, userDetail: { isConsented: false } },
+    },
+    {
+      hashName: 'quickPayEvent',
+      body: {
+        amount: 400.5,
+        requestType: 'quickpay',
+        requestId: data.transactionId + Date.now(),
+        userCredential: data.userCredential,
+        phone: data.phone,
+        deviceId: 'synthetic-device',
+      },
+    },
+  ];
+  for (const { hashName, body } of requests) {
+    const hashString = `${JSON.stringify(body)}|${date}|`;
+    expect(gateway().sdkHash({ hashName, hashString }, data)).toBe(
+      createHash('sha512')
+        .update(hashString + salt)
+        .digest('hex'),
+    );
+  }
+});
+
+test('SDK JSON signing cannot sign other amounts, customers, encrypted bodies or unrelated API operations', () => {
+  const data = checkout();
+  const body = {
+    amount: 400.5,
+    requestType: 'quickpay',
+    requestId: data.transactionId + Date.now(),
+    userCredential: data.userCredential,
+  };
+  for (const changed of [
+    { ...body, amount: 1 },
+    { ...body, userCredential: 'another-patient' },
+    { ...body, phone: '9999999999' },
+    { ...body, email: 'another@example.com' },
+    { ...body, requestId: 'another-transaction' },
+    { ...body, requestType: 'refund' },
+    { ...body, userToken: 'another-patient' },
+    { ...body, refundId: '12345' },
+    { data: 'opaque-encrypted-data' },
+    null,
+    [],
+  ])
+    expect(() =>
+      gateway().sdkHash(
+        {
+          hashName: 'quickPayEvent',
+          hashString: `${JSON.stringify(changed)}|${new Date().toUTCString()}|`,
+        },
+        data,
+      ),
+    ).toThrow('does not match');
+
+  for (const changed of [
+    { amount: 400.5, userDetail: { loggedInPhoneNumber: '9999999999' } },
+    { amount: 400.5, userDetail: { isConsented: 'yes' } },
+    { amount: 400.5, userDetail: [] },
+    { amount: 400.5, clientTxnId: 'wallet-load' },
+  ])
+    expect(() =>
+      gateway().sdkHash(
+        {
+          hashName: 'get_all_offer_details',
+          hashString: `${JSON.stringify(changed)}|${new Date().toUTCString()}|`,
+        },
+        data,
+      ),
+    ).toThrow('does not match');
+  expect(() =>
+    gateway().sdkHash(
+      {
+        hashName: 'quickPayEvent',
+        hashString: `${JSON.stringify(body)}|not-a-date|`,
+      },
+      data,
+    ),
+  ).toThrow('does not match');
+});
 test('validates PayU reverse hashes and rejects tampered or additional-charge callbacks', () => {
   const body = {
     key: 'synthetic-key',

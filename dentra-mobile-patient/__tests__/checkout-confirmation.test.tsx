@@ -88,3 +88,35 @@ test('dismissing checkout leaves payment available to retry and never claims it 
     paymentCancelled: true,
   });
 });
+
+test('opening checkout does not finish booking or report a failure before a result arrives', async () => {
+  let resolveCheckout!: () => void;
+  (openCheckout as jest.Mock).mockReturnValue(
+    new Promise<void>(resolve => {
+      resolveCheckout = resolve;
+    }),
+  );
+  mockRefreshPayment.mockResolvedValue(appointment);
+  let finished = false;
+  let result: Awaited<ReturnType<typeof booking.submit>>;
+  let pending!: ReturnType<typeof booking.submit>;
+  await act(async () => {
+    pending = booking.submit(details).then(value => {
+      finished = true;
+      result = value;
+      return value;
+    });
+  });
+  expect(finished).toBe(false);
+  expect(booking.isBooking).toBe(true);
+  expect(mockRefreshPayment).not.toHaveBeenCalled();
+  await act(async () => {
+    resolveCheckout();
+    await pending;
+  });
+  expect(finished).toBe(true);
+  expect(result!).toMatchObject({
+    paymentSubmitted: true,
+    paymentCancelled: false,
+  });
+});

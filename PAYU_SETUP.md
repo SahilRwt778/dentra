@@ -98,6 +98,14 @@ Use PayU's current [test payment instructions](https://docs.payu.in/docs/reactna
 
 The automated suites mock PayU and Razorpay; they do not create charges or issue actual refunds. Merchant credentials and a real sandbox checkout are still required to verify your account's enabled payment modes and callback delivery.
 
+### If checkout stays on Processing
+
+PayU Checkout Pro 3.4 (included in the pinned React Native SDK) requests `get_checkout_details`, `get_sdk_configuration`, `get_all_offer_details`, and `quickPayEvent` during initialization. The last two use a `JSON body|HTTP date|` signing string, instead of the older `merchant key|command|argument|` format. Both formats are signed on the API with the merchant salt; the JSON requests are restricted to the saved checkout's amount and customer.
+
+Deploy the updated API hash handler before testing the updated mobile JavaScript. An older API rejects the offer/Quick Pay requests, which prevents checkout from initializing. The mobile handler also finishes pending hash callbacks before releasing its listeners, and retains the API error when verification fails.
+
+This fix requires an API redeployment and a patient app JavaScript reload. It needs no new database migration or native SDK installation if PayU 4.3.0 is already built into the app. If the native SDK itself has not been installed yet, follow step 5 above.
+
 ## 7. Go live when ready
 
 After PayU activates the merchant account and test checkout/refunds work, replace the test key/salt with live credentials and set `PAYU_ENVIRONMENT=live` on the API. The backend supplies the correct SDK environment; no salt belongs in the app. Confirm the live webhook registration and run an authorized low-value payment/refund test.

@@ -12,6 +12,10 @@ import {
 } from 'node:crypto';
 import type { AppConfig } from '@config/configuration';
 import type { GatewayPayment, GatewayRefund } from './razorpay-gateway.service';
+import {
+  SDK_SIGNATURE_COMMANDS,
+  validatePayuSdkSignature,
+} from './payu-sdk-signature';
 
 export type PayuCheckoutData = {
   key: string;
@@ -194,6 +198,8 @@ export class PayuGatewayService {
         throw new BadRequestException(
           'Payment parameters do not match the booking.',
         );
+    } else if (SDK_SIGNATURE_COMMANDS.has(request.hashName)) {
+      validatePayuSdkSignature(request, data);
     } else {
       const prefix = `${this.key}|${request.hashName}|`;
       if (

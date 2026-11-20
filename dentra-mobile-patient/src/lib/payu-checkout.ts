@@ -1,6 +1,7 @@
 import { NativeEventEmitter, type EmitterSubscription } from 'react-native';
 import PayUBizSdk from 'payu-non-seam-less-react';
 import { preparePayuCheckout } from '@/api/payment-checkout';
+import { errorMessage } from '@/api/errors';
 import { API_BASE_URL } from '@/config';
 import { refreshSession } from '@/auth/session';
 import { setAccessToken } from '@/store/auth-slice';
@@ -14,6 +15,28 @@ type HashRequest = {
   postSalt?: string;
 };
 let checkoutOpen = false;
+
+function checkoutError(event: unknown): Error {
+  const response = event as
+    | { errorMsg?: unknown; errorCode?: unknown }
+    | undefined;
+  const message =
+    typeof response?.errorMsg === 'string' ? response.errorMsg.trim() : '';
+  const code = response?.errorCode;
+  const reference =
+    (typeof code === 'string' &&
+      code !== 'null' &&
+      code !== 'undefined' &&
+      code !== '') ||
+    typeof code === 'number'
+      ? ` (PayU ${code})`
+      : '';
+  return new Error(
+    `${
+      message || 'PayU checkout could not open. Please try again.'
+    }${reference}`,
+  );
+}
 
 /** Native checkout events only finish the UI; the appointment is confirmed separately by the API. */
 export async function openPayuCheckout(appointmentId: string) {
@@ -31,12 +54,21 @@ export async function openPayuCheckout(appointmentId: string) {
       const emitter = new NativeEventEmitter(sdk);
       const subscriptions: EmitterSubscription[] = [];
       let finished = false;
+      let pendingHashes = 0;
+      let hashError: Error | undefined;
+      let sdkError: Error | undefined;
       const finish = (error?: Error) => {
         if (finished) return;
         finished = true;
         subscriptions.forEach(subscription => subscription.remove());
         if (error) reject(error);
         else resolve();
+      };
+      const failAfterPendingHashes = (error: Error) => {
+        sdkError = hashError ?? error;
+        // PayU asks for several hashes together. Answer the remaining requests
+        // before removing listeners, otherwise its loading screen stays open.
+        if (pendingHashes === 0) finish(sdkError);
       };
       // Success/failure/cancel can race the provider callback. Always verify server status afterward.
       subscriptions.push(
@@ -60,12 +92,14 @@ export async function openPayuCheckout(appointmentId: string) {
         ),
       );
       subscriptions.push(
-        emitter.addListener('onError', () =>
-          finish(new Error('PayU checkout could not open. Please try again.')),
+        emitter.addListener('onError', event =>
+          failAfterPendingHashes(checkoutError(event)),
         ),
         emitter.addListener('generateHash', event => {
+          if (finished) return;
           const request = event as HashRequest;
           const token = store.getState().auth.accessToken;
+          pendingHashes += 1;
           // RN 0.82+ must use native networking while PayU owns the checkout activity.
           // The backend validates ownership, amount, customer and permitted commands.
           sdk
@@ -87,12 +121,30 @@ export async function openPayuCheckout(appointmentId: string) {
                 typeof body.hash !== 'string' ||
                 !/^[a-f\d]{64,128}$/i.test(body.hash)
               )
-                throw new Error('Invalid checkout verification response.');
+                throw new Error(
+                  errorMessage(
+                    { data: body },
+                    'Could not verify PayU checkout. Please try again.',
+                  ),
+                );
               sdk.hashGenerated({ [request.hashName]: body.hash });
             })
-            .catch(() => {
-              // Unblock the SDK's pending callback so it can display its normal failure screen.
-              if (!finished) sdk.hashGenerated({ [request.hashName]: '' });
+            .catch(error => {
+              if (finished) return;
+              hashError ??= new Error(
+                errorMessage(
+                  error,
+                  'Could not verify PayU checkout. Please try again.',
+                ),
+              );
+              // Release the SDK callback and preserve the API reason for its onError event.
+              sdk.hashGenerated({ [request.hashName]: '' });
+              failAfterPendingHashes(hashError);
+            })
+            .finally(() => {
+              pendingHashes -= 1;
+              if (!finished && sdkError && pendingHashes === 0)
+                finish(sdkError);
             });
         }),
       );
