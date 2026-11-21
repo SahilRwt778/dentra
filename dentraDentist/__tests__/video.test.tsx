@@ -663,7 +663,7 @@ test('full-screen controls hide after four seconds and video taps toggle both ov
   expect(mockRoomUnmount).not.toHaveBeenCalled();
 });
 
-test('remote and self-preview videos show the entire camera frame without cropping', async () => {
+test('remote video shows the whole frame while the self-preview fills its tile', async () => {
   mockTracks = [
     {
       participant: { identity: 'dentist', isLocal: true },
@@ -678,7 +678,12 @@ test('remote and self-preview videos show the entire camera frame without croppi
   await join();
   const videos = tree.root.findAllByType(MockVideo);
   expect(videos).toHaveLength(2);
-  expect(videos.every(frame => frame.props.contain)).toBe(true);
+  expect(videos.find(frame => frame.props.track === 2)!.props.contain).toBe(
+    true,
+  );
+  expect(videos.find(frame => frame.props.track === 1)!.props.contain).toBe(
+    false,
+  );
 });
 
 test('controls stay visible for screen readers', async () => {

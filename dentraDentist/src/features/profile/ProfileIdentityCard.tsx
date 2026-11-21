@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppImage } from '@dentra/video/src/AppImage';
+import { ProfilePhotoPreview } from '@dentra/video/src/ProfilePhotoPreview';
 import { CheckCircle2, ChevronRight, Pencil } from 'lucide-react-native';
 import type { Dentist } from '../../common/types/api';
 import { API_BASE_URL } from '../../common/config/api';
@@ -30,11 +31,14 @@ export function ProfileIdentityCard({
   return (
     <Card style={styles.card}>
       <View style={styles.identity}>
-        <Pressable
+        <ProfilePhotoPreview
           style={styles.avatar}
-          accessibilityRole="button"
-          accessibilityLabel="Edit profile photo"
-          onPress={onEdit}
+          uri={
+            photo && failedPhoto !== photo
+              ? `${API_BASE_URL}${photo}`
+              : undefined
+          }
+          name={dentist.fullName}
         >
           {photo && failedPhoto !== photo ? (
             <AppImage
@@ -47,7 +51,7 @@ export function ProfileIdentityCard({
           ) : (
             <Text style={styles.initials}>{initials}</Text>
           )}
-        </Pressable>
+        </ProfilePhotoPreview>
         <View style={styles.details}>
           <Text style={styles.name}>{dentist.fullName}</Text>
           {!!dentist.specialization && (

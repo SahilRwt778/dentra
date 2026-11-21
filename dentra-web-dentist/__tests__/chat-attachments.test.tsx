@@ -46,7 +46,7 @@ async function press(label: string) {
   const button = tree.root.findAll(
     (node) =>
       node.type === 'button' &&
-      (node.props['aria-label'] === label || node.children.includes(label))
+      (node.props['aria-label'] === label || node.children.includes(label)),
   )[0];
   await act(async () => button.props.onClick());
 }
@@ -74,7 +74,7 @@ test('the paperclip opens Gallery, Camera and File and each routes to the right 
   await act(async () => {
     tree = Renderer.create(
       <ChatAttachmentMenu active onSelect={onSelect} onCamera={onCamera} />,
-      { createNodeMock: nodeMock }
+      { createNodeMock: nodeMock },
     );
   });
   expect(tree.root.findAllByProps({ role: 'group' })).toHaveLength(0);
@@ -91,9 +91,9 @@ test('the paperclip opens Gallery, Camera and File and each routes to the right 
   });
   const input = tree.root.findByProps({ 'aria-label': 'Choose chat file' });
   await act(async () =>
-    input.props.onChange({ target: { files: [file], value: 'chosen' } })
+    input.props.onChange({ target: { files: [file], value: 'chosen' } }),
   );
-  expect(onSelect).toHaveBeenCalledWith(file);
+  expect(onSelect).toHaveBeenCalledWith([file]);
   await press('Add attachment');
   await press('Camera');
   expect(onCamera).toHaveBeenCalledOnce();
@@ -104,14 +104,14 @@ test('Escape closes the attachment menu and returning focus does not choose a fi
   await act(async () => {
     tree = Renderer.create(
       <ChatAttachmentMenu active onSelect={onSelect} onCamera={vi.fn()} />,
-      { createNodeMock: nodeMock }
+      { createNodeMock: nodeMock },
     );
   });
   await press('Add attachment');
   await act(async () =>
     tree.root
       .findByProps({ className: 'chat-attachment-picker' })
-      .props.onKeyDown({ key: 'Escape', stopPropagation: vi.fn() })
+      .props.onKeyDown({ key: 'Escape', stopPropagation: vi.fn() }),
   );
   expect(tree.root.findAllByProps({ role: 'group' })).toHaveLength(0);
   expect(focus).toHaveBeenCalled();
@@ -134,7 +134,7 @@ test('camera capture clones the live call track and never stops the original cal
         onCapture={onCapture}
         onClose={vi.fn()}
       />,
-      { createNodeMock: nodeMock }
+      { createNodeMock: nodeMock },
     );
   });
   expect(media.getUserMedia).not.toHaveBeenCalled();
@@ -154,12 +154,12 @@ test('closing camera before permission resolves releases the late photo stream',
   media.getUserMedia.mockReturnValue(
     new Promise<PhotoStream>((done) => {
       resolve = done;
-    })
+    }),
   );
   await act(async () => {
     tree = Renderer.create(
       <ChatCameraCapture onCapture={onCapture} onClose={vi.fn()} />,
-      { createNodeMock: nodeMock }
+      { createNodeMock: nodeMock },
     );
   });
   expect(media.getUserMedia).toHaveBeenCalledWith({

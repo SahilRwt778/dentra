@@ -1,0 +1,55 @@
+.dismissible-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.dismissible-notice > svg {
+  flex: none;
+}
+.notice-message {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notice-dismiss {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.notice-dismiss:hover {
+  background: #102b3910;
+}
+.notice-dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.consult-workspace.is-minimized .video-notice {
+  position: absolute;
+  top: 42px;
+  right: 4px;
+  margin: 0;
+  padding: 4px;
+  gap: 4px;
+  z-index: 25;
+}
+.consult-workspace.is-minimized .video-notice .notice-dismiss {
+  width: 28px;
+  height: 28px;
+}
+.consult-workspace.is-minimized .video-notice .notice-message {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

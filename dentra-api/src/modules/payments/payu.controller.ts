@@ -23,6 +23,7 @@ import { PayuGatewayService } from './payu-gateway.service';
 import { PayuHashDto } from './payu-checkout.dto';
 import { PaymentReconciliationService } from './payment-reconciliation.service';
 import { RefundsService } from './refunds.service';
+import { payuCallbackPage } from './payu-callback-page';
 
 @ApiTags('Payments')
 @Controller('payments')
@@ -72,8 +73,9 @@ export class PayuController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   @Header('Cache-Control', 'no-store')
   async callback(@Body() body: Record<string, unknown>) {
-    await this.paymentEvent(body);
-    return '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dentra payment</title></head><body><h2>Return to Dentra</h2><p>Your payment status has been checked. You can close this page and return to your appointment.</p></body></html>';
+    const result = await this.paymentEvent(body);
+    // The SDK event closes checkout; the app still reads confirmed status from the API.
+    return payuCallbackPage(result);
   }
 
   @Public()
@@ -118,5 +120,9 @@ export class PayuController {
       [body.txnid],
     );
     if (rows[0]) await this.reconciliation.reconcileOrder(body.txnid, 'payu');
+    return {
+      transactionId: body.txnid,
+      successful: body.status === 'success',
+    };
   }
 }

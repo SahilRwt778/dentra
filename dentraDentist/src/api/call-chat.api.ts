@@ -3,7 +3,7 @@ import { dentraApi } from '../store/dentraApi';
 import { encode } from 'base64-arraybuffer';
 import type { NativeChatClient } from '@dentra/video/src/CallChat';
 import type { ChatMessage, ChatPage } from '@dentra/call-core';
-import { pickChatFile } from '@dentra/video/src/pickChatFile';
+import { pickChatFiles } from '@dentra/video/src/pickChatFile';
 import { api } from './client';
 import { session } from '../features/auth/session';
 import { createRequestId } from '../common/utils/request-id';
@@ -14,7 +14,7 @@ import {
 
 export const callChat: NativeChatClient = {
   requestId: createRequestId,
-  pick: pickChatFile,
+  pick: pickChatFiles,
   async read(id, sequence, signal) {
     const { data } = await api.post(
       `/appointments/${id}/video/chat/read`,

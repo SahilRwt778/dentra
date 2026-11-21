@@ -16,6 +16,7 @@ type VideoCalls = {
   call: ActiveVideoCall | undefined;
   joining: boolean;
   notice: string | undefined;
+  dismissNotice(): void;
   join: (options: JoinOptions) => Promise<void>;
   attach: (appointmentId: string, element: HTMLDivElement) => () => void;
 };

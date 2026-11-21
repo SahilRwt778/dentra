@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { AppImage } from './AppImage';
+import { ProfilePhotoPreview } from './ProfilePhotoPreview';
 
 export function ProfileAvatar({
   name,
@@ -27,7 +28,11 @@ export function ProfileAvatar({
       .toUpperCase() || 'U';
 
   return (
-    <View style={styles.avatar}>
+    <ProfilePhotoPreview
+      style={styles.avatar}
+      uri={failedUrl !== uri ? uri : undefined}
+      name={name}
+    >
       {uri && failedUrl !== uri ? (
         <AppImage
           source={{ uri }}
@@ -39,7 +44,7 @@ export function ProfileAvatar({
       ) : (
         <Text style={styles.initials}>{initials}</Text>
       )}
-    </View>
+    </ProfilePhotoPreview>
   );
 }
 

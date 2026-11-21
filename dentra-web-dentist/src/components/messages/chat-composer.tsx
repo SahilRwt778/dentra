@@ -1,11 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { FileText, LockKeyhole, Send, X } from 'lucide-react';
 import { ChatAttachmentMenu } from '../chat-attachment-menu';
+import { CHAT_ATTACHMENT_LIMIT } from '@dentra/call-core';
+
+export type ChatComposerAttachment = {
+  id: string;
+  requestId: string;
+  file: File;
+  preview?: string;
+};
 
 export function ChatComposer({
   text,
-  file,
-  preview,
+  files,
   sending,
   canSend,
   loading,
@@ -17,16 +24,15 @@ export function ChatComposer({
   onSend,
 }: {
   text: string;
-  file?: File;
-  preview?: string;
+  files: ChatComposerAttachment[];
   sending: boolean;
   canSend: boolean;
   loading: boolean;
   embedded: boolean;
   onText(text: string): void;
-  onSelect(file: File): void;
+  onSelect(files: File[]): void;
   onCamera(): void;
-  onRemove(): void;
+  onRemove(id: string): void;
   onSend(): void;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
@@ -37,7 +43,7 @@ export function ChatComposer({
     element.style.height = `${Math.min(element.scrollHeight, 140)}px`;
   }, [text]);
   const disabled = !canSend || sending;
-  const canSubmit = !disabled && (!!text.trim() || !!file);
+  const canSubmit = !disabled && (!!text.trim() || files.length > 0);
   if (embedded && !loading && !canSend)
     return (
       <footer className="chat-read-only">
@@ -56,28 +62,38 @@ export function ChatComposer({
         if (canSubmit) onSend();
       }}
     >
-      {file && (
-        <div className="call-chat-preview">
-          {preview ? (
-            <img src={preview} alt="Attachment preview" />
-          ) : (
-            <FileText />
-          )}
-          <span>{file.name}</span>
-          <button
-            type="button"
-            aria-label="Remove attachment"
-            className="call-chat-remove"
-            disabled={sending}
-            onClick={onRemove}
-          >
-            <X size={16} />
-          </button>
-        </div>
+      {files.length > 0 && (
+        <>
+          <span className="chat-queue-count">
+            {files.length} / {CHAT_ATTACHMENT_LIMIT} attachments
+          </span>
+          <div className="chat-draft-attachments">
+            {files.map(({ id, file, preview }) => (
+              <div key={id} className="chat-draft-file">
+                {preview ? (
+                  <img src={preview} alt={`Preview: ${file.name}`} />
+                ) : (
+                  <FileText size={30} />
+                )}
+                <span title={file.name}>{file.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove attachment: ${file.name}`}
+                  title="Remove attachment"
+                  className="call-chat-remove"
+                  disabled={sending}
+                  onClick={() => onRemove(id)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
       <div className="chat-compose-row">
         <ChatAttachmentMenu
-          active={!disabled}
+          active={!disabled && files.length < CHAT_ATTACHMENT_LIMIT}
           onSelect={onSelect}
           onCamera={onCamera}
         />
@@ -89,8 +105,8 @@ export function ChatComposer({
             loading
               ? 'Loading conversation…'
               : canSend
-              ? 'Type a message'
-              : 'Messaging closed'
+                ? 'Type a message'
+                : 'Messaging closed'
           }
           maxLength={4000}
           value={text}

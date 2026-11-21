@@ -156,19 +156,21 @@ export function ConversationList({
           </div>
         )}
         {matches.map((item) => (
-          <Link
+          <div
             key={item.id}
-            to={`/messages/${item.id}`}
             className={`messages-conversation ${
               item.id === selectedId ? 'is-selected' : ''
             }`}
-            aria-current={item.id === selectedId ? 'page' : undefined}
           >
             <ProfileAvatar
               name={item.patientName}
               photoUrl={item.patientProfilePhotoUrl}
             />
-            <div className="messages-conversation-details">
+            <Link
+              to={`/messages/${item.id}`}
+              className="messages-conversation-details"
+              aria-current={item.id === selectedId ? 'page' : undefined}
+            >
               <div className="messages-conversation-heading">
                 <strong>{item.patientName}</strong>
                 <time
@@ -195,8 +197,8 @@ export function ConversationList({
                   </span>
                 )}
               </div>
-            </div>
-          </Link>
+            </Link>
+          </div>
         ))}
       </nav>
       {(page > 1 || nextPage) && (

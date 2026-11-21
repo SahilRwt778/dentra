@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { AppImage } from '@dentra/video/src/AppImage';
+import { ProfilePhotoPreview } from '@dentra/video/src/ProfilePhotoPreview';
 import { API_BASE_URL } from '../../common/config/api';
 import { colors } from '../../common/theme/theme';
 import { patientInitials } from './patient-format';
@@ -17,7 +18,11 @@ export function PatientAvatar({
   const [failedUrl, setFailedUrl] = useState<string>();
   const uri = photoUrl ? `${API_BASE_URL}${photoUrl}` : undefined;
   return (
-    <View style={[styles.avatar, large && styles.large]}>
+    <ProfilePhotoPreview
+      style={[styles.avatar, large && styles.large]}
+      uri={failedUrl !== uri ? uri : undefined}
+      name={name}
+    >
       {uri && failedUrl !== uri ? (
         <AppImage
           source={{ uri }}
@@ -31,7 +36,7 @@ export function PatientAvatar({
           {patientInitials(name)}
         </Text>
       )}
-    </View>
+    </ProfilePhotoPreview>
   );
 }
 

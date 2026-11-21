@@ -1,4 +1,4 @@
-import { profilePhotoUrl } from '@/lib/profile-photo';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { PortalLayout } from '@/components/portal-layout';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
@@ -16,7 +16,7 @@ import {
   useGetConsultationCasesQuery,
   useGetDentistsMeQuery,
 } from '@/api/generated-api';
-import { todayIso, initials } from '@/lib/date';
+import { todayIso } from '@/lib/date';
 import { NotificationBell } from '@/components/notification-bell';
 import { VideoCallProvider } from '@/components/video-call-provider';
 
@@ -77,21 +77,10 @@ export function AppShell() {
           </nav>
           <div className="po-user">
             <div className="row">
-              <div className="avatar" style={{ overflow: 'hidden' }}>
-                {me?.profilePhotoUrl ? (
-                  <img
-                    src={profilePhotoUrl(me.profilePhotoUrl)}
-                    alt="Your profile"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                  />
-                ) : (
-                  initials(me?.fullName)
-                )}
-              </div>
+              <ProfileAvatar
+                name={me?.fullName || 'Dentist'}
+                photoUrl={me?.profilePhotoUrl}
+              />
               <div className="grow">
                 <b className="small">{me?.fullName}</b>
                 <div className="tiny muted">

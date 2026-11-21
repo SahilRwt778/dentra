@@ -1,4 +1,5 @@
 import { CallChat } from '@dentra/video/src/CallChat';
+import { MovableSelfPreview } from '@dentra/video/src/MovableSelfPreview';
 import { callChat } from '../../api/call-chat.api';
 import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
@@ -47,6 +48,8 @@ export function LiveVideoStage({
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [footerHeight, setFooterHeight] = useState(156);
+  const [headerHeight, setHeaderHeight] = useState(84);
+  const [previewDragging, setPreviewDragging] = useState(false);
   const meeting = sdk.useMeeting();
   const {
     connection,
@@ -59,7 +62,11 @@ export function LiveVideoStage({
   const displayTile = meeting.remoteScreenTrack ?? remoteCameraTrack;
   const sharing = !!meeting.screenSharing;
   const [frontCamera, setFrontCamera] = useState(true);
-  const controls = useCallControls(minimized, report, chatOpen || systemPip);
+  const controls = useCallControls(
+    minimized,
+    report,
+    chatOpen || systemPip || previewDragging,
+  );
   const heading =
     connection === 'reconnecting'
       ? 'Reconnecting…'
@@ -142,34 +149,6 @@ export function LiveVideoStage({
           </View>
         )}
       </View>
-      <View
-        pointerEvents="none"
-        testID="video-self-preview"
-        style={[
-          styles.local,
-          {
-            right: Math.max(insets.right, 12),
-            bottom: controls.visible
-              ? footerHeight + 12
-              : Math.max(insets.bottom, 12) + 12,
-          },
-          (minimized || systemPip) && styles.hidden,
-        ]}
-      >
-        {localCameraTrack != null && isCameraEnabled ? (
-          <sdk.VideoView
-            track={localCameraTrack}
-            mirror={frontCamera}
-            contain
-            style={styles.fill}
-          />
-        ) : (
-          <Text style={styles.copy}>
-            {isCameraEnabled ? 'Starting camera…' : 'Camera off'}
-          </Text>
-        )}
-        <Text style={styles.you}>You</Text>
-      </View>
       <Pressable
         disabled={systemPip || (!minimized && controls.screenReader)}
         accessible={minimized || !controls.screenReader}
@@ -185,11 +164,33 @@ export function LiveVideoStage({
         }
         onPress={minimized ? expand : controls.toggle}
       />
+      <MovableSelfPreview
+        testID="video-self-preview"
+        hidden={minimized || systemPip}
+        topInset={controls.visible ? headerHeight : 0}
+        bottomInset={controls.visible ? footerHeight : 0}
+        onPress={controls.toggle}
+        onDragChange={setPreviewDragging}
+      >
+        {localCameraTrack != null && isCameraEnabled ? (
+          <sdk.VideoView
+            track={localCameraTrack}
+            mirror={frontCamera}
+            contain={false}
+            style={styles.fill}
+          />
+        ) : (
+          <Text style={styles.copy}>
+            {isCameraEnabled ? 'Starting camera…' : 'Camera off'}
+          </Text>
+        )}
+      </MovableSelfPreview>
       {controls.visible && !minimized && !systemPip && (
         <>
           <View
             pointerEvents="box-none"
             testID="video-top-overlay"
+            onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}
             style={[
               styles.topOverlay,
               {

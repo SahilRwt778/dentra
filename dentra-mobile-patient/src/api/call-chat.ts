@@ -3,14 +3,14 @@ import uuid from 'react-native-uuid';
 import { Base64 } from 'js-base64';
 import type { NativeChatClient } from '@dentra/video/src/CallChat';
 import type { ChatAttachment, ChatMessage, ChatPage } from '@dentra/call-core';
-import { pickChatFile } from '@dentra/video/src/pickChatFile';
+import { pickChatFiles } from '@dentra/video/src/pickChatFile';
 import { requestPrivate } from './private-request';
 import { signedInSession } from './private-download';
 import { store } from '@/store/store';
 
 export const callChat: NativeChatClient = {
   requestId: () => String(uuid.v4()),
-  pick: pickChatFile,
+  pick: pickChatFiles,
   async read(id, sequence, signal) {
     const result = await requestPrivate(
       {

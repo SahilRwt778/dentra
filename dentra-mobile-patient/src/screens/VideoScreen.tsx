@@ -1,4 +1,6 @@
 import { CallChat } from '@dentra/video/src/CallChat';
+import { DismissibleNotice } from '@dentra/video/src/DismissibleNotice';
+import { MovableSelfPreview } from '@dentra/video/src/MovableSelfPreview';
 import { useMediaControls } from '@dentra/video/src/useMediaControls';
 import { callChat } from '@/api/call-chat';
 import { useCallback, useEffect, useState } from 'react';
@@ -171,12 +173,13 @@ export function VideoCallPanel({
         </View>
       )}
       {call.notice && !minimized && !systemPip && (
-        <Text
-          accessibilityRole="alert"
-          style={[s.notice, call.session && s.callNotice]}
-        >
-          {call.notice}
-        </Text>
+        <View style={call.session ? s.callNotice : undefined}>
+          <DismissibleNotice
+            message={call.notice}
+            tone="warning"
+            onDismiss={() => call.report('')}
+          />
+        </View>
       )}
     </SafeAreaView>
   );
@@ -207,6 +210,8 @@ function NativeCall({
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [footerHeight, setFooterHeight] = useState(156);
+  const [headerHeight, setHeaderHeight] = useState(84);
+  const [previewDragging, setPreviewDragging] = useState(false);
   const displayTile = meeting.remoteScreenTrack ?? meeting.remoteCameraTrack;
   const {
     connection,
@@ -250,6 +255,7 @@ function NativeCall({
       minimized ||
       systemPip ||
       chatOpen ||
+      previewDragging ||
       !controlsVisible ||
       screenReader ||
       busy
@@ -261,6 +267,7 @@ function NativeCall({
     minimized,
     systemPip,
     chatOpen,
+    previewDragging,
     controlsVisible,
     screenReader,
     busy,
@@ -337,34 +344,6 @@ function NativeCall({
           </View>
         )}
       </View>
-      <View
-        pointerEvents="none"
-        testID="call-self-preview"
-        style={[
-          s.local,
-          {
-            right: Math.max(insets.right, 12),
-            bottom: showControls
-              ? footerHeight + 12
-              : Math.max(insets.bottom, 12) + 12,
-          },
-          (minimized || systemPip) && s.hidden,
-        ]}
-      >
-        {localCameraTrack != null && isCameraEnabled ? (
-          <sdk.VideoView
-            track={localCameraTrack}
-            mirror={front}
-            contain
-            style={s.fill}
-          />
-        ) : (
-          <Text style={s.copy}>
-            {isCameraEnabled ? 'Starting camera…' : 'Camera off'}
-          </Text>
-        )}
-        <Text style={s.you}>You</Text>
-      </View>
       <Pressable
         testID="call-video-touch-target"
         disabled={systemPip || (!minimized && screenReader)}
@@ -380,10 +359,32 @@ function NativeCall({
         }
         onPress={minimized ? expand : toggleControls}
       />
+      <MovableSelfPreview
+        testID="call-self-preview"
+        hidden={minimized || systemPip}
+        topInset={showControls ? headerHeight : 0}
+        bottomInset={showControls ? footerHeight : 0}
+        onPress={toggleControls}
+        onDragChange={setPreviewDragging}
+      >
+        {localCameraTrack != null && isCameraEnabled ? (
+          <sdk.VideoView
+            track={localCameraTrack}
+            mirror={front}
+            contain={false}
+            style={s.fill}
+          />
+        ) : (
+          <Text style={s.copy}>
+            {isCameraEnabled ? 'Starting camera…' : 'Camera off'}
+          </Text>
+        )}
+      </MovableSelfPreview>
       {showControls && (
         <View
           pointerEvents="box-none"
           testID="call-top-overlay"
+          onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}
           style={[
             s.callHeader,
             {
@@ -576,20 +577,11 @@ function Control({
   );
 }
 const s = StyleSheet.create({
-  hidden: { display: 'none' },
   disabled: { opacity: 0.4 },
   root: { flex: 1, backgroundColor: '#102B39' },
   layoutButton: { padding: 10 },
   miniHeading: { fontSize: 12, lineHeight: 16 },
   miniPlaceholder: { padding: 8, gap: 0 },
-  miniLocal: {
-    width: 52,
-    height: 68,
-    right: 8,
-    top: 46,
-    bottom: undefined,
-    borderRadius: 8,
-  },
   miniStatus: { fontSize: 11, marginTop: 0 },
   miniControls: { paddingVertical: 6, gap: 20 },
   compactControl: { width: 42, height: 42, borderRadius: 21 },
@@ -660,18 +652,13 @@ const s = StyleSheet.create({
   },
   off: { backgroundColor: '#52616E' },
   danger: { backgroundColor: '#C34F54' },
-  notice: {
-    color: '#FFE4A1',
-    padding: 16,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
   callNotice: {
     position: 'absolute',
     top: 100,
     left: 12,
     right: 12,
     borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: 'rgba(16,43,57,0.9)',
   },
   call: { flex: 1 },
@@ -714,24 +701,6 @@ const s = StyleSheet.create({
   },
   fill: { width: '100%', height: '100%' },
   placeholder: { flex: 1, justifyContent: 'center', padding: 24, gap: 14 },
-  local: {
-    position: 'absolute',
-    right: 12,
-    bottom: 12,
-    height: 160,
-    width: 110,
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: '#36515B',
-    justifyContent: 'center',
-  },
-  you: {
-    position: 'absolute',
-    bottom: 8,
-    left: 10,
-    color: '#fff',
-    fontWeight: '600',
-  },
   status: { color: '#E3EFF3', fontSize: 14 },
   footnote: {
     textAlign: 'center',

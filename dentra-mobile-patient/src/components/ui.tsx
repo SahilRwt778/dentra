@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { AppImage } from '@dentra/video/src/AppImage';
+import { ProfilePhotoPreview } from '@dentra/video/src/ProfilePhotoPreview';
 import { API_BASE_URL } from '@/config';
 import {
   ActivityIndicator,
@@ -298,7 +299,11 @@ export function Avatar({
       .join('')
       .toUpperCase() || 'D';
   return (
-    <View style={[s.avatar, large && s.largeAvatar]}>
+    <ProfilePhotoPreview
+      style={[s.avatar, large && s.largeAvatar]}
+      uri={failedUrl !== uri ? uri : undefined}
+      name={name}
+    >
       {uri && failedUrl !== uri ? (
         <AppImage
           source={{ uri }}
@@ -309,7 +314,7 @@ export function Avatar({
       ) : (
         <Text style={[s.initials, large && { fontSize: 25 }]}>{initials}</Text>
       )}
-    </View>
+    </ProfilePhotoPreview>
   );
 }
 

@@ -22,17 +22,22 @@ import {
   type ChatAttachment,
   type ChatClient,
   type ChatFile,
+  CHAT_ATTACHMENT_LIMIT,
 } from '@dentra/call-core';
 import { ArrowLeft, ExternalLink, Paperclip } from 'lucide-react-native';
 import { ChatAttachmentMenu } from './ChatAttachmentMenu';
 import { ChatAttachment as AttachmentCard } from './ChatAttachment';
 import { ChatPhotoViewer } from './ChatPhotoViewer';
+import { DismissibleNotice } from './DismissibleNotice';
 import { useChatScroll } from './useChatScroll';
 import type { ChatAttachmentSource } from './pickChatFile';
 
 export type NativeChatClient = ChatClient & {
   requestId(): string;
-  pick(source: ChatAttachmentSource): Promise<ChatFile | undefined>;
+  pick(
+    source: ChatAttachmentSource,
+    limit?: number,
+  ): Promise<ChatFile[] | ChatFile | undefined>;
   download(
     id: string,
     file: ChatAttachment,
@@ -86,7 +91,9 @@ export function CallChat({
   );
   useEffect(() => () => media.clear(), [media]);
   const [text, setText] = useState('');
-  const [file, setFile] = useState<ChatFile>();
+  const [files, setFiles] = useState<
+    { id: string; requestId: string; file: ChatFile }[]
+  >([]);
   const [requestId, setRequestId] = useState(() => client.requestId());
   const [notice, setNotice] = useState<string>();
   const [picking, setPicking] = useState(false);
@@ -95,6 +102,7 @@ export function CallChat({
   const [photo, setPhoto] = useState<Photo>();
   const operation = useRef<AbortController | null>(null);
   const live = useRef(true);
+  const pickLock = useRef(false);
   const tail = chat.items.at(-1)?.sequence;
   const timeline = useChatScroll(tail, visible && active, appointmentId);
 
@@ -131,18 +139,45 @@ export function CallChat({
   function edit(value: string) {
     setText(value);
     setRequestId(client.requestId());
+    setFiles(entries =>
+      entries.map((entry, index) =>
+        index ? entry : { ...entry, requestId: client.requestId() },
+      ),
+    );
   }
   async function pick(source: ChatAttachmentSource) {
-    if (picking || chat.sending) return;
+    if (pickLock.current || chat.sending) return;
     setAttachmentsOpen(false);
+    if (files.length >= CHAT_ATTACHMENT_LIMIT) {
+      setNotice(
+        `You can send up to ${CHAT_ATTACHMENT_LIMIT} attachments at a time. Remove one to choose another.`,
+      );
+      return;
+    }
+    pickLock.current = true;
     setPicking(true);
     setNotice(undefined);
     const restoreCamera = source === 'camera' && callCamera?.enabled;
     try {
       if (restoreCamera) await callCamera.setEnabled(false);
-      const selected = await client.pick(source);
+      const selected = await client.pick(
+        source,
+        CHAT_ATTACHMENT_LIMIT - files.length,
+      );
       if (selected && live.current) {
-        setFile(selected);
+        const incoming = Array.isArray(selected) ? selected : [selected];
+        if (files.length + incoming.length > CHAT_ATTACHMENT_LIMIT)
+          throw new Error(
+            `You can send up to ${CHAT_ATTACHMENT_LIMIT} attachments at a time.`,
+          );
+        setFiles(entries => [
+          ...entries,
+          ...incoming.map(file => ({
+            id: client.requestId(),
+            requestId: client.requestId(),
+            file,
+          })),
+        ]);
         setRequestId(client.requestId());
       }
     } catch (error) {
@@ -161,12 +196,22 @@ export function CallChat({
         }
       }
       if (live.current) setPicking(false);
+      pickLock.current = false;
     }
   }
   async function send() {
-    if (await chat.send({ requestId, text, file })) {
+    const sent = await chat.sendMany(
+      files.length
+        ? files.map((entry, index) => ({
+            requestId: entry.requestId,
+            text: index === 0 ? text : '',
+            file: entry.file,
+          }))
+        : [{ requestId, text }],
+    );
+    if (sent > 0) {
       setText('');
-      setFile(undefined);
+      setFiles(entries => entries.slice(sent));
       setRequestId(client.requestId());
     }
   }
@@ -246,9 +291,10 @@ export function CallChat({
         )}
       </View>
       {photo && notice && (
-        <Text accessibilityRole="alert" style={styles.error}>
-          {notice}
-        </Text>
+        <DismissibleNotice
+          message={notice}
+          onDismiss={() => setNotice(undefined)}
+        />
       )}
       <View style={styles.grow}>
         <KeyboardAvoidingView
@@ -322,9 +368,13 @@ export function CallChat({
             ))}
           </ScrollView>
           {!!(notice || chat.error) && (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {notice || chat.error}
-            </Text>
+            <DismissibleNotice
+              message={(notice || chat.error)!}
+              onDismiss={() => {
+                setNotice(undefined);
+                chat.dismissError();
+              }}
+            />
           )}
           <View style={styles.composer}>
             {attachmentsOpen && (
@@ -333,8 +383,13 @@ export function CallChat({
                 onClose={() => setAttachmentsOpen(false)}
               />
             )}
-            {file && (
-              <View style={styles.preview}>
+            {files.length > 0 && (
+              <Text style={styles.muted}>
+                {files.length} / {CHAT_ATTACHMENT_LIMIT} attachments
+              </Text>
+            )}
+            {files.map(({ id, file }) => (
+              <View key={id} style={styles.preview}>
                 {file.type.startsWith('image/') ? (
                   <AppImage
                     source={{ uri: file.uri }}
@@ -348,11 +403,13 @@ export function CallChat({
                   {file.name}
                 </Text>
                 <Pressable
-                  accessibilityLabel="Remove attachment"
+                  accessibilityLabel={`Remove attachment: ${file.name}`}
                   accessibilityRole="button"
                   disabled={chat.sending}
                   onPress={() => {
-                    setFile(undefined);
+                    setFiles(entries =>
+                      entries.filter(entry => entry.id !== id),
+                    );
                     setRequestId(client.requestId());
                   }}
                   style={styles.close}
@@ -360,7 +417,7 @@ export function CallChat({
                   <Text style={styles.white}>×</Text>
                 </Pressable>
               </View>
-            )}
+            ))}
             <View style={styles.actions}>
               <Pressable
                 accessibilityRole="button"
@@ -397,7 +454,7 @@ export function CallChat({
                   !chat.canSend ||
                   chat.sending ||
                   picking ||
-                  (!text.trim() && !file)
+                  (!text.trim() && !files.length)
                 }
                 onPress={send}
                 style={styles.send}
@@ -486,7 +543,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  error: { padding: 12, color: '#B52C2C', backgroundColor: '#FDECEC' },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   thumbnail: { width: 64, height: 64, borderRadius: 8 },
   photoScreen: { backgroundColor: '#102B39' },

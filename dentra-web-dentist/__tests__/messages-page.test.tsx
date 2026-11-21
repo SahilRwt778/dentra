@@ -394,6 +394,7 @@ test('IME composition does not send a partial message', async () => {
     tree = Renderer.create(
       <ChatComposer
         text="Draft"
+        files={[]}
         sending={false}
         canSend
         loading={false}

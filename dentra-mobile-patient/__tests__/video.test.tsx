@@ -454,8 +454,13 @@ test('video fills the call area with overlaid controls and no minimize button', 
   ).toHaveLength(0);
   expect(tree.root.findAllByType(MockVideo)).toHaveLength(2);
   expect(
-    tree.root.findAllByType(MockVideo).every(view => view.props.contain),
+    tree.root.findAllByType(MockVideo).find(view => view.props.track === 2)!
+      .props.contain,
   ).toBe(true);
+  expect(
+    tree.root.findAllByType(MockVideo).find(view => view.props.track === 1)!
+      .props.contain,
+  ).toBe(false);
   expect(
     tree.root
       .findAllByType(MockVideo)

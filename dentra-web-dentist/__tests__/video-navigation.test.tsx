@@ -274,6 +274,23 @@ test('navigating away and returning moves the visual target without replacing th
   expect(mocks.getToken).toHaveBeenCalledTimes(1);
 });
 
+test('dismissing a call warning keeps the active media room connected', async () => {
+  await join();
+  const room = tree.root.findByType(ConnectedVideoCall);
+  await act(async () => room.props.report('Could not update call controls.'));
+  expect(JSON.stringify(tree.toJSON())).toContain(
+    'Could not update call controls.',
+  );
+  await act(async () =>
+    tree.root.findByProps({ 'aria-label': 'Dismiss warning' }).props.onClick(),
+  );
+  expect(JSON.stringify(tree.toJSON())).not.toContain(
+    'Could not update call controls.',
+  );
+  expect(tree.root.findByType(ConnectedVideoCall)).toBe(room);
+  expect(mocks.unmounted).not.toHaveBeenCalled();
+});
+
 test('audio starts automatically and a normal interaction retries playback when the browser blocks it', async () => {
   await join();
   expect(mocks.audioStarted).toHaveBeenCalledOnce();

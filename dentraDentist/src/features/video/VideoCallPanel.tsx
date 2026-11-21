@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { DismissibleNotice } from '@dentra/video/src/DismissibleNotice';
 import { Pressable, StatusBar, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LiveVideoStage } from './LiveVideoStage';
@@ -73,12 +74,13 @@ export function VideoCallPanel(props: Props) {
         <VideoLobby patientName={props.patientName} call={call} />
       )}
       {call.notice && !props.minimized && !props.systemPip && (
-        <Text
-          accessibilityRole="alert"
-          style={[styles.notice, !!connection && styles.callNotice]}
-        >
-          {call.notice}
-        </Text>
+        <View style={connection ? styles.callNotice : undefined}>
+          <DismissibleNotice
+            message={call.notice}
+            tone="warning"
+            onDismiss={() => call.report('')}
+          />
+        </View>
       )}
     </SafeAreaView>
   );

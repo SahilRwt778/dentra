@@ -1,3 +1,5 @@
+export const CHAT_ATTACHMENT_LIMIT = 3;
+
 export type ChatAttachment = {
   id: string;
   name: string;

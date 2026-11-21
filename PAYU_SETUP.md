@@ -108,6 +108,8 @@ This fix requires an API redeployment and a patient app JavaScript reload. It ne
 
 After a card number is entered, the same SDK also requests `binBaseDetails` using the JSON/date signing format. The API validates its merchant, transaction, amount and card-lookup fields before signing. An API version without this handler can open the payment options but fails at card entry with `Unsupported checkout hash request.` Deploy this handler before testing card payments; card details are not added to the saved checkout snapshot.
 
+At payment submission, Checkout Pro 3.4 uses the hash name `payment_source`. The patient app maps that name to the API's existing `payment` signer, preserves the signing string, and returns the response to the SDK under `payment_source`. The API still checks the exact saved amount, transaction and customer fields. Reload the patient app's JavaScript after this adapter change; another API deployment or native rebuild is not required.
+
 ## 7. Go live when ready
 
 After PayU activates the merchant account and test checkout/refunds work, replace the test key/salt with live credentials and set `PAYU_ENVIRONMENT=live` on the API. The backend supplies the correct SDK environment; no salt belongs in the app. Confirm the live webhook registration and run an authorized low-value payment/refund test.

@@ -26,7 +26,7 @@ export default function ConnectedVideoCall({
   call: ActiveVideoCall;
   target: HTMLElement | null;
   end: (call: ActiveVideoCall, message?: string) => void;
-  report: (message: string) => void;
+  report: (message?: string) => void;
 }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -91,6 +91,7 @@ export default function ConnectedVideoCall({
     setBusy(true);
     try {
       await action();
+      report(undefined);
     } catch {
       report(
         'Could not update call controls. Check browser permissions and try again.',

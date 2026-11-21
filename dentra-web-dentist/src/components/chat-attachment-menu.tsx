@@ -7,7 +7,7 @@ export function ChatAttachmentMenu({
   onCamera,
 }: {
   active: boolean;
-  onSelect(file: File): void;
+  onSelect(files: File[]): void;
   onCamera(): void;
 }) {
   const [open, setOpen] = useState(false);
@@ -36,9 +36,9 @@ export function ChatAttachmentMenu({
     trigger.current?.focus();
   }
   function select(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (file && active) onSelect(file);
+    if (files.length && active) onSelect(files);
   }
 
   return (
@@ -55,7 +55,7 @@ export function ChatAttachmentMenu({
       <button
         ref={trigger}
         type="button"
-        className="btn btn-icon chat-attach-button"
+        className="chat-attach-button"
         aria-label="Add attachment"
         aria-expanded={open && active}
         aria-controls={id}
@@ -68,6 +68,7 @@ export function ChatAttachmentMenu({
       <input
         ref={gallery}
         type="file"
+        multiple
         hidden
         accept="image/jpeg,image/png"
         aria-label="Choose chat photo"
@@ -77,6 +78,7 @@ export function ChatAttachmentMenu({
       <input
         ref={fileInput}
         type="file"
+        multiple
         hidden
         accept="image/jpeg,image/png,application/pdf"
         aria-label="Choose chat file"
@@ -130,7 +132,7 @@ export function ChatAttachmentMenu({
               File
             </button>
           </div>
-          <small>JPEG, PNG or PDF · Up to 10 MB</small>
+          <small>Up to 3 attachments · JPEG, PNG or PDF · 10 MB each</small>
         </div>
       )}
     </div>

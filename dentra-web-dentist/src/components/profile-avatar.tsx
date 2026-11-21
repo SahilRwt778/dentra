@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { initials } from '@/lib/date';
 import { profilePhotoUrl } from '@/lib/profile-photo';
+import { ProfilePhotoPreview } from './profile-photo-preview';
 
 export function ProfileAvatar({
   name,
@@ -12,12 +13,16 @@ export function ProfileAvatar({
   const [failedUrl, setFailedUrl] = useState<string>();
   const uri = profilePhotoUrl(photoUrl);
   return (
-    <span className="avatar profile-avatar" aria-hidden="true">
+    <ProfilePhotoPreview
+      className="avatar profile-avatar"
+      uri={failedUrl !== uri ? uri : undefined}
+      name={name}
+    >
       {uri && failedUrl !== uri ? (
         <img src={uri} alt="" onError={() => setFailedUrl(uri)} />
       ) : (
         initials(name) || 'U'
       )}
-    </span>
+    </ProfilePhotoPreview>
   );
 }

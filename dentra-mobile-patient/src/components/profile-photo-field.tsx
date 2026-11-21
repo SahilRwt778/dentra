@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { AppImage } from '@dentra/video/src/AppImage';
+import { ProfilePhotoPreview } from '@dentra/video/src/ProfilePhotoPreview';
 import {
   PermissionsAndroid,
   Platform,
@@ -113,16 +114,21 @@ export function ProfilePhotoField({
       <Text style={styles.label}>Profile photo (optional)</Text>
       <View style={styles.row}>
         <View style={styles.preview}>
-          {uri && uri !== failedUri ? (
-            <AppImage
-              source={{ uri }}
-              style={styles.image}
-              accessibilityLabel="Profile photo preview"
-              onError={() => setFailedUri(uri)}
-            />
-          ) : (
-            <UserRound size={36} color="#0D7870" />
-          )}
+          <ProfilePhotoPreview
+            uri={uri !== failedUri ? uri : undefined}
+            name="Your profile"
+          >
+            {uri && uri !== failedUri ? (
+              <AppImage
+                source={{ uri }}
+                style={styles.image}
+                accessibilityLabel="Profile photo preview"
+                onError={() => setFailedUri(uri)}
+              />
+            ) : (
+              <UserRound size={36} color="#0D7870" />
+            )}
+          </ProfilePhotoPreview>
           {(value || (existingUrl && onRemoveExisting)) && (
             <Pressable
               accessibilityRole="button"

@@ -98,6 +98,15 @@ export async function openPayuCheckout(appointmentId: string) {
         emitter.addListener('generateHash', event => {
           if (finished) return;
           const request = event as HashRequest;
+          // Checkout Pro 3.4 names its normal payment signature "payment_source".
+          // Keep the API's canonical name and return the hash under the SDK name.
+          const apiRequest = {
+            ...request,
+            hashName:
+              request.hashName === 'payment_source'
+                ? 'payment'
+                : request.hashName,
+          };
           const token = store.getState().auth.accessToken;
           pendingHashes += 1;
           // RN 0.82+ must use native networking while PayU owns the checkout activity.
@@ -106,7 +115,7 @@ export async function openPayuCheckout(appointmentId: string) {
             .makeHttpRequest(
               `${API_BASE_URL}/payments/appointments/${appointmentId}/hash`,
               'POST',
-              JSON.stringify(request),
+              JSON.stringify(apiRequest),
               {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token ?? ''}`,

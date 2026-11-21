@@ -1,0 +1,106 @@
+.profile-photo-trigger {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: zoom-in;
+}
+.profile-photo-trigger:focus-visible {
+  outline: 3px solid #0d7870;
+  outline-offset: 3px;
+}
+.profile-photo-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+  background: #0e222c;
+  color: #fff;
+}
+.profile-photo-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.profile-photo-dialog::backdrop {
+  background: #0e222c;
+}
+.profile-photo-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  padding: 12px 20px;
+}
+.profile-photo-heading > div {
+  min-width: 0;
+}
+.profile-photo-heading strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+}
+.profile-photo-heading span {
+  display: block;
+  margin-top: 3px;
+  color: #bfd1d8;
+  font-size: 13px;
+}
+.profile-photo-canvas {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.profile-photo-canvas img {
+  display: block;
+  max-width: none;
+  object-fit: contain;
+}
+.profile-photo-canvas p {
+  text-align: center;
+  padding: 24px;
+  color: #bfd1d8;
+}
+.profile-photo-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px;
+  flex-shrink: 0;
+}
+.profile-photo-tool {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #536a73;
+  border-radius: 50%;
+  background: #203c48;
+  color: #fff;
+  cursor: pointer;
+}
+.profile-photo-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.profile-photo-tool:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}

@@ -80,6 +80,29 @@ test('handles cancellation and removes event subscriptions before another checko
   DeviceEventEmitter.emit('onPaymentSuccess', {});
   await expect(next).resolves.toBeUndefined();
 });
+test('maps the SDK payment_source name to the strict API payment signer and preserves the SDK callback name', async () => {
+  const payment = openPayuCheckout('appointment');
+  await tick();
+  (sdk.makeHttpRequest as jest.Mock).mockResolvedValue(
+    JSON.stringify({ hash: 'd'.repeat(128) }),
+  );
+  DeviceEventEmitter.emit('generateHash', {
+    hashName: 'payment_source',
+    hashString: 'saved-payment-fields',
+  });
+  await tick();
+  expect(sdk.makeHttpRequest).toHaveBeenCalledWith(
+    expect.stringContaining('/payments/appointments/appointment/hash'),
+    'POST',
+    JSON.stringify({ hashName: 'payment', hashString: 'saved-payment-fields' }),
+    expect.any(Object),
+  );
+  expect(sdk.hashGenerated).toHaveBeenCalledWith({
+    payment_source: 'd'.repeat(128),
+  });
+  DeviceEventEmitter.emit('onPaymentSuccess', {});
+  await expect(payment).resolves.toBeUndefined();
+});
 test('rejects provider failures and errors without treating them as successful checkout', async () => {
   for (const event of ['onPaymentFailure', 'onError']) {
     const payment = openPayuCheckout('appointment');

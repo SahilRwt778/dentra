@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ProfilePhotoPreview } from './profile-photo-preview';
 
 export function ProfileAvatar({
   name,
@@ -15,7 +16,12 @@ export function ProfileAvatar({
       )}${photoUrl}`
     : undefined;
   return (
-    <div className="avatar" style={{ overflow: 'hidden' }}>
+    <ProfilePhotoPreview
+      className="avatar"
+      style={{ overflow: 'hidden' }}
+      uri={failedUrl !== uri ? uri : undefined}
+      name={name}
+    >
       {uri && uri !== failedUrl ? (
         <img
           src={uri}
@@ -32,6 +38,6 @@ export function ProfileAvatar({
           .join('')
           .toUpperCase() || 'D'
       )}
-    </div>
+    </ProfilePhotoPreview>
   );
 }

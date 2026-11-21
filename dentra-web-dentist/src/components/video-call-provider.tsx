@@ -27,7 +27,7 @@ function sessionScope() {
     const token = store.getState().auth.accessToken;
     if (!token) return null;
     const payload = JSON.parse(
-      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))
+      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
     );
     return `${payload.sub}:${payload.sid}`;
   } catch {
@@ -46,12 +46,12 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<string>();
   const [routeMount, setRouteMount] = useState<CallMount | null>(null);
   const [floatingMount, setFloatingMount] = useState<HTMLDivElement | null>(
-    null
+    null,
   );
   const { currentData: status, error } =
     useGetAppointmentsByAppointmentIdVideoQuery(
       { appointmentId: call?.appointmentId ?? '' },
-      { skip: !call, pollingInterval: 5000, refetchOnMountOrArgChange: true }
+      { skip: !call, pollingInterval: 5000, refetchOnMountOrArgChange: true },
     );
   const end = useCallback((expected: ActiveVideoCall, message?: string) => {
     if (active.current !== expected) return;
@@ -65,10 +65,10 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
       setRouteMount({ appointmentId, element });
       return () =>
         setRouteMount((current) =>
-          current?.element === element ? null : current
+          current?.element === element ? null : current,
         );
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -95,7 +95,7 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
         call,
         error
           ? 'Could not verify the appointment. Check your connection and rejoin.'
-          : videoStatusText(status)
+          : videoStatusText(status),
       );
     }
   }, [call, status, error, end]);
@@ -105,7 +105,7 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
       Date.parse(call.session.closesAt) - Date.parse(call.session.issuedAt);
     const timer = setTimeout(
       () => end(call, 'The video consultation window has ended.'),
-      Math.max(0, duration)
+      Math.max(0, duration),
     );
     const beforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -123,7 +123,7 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
       navigate(`/consult/${active.current.appointmentId}`);
       if (active.current.appointmentId !== options.appointmentId)
         toast.info(
-          'Leave your current call before opening another consultation.'
+          'Leave your current call before opening another consultation.',
         );
       return;
     }
@@ -145,7 +145,7 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
       setNotice(
         Array.isArray(message)
           ? message.join('. ')
-          : message ?? 'Could not join the call. Try again.'
+          : (message ?? 'Could not join the call. Try again.'),
       );
     } finally {
       joiningLock.current = false;
@@ -156,7 +156,16 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
     !!call && routeMount?.appointmentId === call.appointmentId;
   const target = onConsultationPage ? routeMount.element : floatingMount;
   return (
-    <VideoCallContext.Provider value={{ call, joining, notice, join, attach }}>
+    <VideoCallContext.Provider
+      value={{
+        call,
+        joining,
+        notice,
+        dismissNotice: () => setNotice(undefined),
+        join,
+        attach,
+      }}
+    >
       {children}
       {call && (
         <>

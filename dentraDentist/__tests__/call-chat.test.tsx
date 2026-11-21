@@ -71,7 +71,7 @@ test('a chosen photo has a compact preview and can be removed before anything is
     height: 64,
   });
   expect(client.send).not.toHaveBeenCalled();
-  await press('Remove attachment');
+  await press(`Remove attachment: ${photo.name}`);
   expect(tree.root.findAllByType(FastImage)).toHaveLength(0);
   expect(
     tree.root.findAll(
@@ -80,6 +80,68 @@ test('a chosen photo has a compact preview and can be removed before anything is
         typeof node.props.onPress === 'function',
     )[0].props.disabled,
   ).toBe(true);
+});
+
+test('up to three attachments can be previewed, removed and sent with one caption', async () => {
+  let id = 0;
+  let sequence = 0;
+  const photos = [1, 2, 3].map(index => ({
+    ...photo,
+    uri: `file:///private/photo-${index}.jpg`,
+    name: `Photo-${index}.jpg`,
+  }));
+  const multiple: NativeChatClient = {
+    ...client,
+    requestId: () => `unique-${++id}`,
+    pick: jest.fn(async () => photos),
+    send: jest.fn(async (_appointmentId, draft) => ({
+      id: `sent-${++sequence}`,
+      sequence: String(sequence),
+      requestId: draft.requestId,
+      text: draft.text,
+      own: true,
+      senderRole: 'dentist' as const,
+      createdAt: new Date().toISOString(),
+      attachment: null,
+    })),
+  };
+  await act(async () =>
+    tree.update(
+      <CallChat
+        appointmentId="multiple"
+        client={multiple}
+        visible
+        onClose={jest.fn()}
+        onUnread={jest.fn()}
+      />,
+    ),
+  );
+  await press('Add attachment');
+  await press('Gallery');
+  expect(tree.root.findAllByType(FastImage)).toHaveLength(3);
+  await press('Add attachment');
+  await press('Gallery');
+  expect(multiple.pick).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(tree.toJSON())).toContain('up to 3');
+  await press('Dismiss warning');
+  expect(JSON.stringify(tree.toJSON())).not.toContain('up to 3');
+  await press('Remove attachment: Photo-2.jpg');
+  expect(tree.root.findAllByType(FastImage)).toHaveLength(2);
+  jest.mocked(multiple.pick).mockResolvedValueOnce([photos[1]]);
+  await press('Add attachment');
+  await press('File');
+  expect(multiple.pick).toHaveBeenLastCalledWith('file', 1);
+  const preview = tree.root.findAllByType(FastImage)[0];
+  await act(async () =>
+    tree.root.findByType(TextInput).props.onChangeText('My photos'),
+  );
+  expect(tree.root.findAllByType(FastImage)[0]).toBe(preview);
+  await press('Send chat message');
+  const drafts = jest.mocked(multiple.send).mock.calls.map(call => call[1]);
+  expect(drafts).toHaveLength(3);
+  expect(drafts.map(draft => draft.text)).toEqual(['My photos', '', '']);
+  expect(new Set(drafts.map(draft => draft.requestId)).size).toBe(3);
+  expect(tree.root.findAllByType(FastImage)).toHaveLength(0);
 });
 
 test('a received photo is visible inline and opens with zoom and a system viewer without a second download', async () => {
@@ -233,7 +295,7 @@ test('taking a photo pauses and restores the call camera and previews it before 
   await press('Add attachment');
   await press('Camera');
   expect(setEnabled.mock.calls).toEqual([[false], [true]]);
-  expect(client.pick).toHaveBeenCalledWith('camera');
+  expect(client.pick).toHaveBeenCalledWith('camera', 3);
   expect(tree.root.findByType(FastImage).props.source.uri).toBe(photo.uri);
   expect(client.send).not.toHaveBeenCalled();
 });
@@ -247,7 +309,7 @@ test('cancelling the file picker keeps an already selected photo and caption', a
   jest.mocked(client.pick).mockResolvedValueOnce(undefined);
   await press('Add attachment');
   await press('File');
-  expect(client.pick).toHaveBeenLastCalledWith('file');
+  expect(client.pick).toHaveBeenLastCalledWith('file', 2);
   expect(tree.root.findByType(FastImage).props.source.uri).toBe(photo.uri);
   expect(tree.root.findByType(TextInput).props.value).toBe('My photo');
   expect(client.send).not.toHaveBeenCalled();

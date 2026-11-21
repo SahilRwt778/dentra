@@ -1,6 +1,7 @@
 import { profilePhotoUrl } from '@/lib/profile-photo';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, UserRound, X } from 'lucide-react';
+import { ProfilePhotoPreview } from './profile-photo-preview';
 
 export function ProfilePhotoField({
   value,
@@ -33,7 +34,9 @@ export function ProfilePhotoField({
       <div className="profile-photo-row">
         <div className="profile-photo-preview">
           {image ? (
-            <img src={image} alt="Profile photo preview" />
+            <ProfilePhotoPreview uri={image} name="Your profile">
+              <img src={image} alt="Profile photo preview" />
+            </ProfilePhotoPreview>
           ) : (
             <UserRound size={36} />
           )}

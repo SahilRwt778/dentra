@@ -7,6 +7,7 @@ import {
 } from './consultation-workspace';
 import { useVideoCall } from './video-call-context';
 import { videoStatusText } from './video-status';
+import { DismissibleNotice } from './dismissible-notice';
 
 /** Register a visual home for the persistent room; this page never owns its connection. */
 export function VideoConsultation({
@@ -20,7 +21,7 @@ export function VideoConsultation({
   panels: ConsultationPanel[];
   actions: ReactNode;
 }) {
-  const { call, joining, notice, join, attach } = useVideoCall();
+  const { call, joining, notice, dismissNotice, join, attach } = useVideoCall();
   const {
     currentData: status,
     error,
@@ -101,9 +102,11 @@ export function VideoConsultation({
             </div>
           )}
           {notice && (
-            <p className="video-notice" role="status">
-              {notice}
-            </p>
+            <DismissibleNotice
+              className="video-notice"
+              message={notice}
+              onDismiss={dismissNotice}
+            />
           )}
         </div>
       }

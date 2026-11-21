@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatClient, ChatDraft, ChatMessage } from './chat-types';
+import { CHAT_ATTACHMENT_LIMIT } from './chat-types';
 
 function ordered(items: ChatMessage[]) {
   return [...new Map(items.map((item) => [item.id, item])).values()].sort(
@@ -121,28 +122,41 @@ export function useCallChat(
       clearTimeout(retry);
     };
   }, [appointmentId, client, visible, tail]);
-  async function send(draft: ChatDraft) {
+  /** Each upload keeps its own request ID, so retrying a partial batch cannot duplicate it. */
+  async function sendMany(drafts: ChatDraft[]) {
+    if (!drafts.length || drafts.length > CHAT_ATTACHMENT_LIMIT) {
+      setError(
+        `Choose up to ${CHAT_ATTACHMENT_LIMIT} attachments per message.`,
+      );
+      return 0;
+    }
     if (access.canSend === false) {
       setError('Messaging is closed. Your history is still available.');
-      return false;
+      return 0;
     }
     const abort = controller.current;
-    if (!abort || locked.current) return false;
+    if (!abort || locked.current) return 0;
     locked.current = true;
     setSending(true);
     setError(undefined);
+    let sent = 0;
     try {
-      const item = await client.send(appointmentId, draft, abort.signal);
-      if (abort.signal.aborted) return false;
-      merge([item]);
-      return true;
+      for (const draft of drafts) {
+        const item = await client.send(appointmentId, draft, abort.signal);
+        if (abort.signal.aborted) break;
+        merge([item]);
+        sent++;
+      }
     } catch (failure) {
       if (!abort.signal.aborted) setError(message(failure));
-      return false;
     } finally {
       locked.current = false;
       if (!abort.signal.aborted) setSending(false);
     }
+    return sent;
+  }
+  async function send(draft: ChatDraft) {
+    return (await sendMany([draft])) === 1;
   }
   async function older() {
     const abort = controller.current;
@@ -168,7 +182,9 @@ export function useCallChat(
     loading,
     sending,
     error,
+    dismissError: () => setError(undefined),
     send,
+    sendMany,
     older,
     canSend: !loading && access.canSend !== false,
     expiresAt: access.expiresAt,

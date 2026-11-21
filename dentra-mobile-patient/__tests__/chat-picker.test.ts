@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { pick } from '@react-native-documents/picker';
-import { pickChatFile } from '@dentra/video/src/pickChatFile';
+import { pickChatFile, pickChatFiles } from '@dentra/video/src/pickChatFile';
 
 const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
 const photo = {
@@ -65,6 +65,43 @@ test('gallery selection does not request camera access', async () => {
   });
   expect(PermissionsAndroid.request).not.toHaveBeenCalled();
   expect(launchCamera).not.toHaveBeenCalled();
+});
+
+test('gallery can choose three photos or only the remaining spaces in the draft', async () => {
+  jest
+    .mocked(launchImageLibrary)
+    .mockResolvedValueOnce({
+      assets: [
+        photo,
+        { ...photo, uri: 'file:///two.jpg' },
+        { ...photo, uri: 'file:///three.jpg' },
+      ],
+    });
+  expect(await pickChatFiles('photos')).toHaveLength(3);
+  expect(launchImageLibrary).toHaveBeenLastCalledWith(
+    expect.objectContaining({ selectionLimit: 3 }),
+  );
+  await pickChatFiles('photos', 2);
+  expect(launchImageLibrary).toHaveBeenLastCalledWith(
+    expect.objectContaining({ selectionLimit: 2 }),
+  );
+});
+
+test('document picker supports mixed attachments and rejects a selection over three', async () => {
+  const selected = [1, 2, 3].map(index => ({
+    uri: `content://report-${index}`,
+    name: `Report-${index}.pdf`,
+    type: 'application/pdf',
+    size: 128,
+    hasRequestedType: true,
+  }));
+  (pick as jest.Mock).mockResolvedValueOnce(selected);
+  expect(await pickChatFiles('file')).toHaveLength(3);
+  expect(pick).toHaveBeenLastCalledWith(
+    expect.objectContaining({ allowMultiSelection: true }),
+  );
+  (pick as jest.Mock).mockResolvedValueOnce([...selected, selected[0]]);
+  await expect(pickChatFiles('file')).rejects.toThrow('up to 3');
 });
 
 test('file selection accepts PDF reports and images using the existing MIME and size limits', async () => {
